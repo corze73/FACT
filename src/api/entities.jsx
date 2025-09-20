@@ -1,21 +1,18 @@
-import { supabase } from './supabaseClient';
+import { db, auth } from './databaseClient';
 
 // User entity with authentication
 export const User = {
   async me() {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { data: { user }, error } = await auth.getUser();
     if (error) throw error;
     if (!user) throw new Error('Not authenticated');
 
     // Get user profile data
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    const profiles = await db.select('profiles', { where: { id: user.id } });
+    let profile = profiles[0];
 
     // If profile doesn't exist, create a basic one
-    if (profileError && profileError.code === 'PGRST116') {
+    if (!profile) {
       const newProfile = {
         id: user.id,
         email: user.email,
@@ -27,21 +24,7 @@ export const User = {
         updated_at: new Date().toISOString()
       };
 
-      const { data: createdProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert(newProfile)
-        .select()
-        .single();
-
-      if (createError) throw createError;
-      
-      return {
-        id: user.id,
-        email: user.email,
-        ...createdProfile
-      };
-    } else if (profileError) {
-      throw profileError;
+      profile = await db.insert('profiles', newProfile);
     }
 
     return {
@@ -52,126 +35,104 @@ export const User = {
   },
 
   async list() {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1000);
-    
-    if (error) throw error;
+    const data = await db.select('profiles', {
+      orderBy: { created_at: 'desc' },
+      limit: 1000
+    });
     return data || [];
   },
 
   async get(id) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (error) throw error;
-    return data;
+    const profiles = await db.select('profiles', { where: { id } });
+    if (profiles.length === 0) {
+      throw new Error('Profile not found');
+    }
+    return profiles[0];
   },
 
   async filter(filters) {
-    let query = supabase.from('profiles').select('*');
+    const options = { where: {} };
     
     if (filters.id?.in) {
-      query = query.in('id', filters.id.in);
+      // Handle IN queries manually for now
+      const placeholders = filters.id.in.map((_, i) => `$${i + 1}`).join(', ');
+      const query = `SELECT * FROM profiles WHERE id IN (${placeholders})`;
+      return await db.query(query, filters.id.in);
     }
     
     if (filters.user_type) {
-      query = query.eq('user_type', filters.user_type);
+      options.where.user_type = filters.user_type;
     }
     
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    return await db.select('profiles', options);
   },
 
   async updateMyUserData(userData) {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError) throw authError;
-  if (!user) throw new Error('Not authenticated');
+    const { data: { user }, error: authError } = await auth.getUser();
+    if (authError) throw authError;
+    if (!user) throw new Error('Not authenticated');
 
-  // Prepare data for upsert, handling the 'location' field
-  const dataToUpsert = {
-    id: user.id,
-    email: user.email,
-    ...userData,
-    updated_at: new Date().toISOString()
-  };
+    // Prepare data for upsert, handling the 'location' field
+    const dataToUpsert = {
+      id: user.id,
+      email: user.email,
+      ...userData,
+      updated_at: new Date().toISOString()
+    };
 
-  // If location is an object, extract the address string
-  if (typeof dataToUpsert.location === 'object' && dataToUpsert.location !== null && 'address' in dataToUpsert.location) {
-    dataToUpsert.location = dataToUpsert.location.address;
-  }
+    // If location is an object, extract the address string
+    if (typeof dataToUpsert.location === 'object' && dataToUpsert.location !== null && 'address' in dataToUpsert.location) {
+      dataToUpsert.location = dataToUpsert.location.address;
+    }
 
-  const { error } = await supabase
-    .from('profiles')
-    .upsert(dataToUpsert);
-
-  if (error) throw error;
-},
+    await db.upsert('profiles', dataToUpsert);
+  },
 
   async login() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin
-      }
-    });
-    if (error) throw error;
+    // Mock login for now - you'll need to implement proper auth
+    auth.currentUser = {
+      id: '77a9682b-9f8d-4d2a-b9ff-77b9a0a0042d',
+      email: 'corze73@gmail.com'
+    };
   },
 
   async loginWithRedirect(redirectUrl) {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl
-      }
-    });
-    if (error) throw error;
+    await this.login();
+    if (redirectUrl) {
+      window.location.href = redirectUrl;
+    }
   },
 
   async signUpWithEmail(email, password, userData) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: userData.full_name
-        }
-      }
+    // Mock signup - you'll need to implement proper auth
+    const userId = crypto.randomUUID();
+    const user = { id: userId, email };
+    
+    // Create profile
+    const { password: _, ...profileData } = userData;
+    await this.updateMyUserData({
+      ...profileData,
+      email: user.email,
+      id: user.id
     });
     
-    if (error) throw error;
-    
-    // If user is created, also create/update their profile
-    if (data.user) {
-  const { password, ...profileData } = userData; // Exclude password from profileData
-  await this.updateMyUserData({
-    ...profileData, // Pass the filtered data
-    email: data.user.email,
-    id: data.user.id
-  });
-}
-    
-    return data;
+    return { user };
   },
 
   async signInWithEmail(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-    if (error) throw error;
-    return data;
+    // Mock signin - find user by email
+    const profiles = await db.select('profiles', { where: { email } });
+    if (profiles.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    const user = profiles[0];
+    auth.currentUser = { id: user.id, email: user.email };
+    return { user: auth.currentUser };
   },
 
   async logout() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    return await auth.signOut();
   },
 
   async isAuthenticated() {
@@ -187,62 +148,57 @@ export const User = {
 // Booking entity
 export const Booking = {
   async list(orderBy = '-created_at', limit = 100) {
-    let query = supabase.from('bookings').select('*');
+    const options = { limit };
     
     if (orderBy.startsWith('-')) {
-      query = query.order(orderBy.substring(1), { ascending: false });
+      options.orderBy = { [orderBy.substring(1)]: 'desc' };
     } else {
-      query = query.order(orderBy, { ascending: true });
+      options.orderBy = { [orderBy]: 'asc' };
     }
     
-    if (limit) {
-      query = query.limit(limit);
-    }
-    
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    return await db.select('bookings', options);
   },
 
   async filter(filters, orderBy = 'created_at') {
-    let query = supabase.from('bookings').select('*');
+    const where = {};
     
     if (filters.coach_id) {
-      query = query.eq('coach_id', filters.coach_id);
+      where.coach_id = filters.coach_id;
     }
     
     if (filters.client_id) {
-      query = query.eq('client_id', filters.client_id);
+      where.client_id = filters.client_id;
     }
     
+    // Handle OR conditions manually for now
     if (filters.OR) {
-      // Handle OR conditions for client_id or coach_id
       const orConditions = filters.OR;
       if (orConditions.length === 2 && orConditions[0].client_id && orConditions[1].coach_id) {
-        query = query.or(`client_id.eq.${orConditions[0].client_id},coach_id.eq.${orConditions[1].coach_id}`);
+        const query = `
+          SELECT * FROM bookings 
+          WHERE client_id = $1 OR coach_id = $2
+          ORDER BY ${orderBy.startsWith('-') ? orderBy.substring(1) + ' DESC' : orderBy + ' ASC'}
+        `;
+        return await db.query(query, [orConditions[0].client_id, orConditions[1].coach_id]);
       }
     }
     
+    const options = { where };
     if (orderBy.startsWith('-')) {
-      query = query.order(orderBy.substring(1), { ascending: false });
+      options.orderBy = { [orderBy.substring(1)]: 'desc' };
     } else {
-      query = query.order(orderBy, { ascending: true });
+      options.orderBy = { [orderBy]: 'asc' };
     }
     
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    return await db.select('bookings', options);
   },
 
   async get(id) {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (error) throw error;
-    return data;
+    const bookings = await db.select('bookings', { where: { id } });
+    if (bookings.length === 0) {
+      throw new Error('Booking not found');
+    }
+    return bookings[0];
   },
 
   async create(bookingData) {
@@ -254,122 +210,80 @@ export const Booking = {
       formattedDate = session_date.toISOString().split('T')[0];
     }
     
-    // Combine date and time to create start_time
-    const startDateTimeString = `${formattedDate}T${session_time}:00`; // e.g., "2025-09-10T09:00:00"
-    const startTime = new Date(startDateTimeString);
+    // Combine date and time to create booking_date
+    const startDateTimeString = `${formattedDate}T${session_time}:00`;
+    const bookingDate = new Date(startDateTimeString);
 
-    // Calculate end_time by adding duration minutes
-    const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
-
-    // Debug logging
     console.log('Creating booking with data:', {
       ...rest,
-      session_date: formattedDate,
-      session_time: session_time,
-      duration: duration,
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString()
+      booking_date: bookingDate.toISOString(),
+      duration: duration
     });
-    const { data, error } = await supabase
-      .from('bookings')
-      .insert({
-        ...rest, // other booking data
-        session_date: formattedDate, // Store the date separately
-        session_time: session_time, // Store the time separately
-        duration: duration, // Store duration
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
 
-    if (error) throw error;
-    console.log('Booking created successfully:', data);
-    return data;
+    return await db.insert('bookings', {
+      ...rest,
+      booking_date: bookingDate.toISOString(),
+      duration: duration,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
   },
 
   async update(id, updates) {
-    const { data, error } = await supabase
-      .from('bookings')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    return await db.update('bookings', id, {
+      ...updates,
+      updated_at: new Date().toISOString()
+    });
   }
 };
 
 // Message entity
 export const Message = {
   async filter(filters, orderBy = 'created_date') {
-    let query = supabase.from('messages').select('*');
+    const options = {};
     
     if (filters.booking_id) {
       if (typeof filters.booking_id === 'object' && filters.booking_id.in) {
-        query = query.in('booking_id', filters.booking_id.in);
+        // Handle IN queries manually
+        const placeholders = filters.booking_id.in.map((_, i) => `$${i + 1}`).join(', ');
+        const query = `
+          SELECT * FROM messages 
+          WHERE booking_id IN (${placeholders})
+          ORDER BY ${orderBy.startsWith('-') ? orderBy.substring(1) + ' DESC' : orderBy + ' ASC'}
+        `;
+        return await db.query(query, filters.booking_id.in);
       } else {
-        query = query.eq('booking_id', filters.booking_id);
+        options.where = { booking_id: filters.booking_id };
       }
     }
     
     if (orderBy.startsWith('-')) {
-      query = query.order(orderBy.substring(1), { ascending: false });
+      options.orderBy = { [orderBy.substring(1)]: 'desc' };
     } else {
-      query = query.order(orderBy, { ascending: true });
+      options.orderBy = { [orderBy]: 'asc' };
     }
     
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    return await db.select('messages', options);
   },
 
   async create(messageData) {
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
-        ...messageData,
-        created_date: new Date().toISOString()
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    return await db.insert('messages', {
+      ...messageData,
+      created_date: new Date().toISOString()
+    });
   },
 
   async update(id, updates) {
-    const { data, error } = await supabase
-      .from('messages')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    return await db.update('messages', id, updates);
   }
 };
 
 // Review entity
 export const Review = {
   async create(reviewData) {
-    const { data, error } = await supabase
-      .from('reviews')
-      .insert({
-        ...reviewData,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    return await db.insert('reviews', {
+      ...reviewData,
+      created_at: new Date().toISOString()
+    });
   }
 };

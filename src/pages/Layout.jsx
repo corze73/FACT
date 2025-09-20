@@ -6,7 +6,7 @@ import { createPageUrl } from "@/utils";
 import { User as UserIcon, Calendar, Search, MessageCircle, Settings, Star, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/api/supabaseClient";
+import { auth } from "@/api/databaseClient";
 import {
   Sidebar,
   SidebarContent,
@@ -35,162 +35,15 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     if (!currentUser) return;
 
-    console.log('Setting up real-time notifications for user:', currentUser.id);
+    console.log('Real-time notifications disabled during Neon migration');
+    
+    // TODO: Implement real-time notifications with WebSockets or polling
+    // when needed for Neon database
 
-    // Subscribe to new messages where current user is the receiver
-    const messagesChannel = supabase
-      .channel('messages-notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `receiver_id=eq.${currentUser.id}`
-        },
-        async (payload) => {
-          console.log('New message received:', payload);
-          
-          try {
-            // Get sender details
-            const { User } = await import("@/api/entities.jsx");
-            const sender = await User.get(payload.new.sender_id);
-            
-            // Show notification
-            toast({
-              title: `New message from ${sender.full_name}`,
-              description: payload.new.message.length > 50 
-                ? payload.new.message.substring(0, 50) + '...' 
-                : payload.new.message,
-              action: (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate(createPageUrl(`Conversation?booking_id=${payload.new.booking_id}`))}
-                >
-                  View
-                </Button>
-              ),
-            });
-          } catch (error) {
-            console.error('Error showing message notification:', error);
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to new bookings where current user is the coach
-    const bookingsChannel = supabase
-      .channel('bookings-notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'bookings',
-          filter: `coach_id=eq.${currentUser.id}`
-        },
-        async (payload) => {
-          console.log('New booking received:', payload);
-          
-          try {
-            // Get client details
-            const { User } = await import("@/api/entities.jsx");
-            const client = await User.get(payload.new.client_id);
-            
-            // Format service type
-            const serviceType = payload.new.service_type
-              .replace(/_/g, ' ')
-              .replace(/\b\w/g, l => l.toUpperCase());
-            
-            // Show notification
-            toast({
-              title: `New booking request from ${client.full_name}`,
-              description: `${serviceType} session on ${payload.new.session_date} at ${payload.new.session_time}`,
-              action: (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate(createPageUrl("CoachDashboard"))}
-                >
-                  View
-                </Button>
-              ),
-            });
-          } catch (error) {
-            console.error('Error showing booking notification:', error);
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to booking status updates for clients
-    const bookingUpdatesChannel = supabase
-      .channel('booking-updates-notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'bookings',
-          filter: `client_id=eq.${currentUser.id}`
-        },
-        async (payload) => {
-          console.log('Booking status updated:', payload);
-          
-          // Only show notification if status changed
-          if (payload.old.status !== payload.new.status) {
-            try {
-              // Get coach details
-              const { User } = await import("@/api/entities.jsx");
-              const coach = await User.get(payload.new.coach_id);
-              
-              const serviceType = payload.new.service_type
-                .replace(/_/g, ' ')
-                .replace(/\b\w/g, l => l.toUpperCase());
-              
-              let title = '';
-              let description = '';
-              
-              if (payload.new.status === 'confirmed') {
-                title = `Booking confirmed by ${coach.full_name}`;
-                description = `Your ${serviceType} session on ${payload.new.session_date} has been confirmed!`;
-              } else if (payload.new.status === 'cancelled') {
-                title = `Booking declined by ${coach.full_name}`;
-                description = payload.new.decline_reason || `Your ${serviceType} session request was declined.`;
-              }
-              
-              if (title) {
-                toast({
-                  title,
-                  description,
-                  action: (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => navigate(createPageUrl("MyBookings"))}
-                    >
-                      View
-                    </Button>
-                  ),
-                });
-              }
-            } catch (error) {
-              console.error('Error showing booking update notification:', error);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    // Cleanup subscriptions on unmount or user change
     return () => {
-      console.log('Cleaning up real-time subscriptions');
-      supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(bookingsChannel);
-      supabase.removeChannel(bookingUpdatesChannel);
+      // Cleanup would go here
     };
-  }, [currentUser, navigate, toast]);
+  }, [currentUser]);
   const loadCurrentUser = async () => {
     try {
       const { User } = await import("@/api/entities.jsx");
