@@ -1,0 +1,134 @@
+import Layout from "./Layout.jsx";
+
+import Landing from "./Landing";
+
+import Register from "./Register";
+
+import FindCoaches from "./FindCoaches";
+
+import MyBookings from "./MyBookings";
+
+import CoachDashboard from "./CoachDashboard";
+
+import UserProfile from "./UserProfile";
+
+import CoachProfile from "./CoachProfile";
+
+import Messages from "./Messages";
+
+import Conversation from "./Conversation";
+
+import AdminDashboard from "./AdminDashboard";
+
+import AdminUsers from "./AdminUsers";
+
+import AdminBookings from "./AdminBookings";
+
+import PrivacyPolicy from "./PrivacyPolicy";
+
+import Terms from "./Terms";
+
+import DataDiagnostic from "../components/DataDiagnostic";
+import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+
+const PAGES = {
+    
+    Landing: Landing,
+    
+    Register: Register,
+    
+    FindCoaches: FindCoaches,
+    
+    MyBookings: MyBookings,
+    
+    CoachDashboard: CoachDashboard,
+    
+    UserProfile: UserProfile,
+    
+    CoachProfile: CoachProfile,
+    
+    Messages: Messages,
+    
+    Conversation: Conversation,
+    
+    AdminDashboard: AdminDashboard,
+    
+    AdminUsers: AdminUsers,
+    
+    AdminBookings: AdminBookings,
+    
+    PrivacyPolicy: PrivacyPolicy,
+    
+    Terms: Terms,
+    
+    DataDiagnostic: DataDiagnostic,
+    
+}
+
+function _getCurrentPage(url) {
+    if (url.endsWith('/')) {
+        url = url.slice(0, -1);
+    }
+    let urlLastPart = url.split('/').pop();
+    if (urlLastPart.includes('?')) {
+        urlLastPart = urlLastPart.split('?')[0];
+    }
+
+    const pageName = Object.keys(PAGES).find(page => page.toLowerCase() === urlLastPart.toLowerCase());
+    return pageName || Object.keys(PAGES)[0];
+}
+
+// Create a wrapper component that uses useLocation inside the Router context
+function PagesContent() {
+    const location = useLocation();
+    const currentPage = _getCurrentPage(location.pathname);
+    
+    return (
+        <Layout currentPageName={currentPage}>
+            <Routes>            
+                
+                    <Route path="/" element={<Landing />} />
+                
+                
+                <Route path="/Landing" element={<Landing />} />
+                
+                <Route path="/Register" element={<Register />} />
+                
+                <Route path="/FindCoaches" element={<FindCoaches />} />
+                
+                <Route path="/MyBookings" element={<MyBookings />} />
+                
+                <Route path="/CoachDashboard" element={<CoachDashboard />} />
+                
+                <Route path="/UserProfile" element={<UserProfile />} />
+                
+                <Route path="/CoachProfile" element={<CoachProfile />} />
+                
+                <Route path="/Messages" element={<Messages />} />
+                
+                <Route path="/Conversation" element={<Conversation />} />
+                
+                <Route path="/AdminDashboard" element={<AdminDashboard />} />
+                
+                <Route path="/AdminUsers" element={<AdminUsers />} />
+                
+                <Route path="/AdminBookings" element={<AdminBookings />} />
+                
+                <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
+                
+                <Route path="/Terms" element={<Terms />} />
+                
+                <Route path="/DataDiagnostic" element={<DataDiagnostic />} />
+                
+            </Routes>
+        </Layout>
+    );
+}
+
+export default function Pages() {
+    return (
+        <Router>
+            <PagesContent />
+        </Router>
+    );
+}
