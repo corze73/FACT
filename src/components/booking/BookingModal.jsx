@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,6 +90,9 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
               </p>
             </div>
           </DialogTitle>
+          <DialogDescription>
+            Fill out the form below to book a coaching session with {coach.full_name}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -197,7 +200,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
               <SelectContent>
                 <SelectItem value="online">Online Session</SelectItem>
                 <SelectItem value="client_home">My Home</SelectItem>
-                <SelectItem value="coach_location">Coach's Location</SelectItem>
+                <SelectItem value="coach_location">Coach&apos;s Location</SelectItem>
                 <SelectItem value="gym">Gym/Fitness Center</SelectItem>
                 <SelectItem value="outdoor">Outdoor Location</SelectItem>
               </SelectContent>

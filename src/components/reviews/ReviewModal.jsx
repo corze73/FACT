@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
@@ -43,6 +43,9 @@ export default function ReviewModal({ isOpen, onClose, booking, onSubmit, curren
           <DialogTitle>
             Rate Your {isClient ? "Coach" : "Client"}
           </DialogTitle>
+          <DialogDescription>
+            Share your experience and help others in the football community
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,6 +74,12 @@ export default function LoginOptionsModal({
             )}
             <span>Login to FACT</span>
           </DialogTitle>
+          <DialogDescription>
+            {view === 'options' 
+              ? 'Choose your preferred login method to access your account'
+              : 'Enter your email and password to sign in to your account'
+            }
+          </DialogDescription>
         </DialogHeader>
 
         <AnimatePresence mode="wait">
