@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { User } from '@/api/entities.jsx';
 
 export default function UserStatus() {
@@ -49,9 +49,9 @@ export default function UserStatus() {
             <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
               <p className="text-yellow-800 font-medium">⚠️ Admin access required</p>
               <p className="text-yellow-600 text-sm">
-                Your role is "{currentUser.role}" but you need "admin" role to access the admin dashboard.
+                Your role is &ldquo;{currentUser.role}&rdquo; but you need &ldquo;admin&rdquo; role to access the admin dashboard.
                 <br />
-                Update your role in database: profiles table → your record → set role = "admin"
+                Update your role in database: profiles table → your record → set role = &ldquo;admin&rdquo;
               </p>
             </div>
           )}
@@ -66,7 +66,7 @@ export default function UserStatus() {
             </p>
             <ul className="list-disc list-inside text-red-600 text-sm mt-1">
               <li>Go to <a href="/" className="underline">home page</a></li>
-              <li>Click "Login" or "Email Login"</li>
+              <li>Click &ldquo;Login&rdquo; or &ldquo;Email Login&rdquo;</li>
               <li>Sign in with your account</li>
             </ul>
           </div>
