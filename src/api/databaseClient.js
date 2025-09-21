@@ -14,7 +14,7 @@ export const db = {
   // Execute raw SQL query
   async query(text, params = []) {
     try {
-      return await sql(text, params);
+      return await sql.query(text, params);
     } catch (error) {
       console.error('Database query error:', error);
       throw error;
