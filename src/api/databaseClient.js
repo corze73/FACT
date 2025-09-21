@@ -127,15 +127,16 @@ export const auth = {
   currentUser: null,
   
   async getUser() {
-    // For now, return a mock user - you'll need to implement proper auth
+    // Return current user only if actually logged in
+    if (this.currentUser) {
+      return {
+        data: { user: this.currentUser },
+        error: null
+      };
+    }
     return {
-      data: {
-        user: this.currentUser || {
-          id: '77a9682b-9f8d-4d2a-b9ff-77b9a0a0042d', // Your admin ID from the data
-          email: 'corze73@gmail.com'
-        }
-      },
-      error: null
+      data: { user: null },
+      error: { message: 'Not authenticated' }
     };
   },
 

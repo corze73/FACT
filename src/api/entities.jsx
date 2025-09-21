@@ -89,11 +89,9 @@ export const User = {
   },
 
   async login() {
-    // Mock login for now - you'll need to implement proper auth
-    auth.currentUser = {
-      id: '77a9682b-9f8d-4d2a-b9ff-77b9a0a0042d',
-      email: 'corze73@gmail.com'
-    };
+    // Mock login - you'll need to implement proper Google OAuth
+    // For now, this simulates a Google login process
+    throw new Error('Google authentication not implemented yet. Please use email login.');
   },
 
   async loginWithRedirect(redirectUrl) {
@@ -108,8 +106,9 @@ export const User = {
     const userId = crypto.randomUUID();
     const user = { id: userId, email };
     
-    // Create profile
-    const { password: _, ...profileData } = userData;
+    // Create profile (password handling would be implemented in production)
+    const profileData = { ...userData };
+    delete profileData.password; // Remove password from profile data
     await this.updateMyUserData({
       ...profileData,
       email: user.email,
@@ -120,12 +119,19 @@ export const User = {
   },
 
   async signInWithEmail(email, password) {
-    // Mock signin - find user by email
-    const profiles = await db.select('profiles', { where: { email } });
-    if (profiles.length === 0) {
-      throw new Error('User not found');
+    // Basic email validation
+    if (!email || !password) {
+      throw new Error('Email and password are required');
     }
     
+    // Find user by email
+    const profiles = await db.select('profiles', { where: { email } });
+    if (profiles.length === 0) {
+      throw new Error('Invalid email or password');
+    }
+    
+    // For now, accept any password for existing users
+    // In production, you'd validate against a hashed password
     const user = profiles[0];
     auth.currentUser = { id: user.id, email: user.email };
     return { user: auth.currentUser };
@@ -139,7 +145,7 @@ export const User = {
     try {
       await this.me();
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
