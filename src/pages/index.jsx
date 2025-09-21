@@ -91,34 +91,49 @@ function PagesContent() {
                 
                 
                 <Route path="/Landing" element={<Landing />} />
+                <Route path="/landing" element={<Landing />} />
                 
                 <Route path="/Register" element={<Register />} />
+                <Route path="/register" element={<Register />} />
                 
                 <Route path="/FindCoaches" element={<FindCoaches />} />
+                <Route path="/findcoaches" element={<FindCoaches />} />
                 
                 <Route path="/MyBookings" element={<MyBookings />} />
+                <Route path="/mybookings" element={<MyBookings />} />
                 
                 <Route path="/CoachDashboard" element={<CoachDashboard />} />
+                <Route path="/coachdashboard" element={<CoachDashboard />} />
                 
                 <Route path="/UserProfile" element={<UserProfile />} />
+                <Route path="/userprofile" element={<UserProfile />} />
                 
                 <Route path="/CoachProfile" element={<CoachProfile />} />
+                <Route path="/coachprofile" element={<CoachProfile />} />
                 
                 <Route path="/Messages" element={<Messages />} />
+                <Route path="/messages" element={<Messages />} />
                 
                 <Route path="/Conversation" element={<Conversation />} />
+                <Route path="/conversation" element={<Conversation />} />
                 
                 <Route path="/AdminDashboard" element={<AdminDashboard />} />
+                <Route path="/admindashboard" element={<AdminDashboard />} />
                 
                 <Route path="/AdminUsers" element={<AdminUsers />} />
+                <Route path="/adminusers" element={<AdminUsers />} />
                 
                 <Route path="/AdminBookings" element={<AdminBookings />} />
+                <Route path="/adminbookings" element={<AdminBookings />} />
                 
                 <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
+                <Route path="/privacypolicy" element={<PrivacyPolicy />} />
                 
                 <Route path="/Terms" element={<Terms />} />
+                <Route path="/terms" element={<Terms />} />
                 
                 <Route path="/DataDiagnostic" element={<DataDiagnostic />} />
+                <Route path="/datadiagnostic" element={<DataDiagnostic />} />
                 
             </Routes>
         </Layout>
