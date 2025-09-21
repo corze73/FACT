@@ -51,7 +51,7 @@ export default function UserStatus() {
               <p className="text-yellow-600 text-sm">
                 Your role is "{currentUser.role}" but you need "admin" role to access the admin dashboard.
                 <br />
-                Update your role in Supabase: profiles table → your record → set role = "admin"
+                Update your role in database: profiles table → your record → set role = "admin"
               </p>
             </div>
           )}

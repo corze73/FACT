@@ -122,7 +122,7 @@ export const db = {
   }
 };
 
-// Simple auth simulation (since we don't have Supabase auth)
+// Simple auth simulation (custom authentication for Neon)
 export const auth = {
   currentUser: null,
   
