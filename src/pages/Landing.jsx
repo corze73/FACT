@@ -7,7 +7,6 @@ import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
 import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
-import UserSelectionModal from "@/components/auth/UserSelectionModal";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -25,27 +24,12 @@ export default function Landing() {
       // After auth, come back to Landing with a flag so we can redirect once
       await User.loginWithRedirect(window.location.origin + createPageUrl("Landing?next=dashboard"));
     } catch (error) {
-      if (error.message === 'GOOGLE_LOGIN_REQUESTED') {
-        // Show user selection modal instead of actual Google OAuth
-        setShowUserSelection(true);
-      } else {
-        console.log("Login cancelled or failed");
-      }
+      console.error("Google login error:", error);
+      alert(`Login failed: ${error.message}`);
     }
   };
 
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showUserSelection, setShowUserSelection] = useState(false);
-
-  const handleUserSelect = async (userId) => {
-    const { User } = await import("@/api/entities");
-    await User.loginAsUser(userId);
-    
-    // Wait a moment for session to establish, then redirect
-    setTimeout(() => {
-      window.location.href = createPageUrl("Landing?next=dashboard");
-    }, 500);
-  };
 
   const handleEmailLogin = async (email, password) => {
     try {
@@ -349,13 +333,6 @@ export default function Landing() {
         onClose={() => setShowLoginModal(false)}
         onGoogleLogin={handleLogin}
         onEmailLogin={handleEmailLogin}
-      />
-
-      {/* User Selection Modal for Demo Google Login */}
-      <UserSelectionModal
-        isOpen={showUserSelection}
-        onClose={() => setShowUserSelection(false)}
-        onUserSelect={handleUserSelect}
       />
     </div>
   );

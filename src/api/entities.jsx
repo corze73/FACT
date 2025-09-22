@@ -89,21 +89,74 @@ export const User = {
   },
 
   async login() {
-    // For now, this will trigger a user selection modal in the UI
-    // In production, implement proper Google OAuth
-    throw new Error('GOOGLE_LOGIN_REQUESTED');
-  },
-
-  async loginAsUser(userId) {
-    // Find user by ID and log them in
-    const profiles = await db.select('profiles', { where: { id: userId } });
-    if (profiles.length === 0) {
-      throw new Error('User not found');
+    // Check if Google Client ID is configured
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      throw new Error('Google OAuth not configured. Please set VITE_GOOGLE_CLIENT_ID in your .env file. See GOOGLE_OAUTH_SETUP.md for instructions.');
     }
-    
-    const user = profiles[0];
-    await auth.setCurrentUser({ id: user.id, email: user.email });
-    return { user: auth.currentUser };
+
+    // Initialize Google OAuth if not already done
+    if (!window.google) {
+      throw new Error('Google Identity Services not loaded. Please refresh the page.');
+    }
+
+    return new Promise((resolve, reject) => {
+      window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'email profile',
+        callback: async (response) => {
+          if (response.error) {
+            reject(new Error(`Google OAuth error: ${response.error}`));
+            return;
+          }
+
+          try {
+            // Get user info from Google
+            const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+              headers: { Authorization: `Bearer ${response.access_token}` }
+            });
+            
+            if (!userInfoResponse.ok) {
+              throw new Error('Failed to get user info from Google');
+            }
+
+            const googleUser = await userInfoResponse.json();
+            
+            // Check if user exists in our database
+            const existingUsers = await db.select('profiles', { where: { email: googleUser.email } });
+            
+            let user;
+            if (existingUsers.length > 0) {
+              // User exists, log them in
+              user = existingUsers[0];
+            } else {
+              // Create new user
+              const newUser = {
+                id: crypto.randomUUID(),
+                email: googleUser.email,
+                first_name: googleUser.given_name || '',
+                last_name: googleUser.family_name || '',
+                full_name: googleUser.name || '',
+                user_type: 'client', // Default for new Google users
+                role: 'user',
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              };
+              
+              await db.insert('profiles', newUser);
+              user = newUser;
+            }
+
+            // Set as current user
+            await auth.setCurrentUser({ id: user.id, email: user.email });
+            resolve({ user: auth.currentUser });
+          } catch (error) {
+            reject(error);
+          }
+        }
+      }).requestAccessToken();
+    });
   },
 
   async loginWithRedirect(redirectUrl) {
