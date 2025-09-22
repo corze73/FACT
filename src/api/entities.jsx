@@ -133,7 +133,7 @@ export const User = {
     // For now, accept any password for existing users
     // In production, you'd validate against a hashed password
     const user = profiles[0];
-    auth.currentUser = { id: user.id, email: user.email };
+    await auth.setCurrentUser({ id: user.id, email: user.email });
     return { user: auth.currentUser };
   },
 

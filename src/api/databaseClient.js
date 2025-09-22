@@ -11,6 +11,15 @@ export const sql = neon(databaseUrl);
 
 // Helper function to execute queries
 export const db = {
+  // Set current user context for RLS
+  async setUserContext(userId) {
+    if (userId) {
+      await sql.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
+    } else {
+      await sql.query(`SELECT set_config('app.current_user_id', '', true)`);
+    }
+  },
+
   // Execute raw SQL query
   async query(text, params = []) {
     try {
@@ -126,6 +135,16 @@ export const db = {
 export const auth = {
   currentUser: null,
   
+  async setCurrentUser(user) {
+    this.currentUser = user;
+    // Set user context for RLS
+    if (user) {
+      await db.setUserContext(user.id);
+    } else {
+      await db.setUserContext(null);
+    }
+  },
+  
   async getUser() {
     // Return current user only if actually logged in
     if (this.currentUser) {
@@ -141,7 +160,7 @@ export const auth = {
   },
 
   async signOut() {
-    this.currentUser = null;
+    await this.setCurrentUser(null);
     return { error: null };
   }
 };
