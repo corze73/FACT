@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     status TEXT CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')) DEFAULT 'pending',
     booking_date TIMESTAMPTZ NOT NULL,
     duration INTEGER NOT NULL, -- in minutes
+    service_type TEXT, -- type of coaching service
     location TEXT,
     notes TEXT,
     price DECIMAL(10,2),
