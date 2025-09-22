@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, addDays, isToday, isBefore } from "date-fns";
-import { CalendarIcon, Clock, MapPin, User, CreditCard } from "lucide-react";
+import { CalendarIcon, Clock, CreditCard } from "lucide-react";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   const [bookingData, setBookingData] = useState({

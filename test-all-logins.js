@@ -119,7 +119,7 @@ const testAllUserLogins = async () => {
         
         // Test login
         console.log(`   ⏳ Attempting login...`);
-        const loginResult = await testUserEntity.signInWithEmail(user.email, 'testpassword');
+        await testUserEntity.signInWithEmail(user.email, 'testpassword');
         console.log(`   ✅ Login successful`);
         
         // Test getting user profile
