@@ -273,7 +273,7 @@ export const Booking = {
   },
 
   async create(bookingData) {
-    const { session_date, session_time, duration, ...rest } = bookingData;
+    const { session_date, session_time, duration, location, ...rest } = bookingData;
 
     // Ensure session_date is in YYYY-MM-DD format
     let formattedDate = session_date;
@@ -285,19 +285,24 @@ export const Booking = {
     const startDateTimeString = `${formattedDate}T${session_time}:00`;
     const bookingDate = new Date(startDateTimeString);
 
-    console.log('Creating booking with data:', {
-      ...rest,
-      booking_date: bookingDate.toISOString(),
-      duration: duration
-    });
-
-    return await db.insert('bookings', {
+    // Handle location object - flatten it for database storage
+    const locationData = location || {};
+    const flattenedData = {
       ...rest,
       booking_date: bookingDate.toISOString(),
       duration: duration,
+      location_type: locationData.type || 'online',
+      location_address: locationData.address || null,
+      location_notes: locationData.notes || null,
+      // Keep the location field for backward compatibility
+      location: locationData.type === 'online' ? 'Online Session' : (locationData.address || 'In-person'),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    });
+    };
+
+    console.log('Creating booking with data:', flattenedData);
+
+    return await db.insert('bookings', flattenedData);
   },
 
   async update(id, updates) {
