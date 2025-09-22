@@ -280,7 +280,6 @@ export const Booking = {
     if (session_date instanceof Date) {
       formattedDate = session_date.toISOString().split('T')[0];
     }
-    
     // Combine date and time to create booking_date
     const startDateTimeString = `${formattedDate}T${session_time}:00`;
     const bookingDate = new Date(startDateTimeString);
@@ -294,33 +293,50 @@ export const Booking = {
       location_type: locationData.type || 'online',
       location_address: locationData.address || null,
       location_notes: locationData.notes || null,
-      // Keep the location field for backward compatibility
       location: locationData.type === 'online' ? 'Online Session' : (locationData.address || 'In-person'),
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      status: rest.status || 'pending',
+      session_completed_by_user: false,
+      session_completed_by_coach: false,
+      cancellation_reason: null
     };
-
-    console.log('Creating booking with data:', flattenedData);
-
     return await db.insert('bookings', flattenedData);
   },
 
   async update(id, updates) {
-    return await db.update('bookings', id, {
+    // Special handling for cancellation, completion, and acceptance
+    const updateData = {
       ...updates,
       updated_at: new Date().toISOString()
-    });
-  }
+    };
+    if (updates.accept) {
+      updateData.status = 'confirmed';
+    }
+    if (updates.cancel) {
+      updateData.status = 'cancelled';
+      updateData.cancellation_reason = updates.cancellation_reason || null;
+    }
+    if (updates.complete_by_user) {
+      updateData.session_completed_by_user = true;
+    }
+    if (updates.complete_by_coach) {
+      updateData.session_completed_by_coach = true;
+    }
+    // If both user and coach have confirmed, mark as completed for payment
+    if (updateData.session_completed_by_user && updateData.session_completed_by_coach) {
+      updateData.status = 'completed';
+    }
+    return await db.update('bookings', id, updateData);
+  },
 };
 
 // Message entity
 export const Message = {
   async filter(filters, orderBy = 'created_date') {
     const options = {};
-    
     if (filters.booking_id) {
       if (typeof filters.booking_id === 'object' && filters.booking_id.in) {
-        // Handle IN queries manually
         const placeholders = filters.booking_id.in.map((_, i) => `$${i + 1}`).join(', ');
         const query = `
           SELECT * FROM messages 
@@ -332,17 +348,16 @@ export const Message = {
         options.where = { booking_id: filters.booking_id };
       }
     }
-    
     if (orderBy.startsWith('-')) {
       options.orderBy = { [orderBy.substring(1)]: 'desc' };
     } else {
       options.orderBy = { [orderBy]: 'asc' };
     }
-    
     return await db.select('messages', options);
   },
 
   async create(messageData) {
+    // booking_id is now supported
     return await db.insert('messages', {
       ...messageData,
       created_date: new Date().toISOString()
@@ -357,6 +372,17 @@ export const Message = {
 // Review entity
 export const Review = {
   async create(reviewData) {
+    // Prevent duplicate reviews for the same booking/reviewer/reviewee
+    const existing = await db.select('reviews', {
+      where: {
+        booking_id: reviewData.booking_id,
+        reviewer_id: reviewData.reviewer_id,
+        reviewee_id: reviewData.reviewee_id
+      }
+    });
+    if (existing.length > 0) {
+      throw new Error('Review already exists for this session and reviewer/reviewee.');
+    }
     return await db.insert('reviews', {
       ...reviewData,
       created_at: new Date().toISOString()

@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID REFERENCES profiles(id),
     receiver_id UUID REFERENCES profiles(id),
+    booking_id UUID REFERENCES bookings(id),
     content TEXT NOT NULL,
     created_date TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
