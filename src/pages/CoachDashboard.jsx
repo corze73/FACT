@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
+import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { Calendar, Clock, MapPin, CheckCircle, XCircle, AlertTriangle, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, isValid } from "date-fns";
 import DeclineBookingModal from "../components/booking/DeclineBookingModal";
@@ -24,6 +26,7 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
 };
 
 export default function CoachDashboard() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [clients, setClients] = useState({});
   const [activeTab, setActiveTab] = useState("pending");
@@ -95,6 +98,10 @@ export default function CoachDashboard() {
     }
   };
 
+  const handleMessageClick = (bookingId) => {
+    navigate(createPageUrl(`Conversation?booking_id=${bookingId}`));
+  };
+
   const getStatusColor = (status) => {
     return {
       pending: "bg-yellow-100 text-yellow-800",
@@ -131,12 +138,22 @@ export default function CoachDashboard() {
             <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-slate-500" /><span>{booking.session_time} ({booking.duration} mins)</span></div>
             <div className="flex items-center gap-2 col-span-2"><MapPin className="w-4 h-4 text-slate-500" /><span>{booking.location?.type || 'Online'} - {booking.location?.address}</span></div>
           </div>
-          {booking.status === 'pending' && (
-            <div className="flex gap-2 flex-wrap">
-              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleAcceptBooking(booking.id)}><CheckCircle className="w-4 h-4 mr-2" />Accept</Button>
-              <Button variant="outline" size="sm" onClick={() => setBookingToDecline(booking)}><XCircle className="w-4 h-4 mr-2" />Decline</Button>
-            </div>
-          )}
+          <div className="flex gap-2 flex-wrap">
+            {booking.status === 'pending' && (
+              <>
+                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleAcceptBooking(booking.id)}><CheckCircle className="w-4 h-4 mr-2" />Accept</Button>
+                <Button variant="outline" size="sm" onClick={() => setBookingToDecline(booking)}><XCircle className="w-4 h-4 mr-2" />Decline</Button>
+              </>
+            )}
+            {booking.status === 'confirmed' && (
+              <Button variant="outline" size="sm" onClick={() => setBookingToDecline(booking)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                <XCircle className="w-4 h-4 mr-2" />Cancel Booking
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => handleMessageClick(booking.id)}>
+              <MessageCircle className="w-4 h-4 mr-2" />Message Client
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

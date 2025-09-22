@@ -321,6 +321,18 @@ export default function MyBookings() {
                                   </Button>
                                 </>
                               )}
+                              
+                              {booking.status === "confirmed" && !isClient && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => setBookingToCancel(booking)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Cancel as Coach
+                                </Button>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
