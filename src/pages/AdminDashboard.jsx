@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { User } from "@/api/entities.jsx";
@@ -9,7 +9,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Calendar, MessageCircle, Star, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+
+// Utility function to safely parse dates
+const safeParseDate = (dateValue) => {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  return isValid(date) ? date : null;
+};
+
+// Utility function to format dates safely
+const formatSafeDate = (dateValue, formatStr = 'PPP') => {
+  const date = safeParseDate(dateValue);
+  return date ? format(date, formatStr) : 'Date TBD';
+};
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -146,7 +159,7 @@ export default function AdminDashboard() {
                           {client?.full_name || "Client"} → {coach?.full_name || "Coach"}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">
-                          {format(new Date(b.session_date), "PPP")} • {b.session_time} • £{b.total_price || b.price}
+                          {formatSafeDate(b.session_date)} • {b.session_time} • £{b.total_price || b.price}
                         </p>
                       </div>
                       <div className="mt-2 md:mt-0 flex items-center gap-2">

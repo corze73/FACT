@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
 import { Review } from "@/api/entities.jsx";
@@ -10,7 +10,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Clock, MapPin, Star, MessageCircle, CheckCircle } from "lucide-react";
 import { XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+
+// Utility function to safely parse dates
+const safeParseDate = (dateValue) => {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  return isValid(date) ? date : null;
+};
+
+// Utility function to format dates safely
+const formatSafeDate = (dateValue, formatStr = 'PPP') => {
+  const date = safeParseDate(dateValue);
+  return date ? format(date, formatStr) : 'Date TBD';
+};
 import ReviewModal from "../components/reviews/ReviewModal";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -65,7 +78,11 @@ export default function MyBookings() {
       });
       const allBookings = Array.from(allBookingsMap.values());
       
-      setBookings(allBookings.sort((a,b) => new Date(b.session_date) - new Date(a.session_date)));
+      setBookings(allBookings.sort((a,b) => {
+        const dateA = safeParseDate(a.session_date) || new Date('1900-01-01');
+        const dateB = safeParseDate(b.session_date) || new Date('1900-01-01');
+        return dateB - dateA;
+      }));
 
       const partnerIds = [...new Set(allBookings.map(b => 
           user.id === b.client_id ? b.coach_id : b.client_id
@@ -108,7 +125,7 @@ export default function MyBookings() {
   const getFilteredBookings = (tab) => {
     const now = new Date();
     return bookings.filter(booking => {
-      const bookingDate = new Date(booking.session_date);
+      const bookingDate = safeParseDate(booking.session_date) || new Date('1900-01-01');
       
       switch (tab) {
         case "upcoming":
@@ -237,7 +254,7 @@ export default function MyBookings() {
                             <div className="grid md:grid-cols-2 gap-4 mb-4">
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-slate-500" />
-                                <span>{format(new Date(booking.session_date), 'PPP')}</span>
+                                <span>{formatSafeDate(booking.session_date)}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-slate-500" />

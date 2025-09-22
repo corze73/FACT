@@ -1,14 +1,27 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, Users, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { Calendar, Clock, MapPin, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import DeclineBookingModal from "../components/booking/DeclineBookingModal";
+
+// Utility function to safely parse dates
+const safeParseDate = (dateValue) => {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  return isValid(date) ? date : null;
+};
+
+// Utility function to format dates safely
+const formatSafeDate = (dateValue, formatStr = 'PPP') => {
+  const date = safeParseDate(dateValue);
+  return date ? format(date, formatStr) : 'Date TBD';
+};
 
 export default function CoachDashboard() {
   const [bookings, setBookings] = useState([]);
@@ -40,7 +53,11 @@ export default function CoachDashboard() {
       
       console.log('Coach bookings filtered:', coachBookings.length, coachBookings);
       
-      setBookings(coachBookings.sort((a, b) => new Date(a.session_date) - new Date(b.session_date)));
+      setBookings(coachBookings.sort((a, b) => {
+        const dateA = safeParseDate(a.session_date) || new Date('2099-01-01');
+        const dateB = safeParseDate(b.session_date) || new Date('2099-01-01');
+        return dateA - dateB;
+      }));
       
       const clientIds = [...new Set(coachBookings.map(b => b.client_id).filter(Boolean))];
       console.log('Client IDs to fetch:', clientIds);
@@ -110,7 +127,7 @@ export default function CoachDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4 mb-4 text-sm">
-            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-slate-500" /><span>{format(new Date(booking.session_date), 'PPP')}</span></div>
+            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-slate-500" /><span>{formatSafeDate(booking.session_date)}</span></div>
             <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-slate-500" /><span>{booking.session_time} ({booking.duration} mins)</span></div>
             <div className="flex items-center gap-2 col-span-2"><MapPin className="w-4 h-4 text-slate-500" /><span>{booking.location?.type || 'Online'} - {booking.location?.address}</span></div>
           </div>

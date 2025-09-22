@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Booking } from "@/api/entities.jsx";
 import { User } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,20 @@ import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+
+// Utility function to safely parse dates
+const safeParseDate = (dateValue) => {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  return isValid(date) ? date : null;
+};
+
+// Utility function to format dates safely
+const formatSafeDate = (dateValue, formatStr = 'PPP') => {
+  const date = safeParseDate(dateValue);
+  return date ? format(date, formatStr) : 'Date TBD';
+};
 
 export default function AdminBookings() {
   const navigate = useNavigate();
@@ -78,7 +91,7 @@ export default function AdminBookings() {
                       <p className="font-medium text-slate-900">{b.service_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
                       <p className="text-sm text-slate-600">{client?.full_name || "Client"} → {coach?.full_name || "Coach"}</p>
                       <p className="text-xs text-slate-500 mt-1">
-                        {format(new Date(b.session_date), "PPP")} • {b.session_time} • £{b.total_price || b.price}
+                        {formatSafeDate(b.session_date)} • {b.session_time} • £{b.total_price || b.price}
                       </p>
                     </div>
                     <div className="mt-2 md:mt-0 flex items-center gap-2">
