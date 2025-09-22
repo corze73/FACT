@@ -15,7 +15,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-xl font-semibold text-slate-900 mb-2">Who we are</h2>
             <p className="text-slate-700">
-              FACT: Find a Coach Today ("we", "us", "our") provides a platform connecting clients and coaches for football coaching sessions.
+              FACT: Find a Coach Today (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) provides a platform connecting clients and coaches for football coaching sessions.
               We act as the data controller for information you provide directly to our platform. For questions, contact:
               <span className="font-medium"> privacy@findacoachtoday.com</span>.
             </p>

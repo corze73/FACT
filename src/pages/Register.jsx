@@ -194,7 +194,7 @@ export default function Register() {
               <div className="flex flex-col items-center gap-2">
                 <User className="w-5 h-5" />
                 <span className="text-sm md:text-base leading-tight">
-                  I'm looking for a coach
+                  I&apos;m looking for a coach
                 </span>
               </div>
             </Button>
@@ -218,7 +218,7 @@ export default function Register() {
               <div className="flex flex-col items-center gap-2">
                 <UserCheck className="w-5 h-5" />
                 <span className="text-sm md:text-base leading-tight">
-                  I'm a coach
+                  I&apos;m a coach
                 </span>
               </div>
             </Button>
