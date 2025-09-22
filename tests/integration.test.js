@@ -5,7 +5,6 @@ async function runAllTests() {
 
   // 1. User profile update
   try {
-    const user = await User.me();
     await User.updateMyUserData({ full_name: 'Test User', bio: 'Updated bio', location: 'Test City' });
     const updated = await User.me();
     results.push({ feature: 'User profile update', success: updated.full_name === 'Test User' && updated.bio === 'Updated bio' });
@@ -16,11 +15,10 @@ async function runAllTests() {
   // 2. Booking creation
   let bookingId;
   try {
-    const user = await User.me();
     const booking = await Booking.create({
-      user_id: user.id,
-      client_id: user.id,
-      coach_id: user.id, // For test, use same user
+      user_id: 1, // Replace with valid test user id if needed
+      client_id: 1,
+      coach_id: 1, // For test, use same user
       service_type: 'technical_skills',
       session_date: new Date(),
       session_time: '10:00',
@@ -47,10 +45,9 @@ async function runAllTests() {
   }
 
   // 4. Messaging
-  let messageId;
+  // ...existing code...
   try {
-    const msg = await Message.create({ sender_id: bookingId, receiver_id: bookingId, booking_id: bookingId, content: 'Test message' });
-    messageId = msg.id;
+    await Message.create({ sender_id: bookingId, receiver_id: bookingId, booking_id: bookingId, content: 'Test message' });
     const messages = await Message.filter({ booking_id: bookingId });
     results.push({ feature: 'Messaging', success: messages.length > 0 });
   } catch (e) {
@@ -59,8 +56,7 @@ async function runAllTests() {
 
   // 5. Review system
   try {
-    const user = await User.me();
-    await Review.create({ booking_id: bookingId, reviewer_id: user.id, reviewee_id: user.id, rating: 5, comment: 'Great session!' });
+    await Review.create({ booking_id: bookingId, reviewer_id: 1, reviewee_id: 1, rating: 5, comment: 'Great session!' });
     results.push({ feature: 'Review system', success: true });
   } catch (e) {
     results.push({ feature: 'Review system', success: false, error: e.message });
@@ -81,7 +77,7 @@ async function runAllTests() {
     const bookings = await Booking.list();
     const users = await User.list();
     const messages = await Message.filter({});
-    const reviews = await Review.list ? await Review.list() : [];
+    // Only use reviews if needed for assertions
     results.push({ feature: 'Admin dashboard', success: bookings.length >= 0 && users.length >= 0 && messages.length >= 0 });
   } catch (e) {
     results.push({ feature: 'Admin dashboard', success: false, error: e.message });
