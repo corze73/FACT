@@ -3,9 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Users, Shield, Zap, Target, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
 import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
@@ -25,7 +23,7 @@ export default function Landing() {
     try {
       // After auth, come back to Landing with a flag so we can redirect once
       await User.loginWithRedirect(window.location.origin + createPageUrl("Landing?next=dashboard"));
-    } catch (e) {
+    } catch {
       console.log("Login cancelled or failed");
     }
   };
@@ -33,13 +31,19 @@ export default function Landing() {
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleEmailLogin = async (email, password) => {
-    const { User } = await import("@/api/entities");
-    await User.signInWithEmail(email, password);
-    
-    // Wait a moment for session to establish, then redirect
-    setTimeout(() => {
-      window.location.href = createPageUrl("Landing?next=dashboard");
-    }, 500);
+    try {
+      const { User } = await import("@/api/entities");
+      await User.signInWithEmail(email, password);
+      
+      // Wait a moment for session to establish, then redirect
+      setTimeout(() => {
+        window.location.href = createPageUrl("Landing?next=dashboard");
+      }, 500);
+    } catch (error) {
+      console.error("Email login failed:", error);
+      // Don't redirect on error - let the modal handle the error display
+      throw error;
+    }
   };
 
   // Only redirect after a successful login callback (when next=dashboard)
@@ -288,7 +292,7 @@ export default function Landing() {
               Ready to Transform Your Game?
             </h2>
             <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-              Join thousands who've found their perfect coach and achieved remarkable results. All payments are securely processed by Stripe.
+              Join thousands who&apos;ve found their perfect coach and achieved remarkable results. All payments are securely processed by Stripe.
             </p>
             <motion.div
               whileHover={{ scale: 1.05 }}

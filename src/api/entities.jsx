@@ -89,9 +89,24 @@ export const User = {
   },
 
   async login() {
-    // Mock login - you'll need to implement proper Google OAuth
-    // For now, this simulates a Google login process
-    throw new Error('Google authentication not implemented yet. Please use email login.');
+    // Mock Google login with demo user - in production, implement proper Google OAuth
+    const demoUser = {
+      id: 'demo-google-user',
+      email: 'demo@example.com',
+      first_name: 'Demo',
+      last_name: 'User',
+      user_type: 'client'
+    };
+    
+    // Check if demo user exists in database, create if not
+    const existingProfiles = await db.select('profiles', { where: { id: demoUser.id } });
+    if (existingProfiles.length === 0) {
+      await db.insert('profiles', demoUser);
+    }
+    
+    // Set as current user
+    await auth.setCurrentUser({ id: demoUser.id, email: demoUser.email });
+    return { user: auth.currentUser };
   },
 
   async loginWithRedirect(redirectUrl) {
