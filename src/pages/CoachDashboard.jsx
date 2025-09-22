@@ -26,8 +26,6 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
 export default function CoachDashboard() {
   const [bookings, setBookings] = useState([]);
   const [clients, setClients] = useState({});
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("pending");
   const [bookingToDecline, setBookingToDecline] = useState(null);
 
@@ -38,7 +36,6 @@ export default function CoachDashboard() {
   const loadData = async () => {
     try {
       const user = await User.me();
-      setCurrentUser(user);
 
       console.log('Coach loading data for user:', user.id, user.full_name);
 
@@ -74,14 +71,12 @@ export default function CoachDashboard() {
 
     } catch (error) {
       console.error("Error loading dashboard data:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleAcceptBooking = async (bookingId) => {
     try {
-      await Booking.update(bookingId, { status: 'confirmed' });
+      await Booking.update(bookingId, { accept: true });
       loadData();
     } catch (error) {
       console.error("Error accepting booking:", error);
@@ -90,9 +85,14 @@ export default function CoachDashboard() {
   };
 
   const handleDeclineBooking = async (bookingId, reason) => {
-    await Booking.update(bookingId, { status: 'cancelled', decline_reason: reason });
-    setBookingToDecline(null);
-    loadData();
+    try {
+      await Booking.update(bookingId, { cancel: true, cancellation_reason: reason });
+      setBookingToDecline(null);
+      loadData();
+    } catch (error) {
+      console.error("Error declining booking:", error);
+      alert("Error declining booking. Please try again.");
+    }
   };
 
   const getStatusColor = (status) => {

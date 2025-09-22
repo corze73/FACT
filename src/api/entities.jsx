@@ -306,10 +306,15 @@ export const Booking = {
 
   async update(id, updates) {
     // Special handling for cancellation, completion, and acceptance
-    const updateData = {
-      ...updates,
-      updated_at: new Date().toISOString()
-    };
+    const updateData = { ...updates };
+    
+    // Remove special flags and updated_at to avoid conflicts with db.update
+    delete updateData.accept;
+    delete updateData.cancel;
+    delete updateData.complete_by_user;
+    delete updateData.complete_by_coach;
+    delete updateData.updated_at; // db.update handles this automatically
+    
     if (updates.accept) {
       updateData.status = 'confirmed';
     }

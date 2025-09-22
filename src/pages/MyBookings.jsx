@@ -171,8 +171,8 @@ export default function MyBookings() {
   const handleCancelBooking = async (reason) => {
     try {
       await Booking.update(bookingToCancel.id, { 
-        status: 'cancelled', 
-        decline_reason: reason 
+        cancel: true, 
+        cancellation_reason: reason 
       });
       setBookingToCancel(null);
       loadData(); // Refresh bookings
@@ -308,7 +308,7 @@ export default function MyBookings() {
                                   <Button 
                                     size="sm"
                                     className="bg-green-600 hover:bg-green-700"
-                                    onClick={async () => { await Booking.update(booking.id, {status: 'confirmed'}); loadData(); }}
+                                    onClick={async () => { await Booking.update(booking.id, {accept: true}); loadData(); }}
                                   >
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Accept
