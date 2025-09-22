@@ -1,12 +1,11 @@
 
 
-import React from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { User as UserIcon, Calendar, Search, MessageCircle, Settings, Star, LogOut } from "lucide-react";
+import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-import { auth } from "@/api/databaseClient";
+// Toast and auth imports removed as unused
 import {
   Sidebar,
   SidebarContent,
@@ -24,15 +23,14 @@ import {
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = React.useState(null);
-  const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadCurrentUser();
   }, []);
 
   // Real-time notifications setup
-  React.useEffect(() => {
+  useEffect(() => {
     if (!currentUser) return;
 
     console.log('Real-time notifications disabled during Neon migration');
@@ -62,7 +60,7 @@ export default function Layout({ children, currentPageName }) {
   };
   
   // Redirect domain root "/" to the Landing page
-  React.useEffect(() => {
+  useEffect(() => {
     if (location.pathname === "/" || location.pathname === "") {
       navigate(createPageUrl("Landing"), { replace: true });
     }

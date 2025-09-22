@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { User } from "@/api/entities.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import { motion } from "framer-motion";
 // In a larger app, this could be refactored to reduce duplication.
 
 export default function CoachProfile() {
-  const [user, setUser] = useState(null);
   const [formData, setFormData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -24,7 +23,6 @@ export default function CoachProfile() {
   const loadUser = async () => {
     try {
       const currentUser = await User.me();
-      setUser(currentUser);
       setFormData({
         full_name: currentUser.full_name || '',
         phone: currentUser.phone || '',

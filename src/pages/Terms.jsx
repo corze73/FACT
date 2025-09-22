@@ -1,4 +1,4 @@
-import React from "react";
+// React import removed as unused with modern JSX transform
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 

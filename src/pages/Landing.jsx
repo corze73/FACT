@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ export default function Landing() {
   };
 
   // Only redirect after a successful login callback (when next=dashboard)
-  React.useEffect(() => {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const next = params.get('next');
     if (next === 'dashboard') {

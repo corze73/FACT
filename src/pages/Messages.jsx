@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { User } from '@/api/entities.jsx';
 import { Message } from '@/api/entities.jsx';
 import { Booking } from '@/api/entities.jsx';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
@@ -10,7 +10,6 @@ import { formatDistanceToNow } from 'date-fns';
 export default function Messages() {
     const [conversations, setConversations] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchConversations = async () => {
