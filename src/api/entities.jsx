@@ -89,23 +89,20 @@ export const User = {
   },
 
   async login() {
-    // Mock Google login with demo user - in production, implement proper Google OAuth
-    const demoUser = {
-      id: 'demo-google-user',
-      email: 'demo@example.com',
-      first_name: 'Demo',
-      last_name: 'User',
-      user_type: 'client'
-    };
-    
-    // Check if demo user exists in database, create if not
-    const existingProfiles = await db.select('profiles', { where: { id: demoUser.id } });
-    if (existingProfiles.length === 0) {
-      await db.insert('profiles', demoUser);
+    // For now, this will trigger a user selection modal in the UI
+    // In production, implement proper Google OAuth
+    throw new Error('GOOGLE_LOGIN_REQUESTED');
+  },
+
+  async loginAsUser(userId) {
+    // Find user by ID and log them in
+    const profiles = await db.select('profiles', { where: { id: userId } });
+    if (profiles.length === 0) {
+      throw new Error('User not found');
     }
     
-    // Set as current user
-    await auth.setCurrentUser({ id: demoUser.id, email: demoUser.email });
+    const user = profiles[0];
+    await auth.setCurrentUser({ id: user.id, email: user.email });
     return { user: auth.currentUser };
   },
 

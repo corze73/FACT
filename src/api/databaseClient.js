@@ -135,17 +135,39 @@ export const db = {
 export const auth = {
   currentUser: null,
   
+  // Initialize auth from localStorage on app start
+  async init() {
+    const storedUser = localStorage.getItem('currentUser');
+    if (storedUser) {
+      try {
+        this.currentUser = JSON.parse(storedUser);
+        // Set user context for RLS
+        await db.setUserContext(this.currentUser.id);
+      } catch (error) {
+        console.error('Error loading stored user:', error);
+        localStorage.removeItem('currentUser');
+      }
+    }
+  },
+  
   async setCurrentUser(user) {
     this.currentUser = user;
-    // Set user context for RLS
+    // Persist to localStorage
     if (user) {
+      localStorage.setItem('currentUser', JSON.stringify(user));
       await db.setUserContext(user.id);
     } else {
+      localStorage.removeItem('currentUser');
       await db.setUserContext(null);
     }
   },
   
   async getUser() {
+    // Initialize if not already done
+    if (!this.currentUser) {
+      await this.init();
+    }
+    
     // Return current user only if actually logged in
     if (this.currentUser) {
       return {
