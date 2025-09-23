@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { User } from '@/api/entities.jsx';
 import { Booking } from '@/api/entities.jsx';
 import { Message } from '@/api/entities.jsx';
