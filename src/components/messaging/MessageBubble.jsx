@@ -1,4 +1,4 @@
-import React from 'react';
+// React import removed as unused with modern JSX transform
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -13,7 +13,7 @@ export default function MessageBubble({ message, currentUser }) {
                     ? "bg-blue-600 text-white rounded-br-lg" 
                     : "bg-white text-slate-800 border border-slate-200 rounded-bl-lg"
             )}>
-                <p className="text-sm leading-relaxed">{message.message}</p>
+                <p className="text-sm leading-relaxed">{message.content}</p>
                  <p className={cn(
                     "text-xs mt-1.5", 
                     isCurrentUser ? "text-blue-200" : "text-slate-400",

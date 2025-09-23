@@ -58,7 +58,7 @@ export default function DataDiagnostic() {
             booking_id: message.booking_id,
             sender_id: message.sender_id,
             receiver_id: message.receiver_id,
-            message: message.message.substring(0, 50) + '...',
+            message: message.content?.substring(0, 50) + '...' || 'No content',
             created_date: message.created_date
           });
         });

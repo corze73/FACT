@@ -44,7 +44,7 @@ export default function Messages() {
                         return {
                             booking_id: b.id,
                             other_user_name: `${client?.full_name || 'Client'} ↔ ${coach?.full_name || 'Coach'}`,
-                            last_message: last?.message || 'No messages yet',
+                            last_message: last?.content || 'No messages yet',
                             last_message_date: last?.created_date || b.created_date,
                             is_read: true // Admin always sees as read, or doesn't care about read status
                         };
@@ -112,7 +112,7 @@ export default function Messages() {
                         booking_id: booking.id,
                         other_user_name: otherUser?.full_name,
                         other_user_avatar: otherUser?.profile_picture,
-                        last_message: lastMessage?.message,
+                        last_message: lastMessage?.content,
                         last_message_date: lastMessage?.created_date,
                         is_read: lastMessage ? (lastMessage.sender_id === currentUser.id || lastMessage.is_read) : true
                     };
