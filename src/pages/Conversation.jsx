@@ -92,7 +92,7 @@ export default function Conversation() {
             booking_id: booking.id,
             sender_id: currentUser.id,
             receiver_id: receiverId,
-            message: newMessage,
+            content: newMessage,
             is_read: false
         };
 
