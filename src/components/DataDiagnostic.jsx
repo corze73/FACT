@@ -163,14 +163,14 @@ export default function DataDiagnostic() {
         <div className="text-sm text-blue-700 mt-2">
           <p><strong>Users should have:</strong></p>
           <ul className="list-disc list-inside ml-4">
-            <li><code>user_type</code>: "coach" or "client"</li>
-            <li><code>role</code>: "user" (for regular users) or "admin" (for admins)</li>
-            <li><code>full_name</code>: User's display name</li>
-            <li><code>email</code>: User's email</li>
+            <li><code>user_type</code>: &quot;coach&quot; or &quot;client&quot;</li>
+            <li><code>role</code>: &quot;user&quot; (for regular users) or &quot;admin&quot; (for admins)</li>
+            <li><code>full_name</code>: User&apos;s display name</li>
+            <li><code>email</code>: User&apos;s email</li>
           </ul>
           <p className="mt-2"><strong>Bookings should have:</strong></p>
           <ul className="list-disc list-inside ml-4">
-            <li><code>status</code>: "pending", "confirmed", "cancelled", or "completed"</li>
+            <li><code>status</code>: &quot;pending&quot;, &quot;confirmed&quot;, &quot;cancelled&quot;, or &quot;completed&quot;</li>
             <li><code>client_id</code> and <code>coach_id</code>: References to user profiles</li>
             <li><code>user_id</code>: Should match client_id (legacy field)</li>
           </ul>
