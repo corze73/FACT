@@ -28,6 +28,7 @@ import ReviewModal from "../components/reviews/ReviewModal";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import CancelBookingModal from "../components/booking/CancelBookingModal";
+import SessionStatus from "../components/booking/SessionStatus";
 
 
 export default function MyBookings() {
@@ -273,6 +274,19 @@ export default function MyBookings() {
                                 )}
                               </div>
                             </div>
+
+                            {/* Session Status Component for confirmed/active bookings */}
+                            {['confirmed', 'in_session', 'completed'].includes(booking.status) && (
+                              <div className="mb-4">
+                                <SessionStatus 
+                                  booking={booking} 
+                                  currentUser={currentUser}
+                                  onBookingUpdate={(updatedBooking) => {
+                                    setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b));
+                                  }}
+                                />
+                              </div>
+                            )}
 
                             <div className="flex gap-2 flex-wrap">
                               <Button variant="outline" size="sm" onClick={() => handleMessageClick(booking.id)}>

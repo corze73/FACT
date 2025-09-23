@@ -11,6 +11,7 @@ import { Calendar, Clock, MapPin, CheckCircle, XCircle, AlertTriangle, MessageCi
 import { motion } from "framer-motion";
 import { format, isValid } from "date-fns";
 import DeclineBookingModal from "../components/booking/DeclineBookingModal";
+import SessionStatus from "../components/booking/SessionStatus";
 
 // Utility function to safely parse dates
 const safeParseDate = (dateValue) => {
@@ -31,6 +32,7 @@ export default function CoachDashboard() {
   const [clients, setClients] = useState({});
   const [activeTab, setActiveTab] = useState("pending");
   const [bookingToDecline, setBookingToDecline] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -39,6 +41,7 @@ export default function CoachDashboard() {
   const loadData = async () => {
     try {
       const user = await User.me();
+      setCurrentUser(user);
 
       console.log('Coach loading data for user:', user.id, user.full_name);
 
@@ -138,6 +141,20 @@ export default function CoachDashboard() {
             <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-slate-500" /><span>{booking.session_time} ({booking.duration} mins)</span></div>
             <div className="flex items-center gap-2 col-span-2"><MapPin className="w-4 h-4 text-slate-500" /><span>{booking.location?.type || 'Online'} - {booking.location?.address}</span></div>
           </div>
+          
+          {/* Session Status Component for confirmed/active bookings */}
+          {['confirmed', 'in_session', 'completed'].includes(booking.status) && currentUser && (
+            <div className="mb-4">
+              <SessionStatus 
+                booking={booking} 
+                currentUser={currentUser}
+                onBookingUpdate={(updatedBooking) => {
+                  setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b));
+                }}
+              />
+            </div>
+          )}
+          
           <div className="flex gap-2 flex-wrap">
             {booking.status === 'pending' && (
               <>

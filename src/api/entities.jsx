@@ -334,6 +334,80 @@ export const Booking = {
     }
     return await db.update('bookings', id, updateData);
   },
+
+  // Session Management Methods
+  async markArrival(bookingId, userId, userRole) {
+    const now = new Date().toISOString();
+    const updateData = {};
+    
+    if (userRole === 'client' || userRole === 'user') {
+      updateData.client_arrived_at = now;
+    } else if (userRole === 'coach') {
+      updateData.coach_arrived_at = now;
+    }
+    
+    // If both have arrived, start the session
+    const booking = await this.get(bookingId);
+    if ((booking.client_arrived_at || updateData.client_arrived_at) && 
+        (booking.coach_arrived_at || updateData.coach_arrived_at) && 
+        !booking.session_started_at) {
+      updateData.session_started_at = now;
+      updateData.status = 'in_session';
+    }
+    
+    return await db.update('bookings', bookingId, updateData);
+  },
+
+  async markSessionComplete(bookingId, userId, userRole, reason = null) {
+    const now = new Date().toISOString();
+    const booking = await this.get(bookingId);
+    const updateData = {};
+    
+    if (userRole === 'client' || userRole === 'user') {
+      updateData.client_completed_at = now;
+    } else if (userRole === 'coach') {
+      updateData.coach_completed_at = now;
+    }
+    
+    // Check if completing early (before scheduled end time)
+    const sessionStart = new Date(booking.session_started_at || booking.created_at);
+    const expectedEnd = new Date(sessionStart.getTime() + (booking.duration * 60 * 60 * 1000));
+    const isEarly = new Date() < expectedEnd;
+    
+    if (isEarly && reason) {
+      updateData.early_completion_reason = reason;
+    }
+    
+    // If both have completed, finalize the session
+    if ((booking.client_completed_at || updateData.client_completed_at) && 
+        (booking.coach_completed_at || updateData.coach_completed_at) && 
+        !booking.session_completed_at) {
+      updateData.session_completed_at = now;
+      updateData.status = 'completed';
+      updateData.payment_status = 'pending_release';
+      updateData.payment_held_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+    }
+    
+    return await db.update('bookings', bookingId, updateData);
+  },
+
+  async initiateDispute(bookingId, userId, reason) {
+    // Create dispute record
+    await db.insert('session_disputes', {
+      booking_id: bookingId,
+      initiated_by: userId,
+      dispute_reason: reason,
+      status: 'open',
+      created_date: new Date().toISOString()
+    });
+    
+    // Update booking status
+    return await db.update('bookings', bookingId, {
+      dispute_status: 'disputed',
+      payment_status: 'on_hold',
+      dispute_deadline: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() // 48 hours for coach response
+    });
+  },
 };
 
 // Message entity
@@ -391,6 +465,75 @@ export const Review = {
     return await db.insert('reviews', {
       ...reviewData,
       created_at: new Date().toISOString()
+    });
+  }
+};
+
+// Payment entity
+export const Payment = {
+  async create(paymentData) {
+    return await db.insert('payments', {
+      ...paymentData,
+      created_at: new Date().toISOString()
+    });
+  },
+
+  async getByBookingId(bookingId) {
+    const payments = await db.select('payments', { where: { booking_id: bookingId } });
+    return payments[0] || null;
+  },
+
+  async updateStatus(paymentId, status, additionalData = {}) {
+    return await db.update('payments', paymentId, {
+      status,
+      ...additionalData,
+      [`${status}_at`]: new Date().toISOString()
+    });
+  },
+
+  async releasePayment(paymentId) {
+    return await this.updateStatus(paymentId, 'released', {
+      released_at: new Date().toISOString()
+    });
+  },
+
+  async refundPayment(paymentId) {
+    return await this.updateStatus(paymentId, 'refunded', {
+      refunded_at: new Date().toISOString()
+    });
+  }
+};
+
+// Session Dispute entity
+export const SessionDispute = {
+  async create(disputeData) {
+    return await db.insert('session_disputes', {
+      ...disputeData,
+      created_at: new Date().toISOString()
+    });
+  },
+
+  async getByBookingId(bookingId) {
+    const disputes = await db.select('session_disputes', { 
+      where: { booking_id: bookingId },
+      orderBy: { created_at: 'desc' }
+    });
+    return disputes[0] || null;
+  },
+
+  async addCoachResponse(disputeId, response) {
+    return await db.update('session_disputes', disputeId, {
+      coach_response: response,
+      coach_responded_at: new Date().toISOString(),
+      status: 'coach_responded'
+    });
+  },
+
+  async resolve(disputeId, resolution) {
+    return await db.update('session_disputes', disputeId, {
+      resolution,
+      resolved_at: new Date().toISOString(),
+      status: 'resolved'
     });
   }
 };
