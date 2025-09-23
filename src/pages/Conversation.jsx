@@ -53,7 +53,20 @@ export default function Conversation() {
                 setOtherUser(otherUserData);
             }
 
-            const conversationMessages = await Message.filter({ booking_id: bookingId }, 'created_date');
+            const allMessages = await Message.filter({ booking_id: bookingId }, 'created_date');
+            
+            // Filter messages based on user role
+            let conversationMessages;
+            if (user.role === 'admin') {
+                // Admin sees all messages for this booking
+                conversationMessages = allMessages;
+            } else {
+                // Non-admin users only see messages where they are sender or receiver
+                conversationMessages = allMessages.filter(msg => 
+                    msg.sender_id === user.id || msg.receiver_id === user.id
+                );
+            }
+            
             setMessages(conversationMessages);
             
             const unreadMessages = conversationMessages.filter(m => m.receiver_id === user.id && !m.is_read);
