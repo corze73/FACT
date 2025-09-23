@@ -63,23 +63,23 @@ export default function Messages() {
                 
                 const clientBookings = allBookings.filter(b => b.client_id === currentUser.id);
                 const coachBookings = allBookings.filter(b => b.coach_id === currentUser.id);
-                const userBookings = allBookings.filter(b => b.user_id === currentUser.id);
                 
                 console.log('Filtered bookings:', {
                     client: clientBookings.length,
                     coach: coachBookings.length,
-                    user: userBookings.length
+                    total: allBookings.length
                 });
                 
                 // Combine and deduplicate bookings
                 const allBookingsMap = new Map();
-                [...clientBookings, ...coachBookings, ...userBookings].forEach(booking => {
+                [...clientBookings, ...coachBookings].forEach(booking => {
                     allBookingsMap.set(booking.id, booking);
                 });
                 const combinedBookings = Array.from(allBookingsMap.values());
-                console.log('Combined bookings:', combinedBookings.length);
+                console.log('Combined bookings:', combinedBookings.length, combinedBookings);
                 
                 const bookingIds = combinedBookings.map(b => b.id);
+                console.log('Booking IDs for messages:', bookingIds);
                 if (bookingIds.length === 0) {
                     console.log('No bookings found for user');
                     setConversations([]);
@@ -108,15 +108,19 @@ export default function Messages() {
                     const otherUser = otherUsersMap[otherUserId];
                     const lastMessage = lastMessages[booking.id];
 
+                    console.log('Processing booking:', booking.id, 'Other user:', otherUser?.full_name, 'Last message:', lastMessage?.content);
+
                     return {
                         booking_id: booking.id,
-                        other_user_name: otherUser?.full_name,
+                        other_user_name: otherUser?.full_name || 'Unknown User',
                         other_user_avatar: otherUser?.profile_picture,
-                        last_message: lastMessage?.content,
-                        last_message_date: lastMessage?.created_date,
+                        last_message: lastMessage?.content || 'Start a conversation',
+                        last_message_date: lastMessage?.created_date || booking.created_at,
                         is_read: lastMessage ? (lastMessage.sender_id === currentUser.id || lastMessage.is_read) : true
                     };
-                }).filter(c => c.last_message); // Only show convos with at least one message
+                }); // Show all conversations, even without messages
+
+                console.log('Final conversations:', convos);
 
                 console.log('Final conversations:', convos.length);
                 setConversations(convos);
