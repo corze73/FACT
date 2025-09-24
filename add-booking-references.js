@@ -5,7 +5,7 @@
 
 import process from 'process';
 import { generateBookingReference } from './src/utils/booking-reference.js';
-import { db } from './src/api/supabaseClient.js';
+import { db } from './src/api/databaseClient.js';
 
 console.log('🔄 Adding reference codes to existing bookings...\n');
 
