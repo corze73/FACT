@@ -6,175 +6,130 @@ if (!databaseUrl) {
   throw new Error('Missing database environment variable. Please set VITE_DATABASE_URL in your .env file.');
 }
 
-// Create Neon database connection
-export const sql = neon(databaseUrl);
+// Create Neon database connection with browser warnings disabled
+export const sql = neon(databaseUrl, {
+  disableWarningInBrowsers: true
+});
 
 // Helper function to execute queries
 export const db = {
   // Set current user context for RLS
   async setUserContext(userId) {
     if (userId) {
-      await sql`SELECT set_config('app.current_user_id', ${userId}::text, true)`;
+      await sql.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
     } else {
-      await sql`SELECT set_config('app.current_user_id', '', true)`;
+      await sql.query(`SELECT set_config('app.current_user_id', '', true)`);
     }
   },
 
-  // Execute raw SQL query using template literals
+  // Execute raw SQL query
   async query(text, params = []) {
     try {
-      // Convert parameterized queries to template literals for Neon v1.0+
-      if (params.length === 0) {
-        // Simple query without parameters
-        return await sql([text]);
-      } else {
-        // Build a proper template literal with parameters
-        let query = text;
-        params.forEach((param, index) => {
-          query = query.replace(`$${index + 1}`, param);
-        });
-        return await sql([query]);
-      }
+      return await sql.query(text, params);
     } catch (error) {
       console.error('Database query error:', error);
       throw error;
     }
   },
 
-  // SELECT queries using template literals
+  // SELECT queries
   async select(table, options = {}) {
-    try {
-      let baseQuery = `SELECT * FROM ${table}`;
-      const whereConditions = [];
-      const queryParts = [baseQuery];
+    let query = `SELECT * FROM ${table}`;
+    const params = [];
+    let paramIndex = 1;
 
-      if (options.where) {
-        for (const [key, value] of Object.entries(options.where)) {
-          if (value === null) {
-            whereConditions.push(`${key} IS NULL`);
-          } else {
-            whereConditions.push(`${key} = ${typeof value === 'string' ? `'${value}'` : value}`);
-          }
-        }
-        if (whereConditions.length > 0) {
-          queryParts.push(` WHERE ${whereConditions.join(' AND ')}`);
+    if (options.where) {
+      const conditions = [];
+      for (const [key, value] of Object.entries(options.where)) {
+        if (value === null) {
+          conditions.push(`${key} IS NULL`);
+        } else {
+          conditions.push(`${key} = $${paramIndex}`);
+          params.push(value);
+          paramIndex++;
         }
       }
-
-      if (options.orderBy) {
-        const orderParts = [];
-        for (const [column, direction] of Object.entries(options.orderBy)) {
-          orderParts.push(`${column} ${direction.toUpperCase()}`);
-        }
-        queryParts.push(` ORDER BY ${orderParts.join(', ')}`);
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
       }
-
-      if (options.limit) {
-        queryParts.push(` LIMIT ${options.limit}`);
-      }
-
-      const finalQuery = queryParts.join('');
-      return await sql([finalQuery]);
-    } catch (error) {
-      console.error('Database select error:', error);
-      throw error;
     }
+
+    if (options.orderBy) {
+      const orderParts = [];
+      for (const [column, direction] of Object.entries(options.orderBy)) {
+        orderParts.push(`${column} ${direction.toUpperCase()}`);
+      }
+      query += ` ORDER BY ${orderParts.join(', ')}`;
+    }
+
+    if (options.limit) {
+      query += ` LIMIT $${paramIndex}`;
+      params.push(options.limit);
+    }
+
+    return await this.query(query, params);
   },
 
-  // INSERT query using template literals
+  // INSERT query
   async insert(table, data) {
-    try {
-      const columns = Object.keys(data);
-      const values = Object.values(data);
-      const valueStrings = values.map(v => 
-        v === null ? 'NULL' : 
-        typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : 
-        v
-      );
-      
-      const query = `
-        INSERT INTO ${table} (${columns.join(', ')}) 
-        VALUES (${valueStrings.join(', ')}) 
-        RETURNING *
-      `;
-      
-      const result = await sql([query]);
-      return result[0];
-    } catch (error) {
-      console.error('Database insert error:', error);
-      throw error;
-    }
+    const columns = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    
+    const query = `
+      INSERT INTO ${table} (${columns.join(', ')}) 
+      VALUES (${placeholders}) 
+      RETURNING *
+    `;
+    
+    const result = await this.query(query, values);
+    return result[0];
   },
 
-  // UPDATE query using template literals
+  // UPDATE query
   async update(table, id, data) {
-    try {
-      const columns = Object.keys(data);
-      const values = Object.values(data);
-      const setClauses = columns.map((col, i) => {
-        const value = values[i];
-        const valueStr = value === null ? 'NULL' : 
-                        typeof value === 'string' ? `'${value.replace(/'/g, "''")}'` : 
-                        value;
-        return `${col} = ${valueStr}`;
-      }).join(', ');
-      
-      const query = `
-        UPDATE ${table} 
-        SET ${setClauses}, updated_at = NOW()
-        WHERE id = ${typeof id === 'string' ? `'${id}'` : id}
-        RETURNING *
-      `;
-      
-      const result = await sql([query]);
-      return result[0];
-    } catch (error) {
-      console.error('Database update error:', error);
-      throw error;
-    }
+    const columns = Object.keys(data);
+    const values = Object.values(data);
+    const setClauses = columns.map((col, i) => `${col} = $${i + 2}`).join(', ');
+    
+    const query = `
+      UPDATE ${table} 
+      SET ${setClauses}, updated_at = NOW()
+      WHERE id = $1 
+      RETURNING *
+    `;
+    
+    const result = await this.query(query, [id, ...values]);
+    return result[0];
   },
 
-  // DELETE query using template literals
+  // DELETE query
   async delete(table, id) {
-    try {
-      const query = `DELETE FROM ${table} WHERE id = ${typeof id === 'string' ? `'${id}'` : id} RETURNING *`;
-      const result = await sql([query]);
-      return result[0];
-    } catch (error) {
-      console.error('Database delete error:', error);
-      throw error;
-    }
+    const query = `DELETE FROM ${table} WHERE id = $1 RETURNING *`;
+    const result = await this.query(query, [id]);
+    return result[0];
   },
 
-  // UPSERT (INSERT or UPDATE) using template literals
+  // UPSERT (INSERT or UPDATE)
   async upsert(table, data) {
-    try {
-      const columns = Object.keys(data);
-      const values = Object.values(data);
-      const valueStrings = values.map(v => 
-        v === null ? 'NULL' : 
-        typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : 
-        v
-      );
-      const updateClauses = columns
-        .filter(col => col !== 'id' && col !== 'created_at')
-        .map(col => `${col} = EXCLUDED.${col}`)
-        .join(', ');
-      
-      const query = `
-        INSERT INTO ${table} (${columns.join(', ')}) 
-        VALUES (${valueStrings.join(', ')}) 
-        ON CONFLICT (id) DO UPDATE SET 
-        ${updateClauses}, updated_at = NOW()
-        RETURNING *
-      `;
-      
-      const result = await sql([query]);
-      return result[0];
-    } catch (error) {
-      console.error('Database upsert error:', error);
-      throw error;
-    }
+    const columns = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    const updateClauses = columns
+      .filter(col => col !== 'id' && col !== 'created_at')
+      .map(col => `${col} = EXCLUDED.${col}`)
+      .join(', ');
+    
+    const query = `
+      INSERT INTO ${table} (${columns.join(', ')}) 
+      VALUES (${placeholders}) 
+      ON CONFLICT (id) DO UPDATE SET 
+      ${updateClauses}, updated_at = NOW()
+      RETURNING *
+    `;
+    
+    const result = await this.query(query, values);
+    return result[0];
   }
 };
 
