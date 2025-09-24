@@ -1,0 +1,264 @@
+import { useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements
+} from '@stripe/react-stripe-js';
+import { Button } from '../ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Alert, AlertDescription } from '../ui/alert';
+import { CreditCard, Shield, Clock } from 'lucide-react';
+
+// Initialize Stripe
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+const PaymentForm = ({ booking, onPaymentSuccess, onPaymentError }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    
+    if (!stripe || !elements) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    const cardElement = elements.getElement(CardElement);
+
+    try {
+      // Create payment intent on your backend
+      const response = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          booking_id: booking.id,
+          amount: Math.round(booking.total_price * 100), // Convert to cents
+          currency: 'gbp',
+          admin_fee: Math.round((booking.admin_fee || 0) * 100)
+        }),
+      });
+
+      const { client_secret, payment_intent_id } = await response.json();
+
+      // Confirm payment with Stripe
+      const result = await stripe.confirmCardPayment(client_secret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: {
+            name: booking.client_name,
+            email: booking.client_email,
+          },
+        }
+      });
+
+      if (result.error) {
+        setPaymentError(result.error.message);
+        onPaymentError(result.error);
+      } else {
+        // Payment succeeded
+        await updateBookingPaymentStatus(booking.id, payment_intent_id);
+        onPaymentSuccess(result.paymentIntent);
+      }
+    } catch (error) {
+      setPaymentError(error.message);
+      onPaymentError(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const updateBookingPaymentStatus = async (bookingId, paymentIntentId) => {
+    // Update booking status to confirmed and create payment record
+    await fetch('/api/bookings/update-payment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        booking_id: bookingId,
+        payment_intent_id: paymentIntentId,
+        status: 'confirmed'
+      }),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="border rounded-lg p-4">
+        <CardElement
+          options={{
+            style: {
+              base: {
+                fontSize: '16px',
+                color: '#424770',
+                '::placeholder': {
+                  color: '#aab7c4',
+                },
+              },
+            },
+          }}
+        />
+      </div>
+
+      {paymentError && (
+        <Alert variant="destructive">
+          <AlertDescription>{paymentError}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center gap-2">
+          <Shield className="w-4 h-4 text-green-600" />
+          <span>Secured by Stripe</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-blue-600" />
+          <span>Funds held until session completion</span>
+        </div>
+      </div>
+
+      <Button
+        type="submit"
+        disabled={!stripe || isProcessing}
+        className="w-full"
+        size="lg"
+      >
+        <CreditCard className="w-4 h-4 mr-2" />
+        {isProcessing ? 'Processing...' : `Pay £${booking.total_price}`}
+      </Button>
+    </form>
+  );
+};
+
+export default function StripePaymentModal({ booking, isOpen, onClose, onPaymentSuccess }) {
+  const [paymentStep, setPaymentStep] = useState('payment'); // payment, success, error
+
+  const handlePaymentSuccess = (paymentIntent) => {
+    setPaymentStep('success');
+    setTimeout(() => {
+      onPaymentSuccess(paymentIntent);
+      onClose();
+    }, 2000);
+  };
+
+  const handlePaymentError = (error) => {
+    setPaymentStep('error');
+    console.error('Payment failed:', error);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5" />
+            Secure Payment
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {paymentStep === 'payment' && (
+            <Elements stripe={stripePromise}>
+              <div className="space-y-4">
+                {/* Booking Summary */}
+                <div className="bg-slate-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Booking Summary</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Service:</span>
+                      <span>{booking.service_type.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Duration:</span>
+                      <span>{booking.duration} hour(s)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Coach:</span>
+                      <span>{booking.coach_name}</span>
+                    </div>
+                    {booking.admin_fee > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Admin Fee:</span>
+                        <span>£{booking.admin_fee}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium border-t pt-2">
+                      <span>Total:</span>
+                      <span>£{booking.total_price}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Security Notice */}
+                <div className="bg-blue-50 p-3 rounded-lg text-sm">
+                  <div className="flex items-start gap-2">
+                    <Shield className="w-4 h-4 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-800">Payment Protection</p>
+                      <p className="text-blue-700">
+                        Your payment is held securely until session completion. 
+                        Full refund if coach doesn&apos;t show up.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <PaymentForm
+                  booking={booking}
+                  onPaymentSuccess={handlePaymentSuccess}
+                  onPaymentError={handlePaymentError}
+                />
+
+                <Button variant="outline" onClick={onClose} className="w-full">
+                  Cancel
+                </Button>
+              </div>
+            </Elements>
+          )}
+
+          {paymentStep === 'success' && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">Payment Successful!</h3>
+              <p className="text-slate-600">
+                Your booking is confirmed. You&apos;ll receive an email confirmation shortly.
+              </p>
+            </div>
+          )}
+
+          {paymentStep === 'error' && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CreditCard className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">Payment Failed</h3>
+              <p className="text-slate-600 mb-4">
+                There was an issue processing your payment. Please try again.
+              </p>
+              <div className="space-y-2">
+                <Button onClick={() => setPaymentStep('payment')} className="w-full">
+                  Try Again
+                </Button>
+                <Button variant="outline" onClick={onClose} className="w-full">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
