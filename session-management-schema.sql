@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS payments (
     payment_method VARCHAR(50),
     transaction_id VARCHAR(255),
     admin_fee DECIMAL(10,2) DEFAULT 0,
+    refund_amount DECIMAL(10,2) DEFAULT 0,
+    refund_reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     released_at TIMESTAMPTZ,
     refunded_at TIMESTAMPTZ

@@ -113,29 +113,89 @@ export const StripePaymentAPI = {
   },
 
   /**
-   * Refund payment (if coach doesn't show or dispute resolved in client favor)
+   * Refund payment with specific logic based on who didn't show up
    */
-  async refundPayment(paymentIntentId, refundAmount = null, reason = 'requested_by_customer') {
+  async refundPayment(paymentIntentId, refundType = 'full', reason = 'requested_by_customer') {
     try {
       const refundData = {
         payment_intent: paymentIntentId,
         reason: reason
       };
 
-      if (refundAmount) {
-        refundData.amount = refundAmount;
-      }
-
-      const refund = await stripe.refunds.create(refundData);
-
-      // Update payment record
-      await db.query(`
-        UPDATE payments 
-        SET status = 'refunded', refunded_at = NOW()
-        WHERE transaction_id = $1
+      // Get payment details to calculate refund amount
+      const payment = await db.query(`
+        SELECT p.*, b.service_price, b.admin_fee, b.total_price
+        FROM payments p
+        JOIN bookings b ON p.booking_id = b.id
+        WHERE p.transaction_id = $1
       `, [paymentIntentId]);
 
-      return refund;
+      if (!payment.length) {
+        throw new Error('Payment not found');
+      }
+
+      const paymentRecord = payment[0];
+      let refundAmount;
+      let refundDescription;
+
+      switch (refundType) {
+        case 'coach_no_show':
+          // Client gets full refund (service price + admin fee)
+          refundAmount = Math.round(paymentRecord.total_price * 100); // Full amount in pence
+          refundDescription = 'Full refund - Coach no-show';
+          break;
+          
+        case 'client_no_show':
+          // No refund to client, coach gets paid via capture
+          refundAmount = 0;
+          refundDescription = 'No refund - Client no-show';
+          break;
+          
+        case 'dispute_client_favor':
+          // Client gets full refund
+          refundAmount = Math.round(paymentRecord.total_price * 100);
+          refundDescription = 'Full refund - Dispute resolved in client favor';
+          break;
+          
+        case 'dispute_split':
+          // Client gets service price back, platform keeps admin fee
+          refundAmount = Math.round((paymentRecord.total_price - paymentRecord.admin_fee) * 100);
+          refundDescription = 'Partial refund - Dispute split decision';
+          break;
+          
+        case 'full':
+        default:
+          // Full refund (default behavior)
+          refundAmount = Math.round(paymentRecord.total_price * 100);
+          refundDescription = 'Full refund';
+          break;
+      }
+
+      if (refundAmount > 0) {
+        refundData.amount = refundAmount;
+        const refund = await stripe.refunds.create(refundData);
+
+        // Update payment record
+        await db.query(`
+          UPDATE payments 
+          SET status = 'refunded', 
+              refunded_at = NOW(),
+              refund_amount = $2,
+              refund_reason = $3
+          WHERE transaction_id = $1
+        `, [paymentIntentId, refundAmount / 100, refundDescription]);
+
+        return refund;
+      } else {
+        // No refund case (client no-show)
+        await db.query(`
+          UPDATE payments 
+          SET refund_reason = $2
+          WHERE transaction_id = $1
+        `, [paymentIntentId, refundDescription]);
+
+        return { message: refundDescription, amount: 0 };
+      }
     } catch (error) {
       console.error('Error processing refund:', error);
       throw error;
@@ -242,31 +302,151 @@ export const PaymentAutomation = {
   },
 
   /**
-   * Process refunds for no-shows or disputes
+   * Process refunds and payments for no-shows or disputes
    */
   async processRefunds() {
     try {
-      const bookingsToRefund = await db.query(`
-        SELECT b.id, b.dispute_status, p.transaction_id, p.amount
+      // Handle different scenarios based on who showed up
+      const scenarios = await db.query(`
+        SELECT 
+          b.id, 
+          b.dispute_status, 
+          b.status,
+          b.client_arrived_at,
+          b.coach_arrived_at,
+          b.session_start,
+          b.session_date,
+          b.session_time,
+          p.transaction_id, 
+          p.amount,
+          CASE 
+            WHEN b.coach_arrived_at IS NULL AND b.client_arrived_at IS NOT NULL 
+                AND NOW() > (b.session_date + b.session_time::time + INTERVAL '30 minutes') THEN 'coach_no_show'
+            WHEN b.client_arrived_at IS NULL AND b.coach_arrived_at IS NOT NULL 
+                AND NOW() > (b.session_date + b.session_time::time + INTERVAL '30 minutes') THEN 'client_no_show'
+            WHEN b.dispute_status = 'auto_refund' AND b.dispute_deadline <= NOW() THEN 'dispute_client_favor'
+            WHEN b.status = 'cancelled' THEN 'cancelled'
+            ELSE 'other'
+          END as scenario
         FROM bookings b
         JOIN payments p ON b.id = p.booking_id
         WHERE (
           (b.dispute_status = 'auto_refund' AND b.dispute_deadline <= NOW()) OR
-          (b.status = 'cancelled' AND b.payment_status = 'authorized')
+          (b.status = 'cancelled' AND b.payment_status = 'authorized') OR
+          (NOW() > (b.session_date + b.session_time::time + INTERVAL '30 minutes') AND 
+           (b.client_arrived_at IS NULL OR b.coach_arrived_at IS NULL) AND
+           b.payment_status = 'authorized' AND b.status = 'confirmed')
         )
         AND p.status = 'authorized'
       `);
 
-      for (const booking of bookingsToRefund) {
-        await StripePaymentAPI.refundPayment(booking.transaction_id);
-        await db.update('bookings', booking.id, {
-          payment_status: 'refunded'
-        });
+      for (const booking of scenarios) {
+        try {
+          switch (booking.scenario) {
+            case 'coach_no_show':
+              // Client gets FULL refund (service price + admin fee)
+              await StripePaymentAPI.refundPayment(booking.transaction_id, 'coach_no_show');
+              await db.query(`
+                UPDATE bookings SET 
+                  payment_status = 'refunded',
+                  status = 'coach_no_show'
+                WHERE id = $1
+              `, [booking.id]);
+              console.log(`✅ Full refund processed for booking ${booking.id} - Coach no-show`);
+              break;
+
+            case 'client_no_show':
+              // Coach gets paid (capture payment), platform keeps £3 admin fee
+              await StripePaymentAPI.capturePayment(booking.transaction_id);
+              await db.query(`
+                UPDATE bookings SET 
+                  payment_status = 'released',
+                  status = 'client_no_show'
+                WHERE id = $1
+              `, [booking.id]);
+              console.log(`💰 Payment released to coach for booking ${booking.id} - Client no-show`);
+              break;
+
+            case 'dispute_client_favor':
+              // Dispute resolved in client's favor - full refund
+              await StripePaymentAPI.refundPayment(booking.transaction_id, 'dispute_client_favor');
+              await db.query(`
+                UPDATE bookings SET 
+                  payment_status = 'refunded',
+                  dispute_status = 'resolved_client_favor'
+                WHERE id = $1
+              `, [booking.id]);
+              console.log(`⚖️ Dispute refund processed for booking ${booking.id} - Client favor`);
+              break;
+
+            case 'cancelled':
+              // Regular cancellation - full refund
+              await StripePaymentAPI.refundPayment(booking.transaction_id, 'full');
+              await db.query(`
+                UPDATE bookings SET payment_status = 'refunded'
+                WHERE id = $1
+              `, [booking.id]);
+              console.log(`🔄 Cancellation refund processed for booking ${booking.id}`);
+              break;
+          }
+        } catch (error) {
+          console.error(`❌ Error processing ${booking.scenario} for booking ${booking.id}:`, error);
+        }
       }
 
-      console.log(`Processed ${bookingsToRefund.length} refunds`);
+      console.log(`📊 Processed ${scenarios.length} payment scenarios`);
     } catch (error) {
       console.error('Error processing refunds:', error);
+    }
+  },
+
+  /**
+   * Manual no-show processing for admin intervention
+   */
+  async processNoShow(bookingId, noShowType) {
+    try {
+      const booking = await db.query(`
+        SELECT b.*, p.transaction_id
+        FROM bookings b
+        JOIN payments p ON b.id = p.booking_id
+        WHERE b.id = $1
+      `, [bookingId]);
+
+      if (!booking.length) {
+        throw new Error('Booking not found');
+      }
+
+      const bookingData = booking[0];
+
+      switch (noShowType) {
+        case 'coach_no_show':
+          // Client gets full refund
+          await StripePaymentAPI.refundPayment(bookingData.transaction_id, 'coach_no_show');
+          await db.query(`
+            UPDATE bookings SET 
+              payment_status = 'refunded',
+              status = 'coach_no_show'
+            WHERE id = $1
+          `, [bookingId]);
+          return { success: true, message: 'Full refund processed - Coach no-show', refundAmount: 'full' };
+
+        case 'client_no_show':
+          // Coach gets paid, platform keeps admin fee
+          await StripePaymentAPI.capturePayment(bookingData.transaction_id);
+          await db.query(`
+            UPDATE bookings SET 
+              payment_status = 'released',
+              status = 'client_no_show'
+            WHERE id = $1
+          `, [bookingId]);
+          return { success: true, message: 'Payment released to coach - Client no-show', refundAmount: 0 };
+
+        default:
+          throw new Error('Invalid no-show type');
+      }
+    } catch (error) {
+      console.error(`Error processing manual no-show for booking ${bookingId}:`, error);
+      throw error;
     }
   }
 };

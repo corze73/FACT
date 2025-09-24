@@ -1,5 +1,5 @@
 import express from 'express';
-import { StripePaymentAPI } from '../api/stripe-payment.js';
+import { StripePaymentAPI, PaymentAutomation } from '../api/stripe-payment.js';
 import Stripe from 'stripe';
 import process from 'process';
 
@@ -89,16 +89,37 @@ router.post('/capture-payment', async (req, res) => {
 // Refund payment endpoint
 router.post('/refund-payment', async (req, res) => {
   try {
-    const { payment_intent_id, refund_amount, reason } = req.body;
+    const { payment_intent_id, refund_type, reason } = req.body;
 
     if (!payment_intent_id) {
       return res.status(400).json({ error: 'Missing payment_intent_id' });
     }
 
-    const result = await StripePaymentAPI.refundPayment(payment_intent_id, refund_amount, reason);
+    const result = await StripePaymentAPI.refundPayment(payment_intent_id, refund_type, reason);
     res.json(result);
   } catch (error) {
     console.error('Error processing refund:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Manual no-show processing endpoint (admin only)
+router.post('/process-no-show', async (req, res) => {
+  try {
+    const { booking_id, no_show_type } = req.body;
+
+    if (!booking_id || !no_show_type) {
+      return res.status(400).json({ error: 'Missing booking_id or no_show_type' });
+    }
+
+    if (!['coach_no_show', 'client_no_show'].includes(no_show_type)) {
+      return res.status(400).json({ error: 'Invalid no_show_type. Must be coach_no_show or client_no_show' });
+    }
+
+    const result = await PaymentAutomation.processNoShow(booking_id, no_show_type);
+    res.json(result);
+  } catch (error) {
+    console.error('Error processing no-show:', error);
     res.status(500).json({ error: error.message });
   }
 });
