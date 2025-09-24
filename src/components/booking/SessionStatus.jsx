@@ -70,8 +70,7 @@ export default function SessionStatus({ booking, currentUser, onBookingUpdate })
 
   const getSessionStatus = () => {
     if (booking.status === 'completed') return 'completed';
-    if (booking.status === 'in_session') return 'in_session';
-    if (booking.session_started_at) return 'in_session';
+    if (booking.session_started_at && booking.status === 'confirmed') return 'in_session';
     if (booking.client_arrived_at || booking.coach_arrived_at) return 'arrival_pending';
     if (booking.status === 'confirmed') return 'confirmed';
     return booking.status;

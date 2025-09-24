@@ -352,7 +352,7 @@ export const Booking = {
         (booking.coach_arrived_at || updateData.coach_arrived_at) && 
         !booking.session_started_at) {
       updateData.session_started_at = now;
-      updateData.status = 'in_session';
+      // Keep status as 'confirmed' since 'in_session' is not allowed by current constraint
     }
     
     return await db.update('bookings', bookingId, updateData);
