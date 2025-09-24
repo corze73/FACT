@@ -2,6 +2,7 @@
 -- Run this migration to add session tracking and payment management
 
 -- Add session tracking columns to bookings table
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reference_code VARCHAR(20) UNIQUE;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_arrived_at TIMESTAMPTZ;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS coach_arrived_at TIMESTAMPTZ;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS session_started_at TIMESTAMPTZ;
@@ -50,10 +51,11 @@ ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_type VARCHAR(20); -- 'clie
 ALTER TABLE reviews ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN DEFAULT FALSE;
 
 -- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_bookings_reference_code ON bookings(reference_code);
+CREATE INDEX IF NOT EXISTS idx_bookings_session_date ON bookings(session_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_payment_status ON bookings(payment_status);
-CREATE INDEX IF NOT EXISTS idx_bookings_session_dates ON bookings(session_started_at, session_completed_at);
+CREATE INDEX IF NOT EXISTS idx_bookings_dispute_status ON bookings(dispute_status);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
-CREATE INDEX IF NOT EXISTS idx_disputes_status ON session_disputes(status);
 
 -- Add RLS policies for new tables
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;

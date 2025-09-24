@@ -275,6 +275,19 @@ export const Booking = {
   async create(bookingData) {
     const { session_date, session_time, duration, location, ...rest } = bookingData;
 
+    // Generate unique reference code
+    const { generateBookingReference } = await import('../utils/booking-reference.js');
+    let referenceCode = generateBookingReference();
+    
+    // Ensure reference code is unique (retry if collision)
+    let attempts = 0;
+    while (attempts < 5) {
+      const existing = await db.select('bookings', { where: { reference_code: referenceCode } });
+      if (existing.length === 0) break;
+      referenceCode = generateBookingReference();
+      attempts++;
+    }
+
     // Ensure session_date is in YYYY-MM-DD format
     let formattedDate = session_date;
     if (session_date instanceof Date) {
@@ -288,6 +301,7 @@ export const Booking = {
     const locationData = location || {};
     const flattenedData = {
       ...rest,
+      reference_code: referenceCode,
       booking_date: bookingDate.toISOString(),
       duration: duration,
       location_type: locationData.type || 'online',
@@ -407,6 +421,34 @@ export const Booking = {
       payment_status: 'on_hold',
       dispute_deadline: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() // 48 hours for coach response
     });
+  },
+
+  async findByReference(referenceCode) {
+    const { validateBookingReference } = await import('../utils/booking-reference.js');
+    
+    if (!validateBookingReference(referenceCode)) {
+      throw new Error('Invalid booking reference format');
+    }
+    
+    const bookings = await db.select('bookings', { where: { reference_code: referenceCode } });
+    if (bookings.length === 0) {
+      throw new Error('Booking not found');
+    }
+    return bookings[0];
+  },
+
+  async searchByReference(searchTerm) {
+    // Support partial searches and different formats
+    const cleanTerm = searchTerm.replace(/[-\s]/g, '').toUpperCase();
+    
+    const query = `
+      SELECT * FROM bookings 
+      WHERE REPLACE(REPLACE(UPPER(reference_code), '-', ''), ' ', '') LIKE $1
+      ORDER BY created_at DESC
+      LIMIT 20
+    `;
+    
+    return await db.query(query, [`%${cleanTerm}%`]);
   },
 };
 

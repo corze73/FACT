@@ -28,6 +28,7 @@ import ReviewModal from "../components/reviews/ReviewModal";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import CancelBookingModal from "../components/booking/CancelBookingModal";
+import { BookingReference } from "../components/booking/BookingReference";
 import SessionStatus from "../components/booking/SessionStatus";
 
 
@@ -242,6 +243,7 @@ export default function MyBookings() {
                                 <CardTitle className="text-lg">
                                   {formatServiceName(booking.service_type)} Session
                                 </CardTitle>
+                                <BookingReference reference={booking.reference_code} className="mb-2" />
                                 <p className="text-slate-600">
                                   {otherParty}: {partner?.full_name || '...'}
                                 </p>

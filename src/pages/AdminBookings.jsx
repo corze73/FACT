@@ -8,6 +8,7 @@ import { MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { format, isValid } from "date-fns";
+import { BookingReference, BookingReferenceSearch } from "../components/booking/BookingReference";
 
 // Utility function to safely parse dates
 const safeParseDate = (dateValue) => {
@@ -71,9 +72,20 @@ export default function AdminBookings() {
   if (loading) return <div className="p-8">Loading bookings...</div>;
   if (!currentUser || currentUser.role !== "admin") return null;
 
+  const handleBookingFound = (booking) => {
+    // Highlight or navigate to the found booking
+    console.log('Found booking:', booking);
+    // You could scroll to the booking or open it in a modal
+  };
+
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        <BookingReferenceSearch 
+          onBookingFound={handleBookingFound}
+          onError={console.error}
+        />
+        
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Bookings ({statusParam === "all" ? "All" : statusParam})</CardTitle>
@@ -88,7 +100,10 @@ export default function AdminBookings() {
                 return (
                   <div key={b.id} className="flex flex-col md:flex-row md:items-center md:justify-between p-3 rounded-lg border border-slate-200">
                     <div className="flex-1">
-                      <p className="font-medium text-slate-900">{b.service_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
+                      <div className="flex items-center gap-3 mb-1">
+                        <p className="font-medium text-slate-900">{b.service_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
+                        <BookingReference reference={b.reference_code} />
+                      </div>
                       <p className="text-sm text-slate-600">{client?.full_name || "Client"} → {coach?.full_name || "Coach"}</p>
                       <p className="text-xs text-slate-500 mt-1">
                         {formatSafeDate(b.session_date)} • {b.session_time} • £{b.total_price || b.price}
