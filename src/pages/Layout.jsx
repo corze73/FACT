@@ -156,14 +156,7 @@ export default function Layout({ children, currentPageName }) {
           {/* Booking Search for Admin Users */}
           {currentUser?.role === 'admin' && (
             <div className="px-4 py-2 border-b border-slate-200">
-              <SidebarBookingSearch 
-                onBookingFound={(booking) => {
-                  // Navigate to admin bookings with the selected booking highlighted
-                  navigate(createPageUrl("AdminBookings"), { 
-                    state: { selectedBookingId: booking.id, searchReference: booking.reference_code } 
-                  });
-                }}
-              />
+              <SidebarBookingSearch />
             </div>
           )}
           
