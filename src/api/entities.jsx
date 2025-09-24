@@ -441,14 +441,14 @@ export const Booking = {
     // Support partial searches and different formats
     const cleanTerm = searchTerm.replace(/[-\s]/g, '').toUpperCase();
     
-    const query = `
-      SELECT * FROM bookings 
-      WHERE REPLACE(REPLACE(UPPER(reference_code), '-', ''), ' ', '') LIKE $1
-      ORDER BY created_at DESC
-      LIMIT 20
-    `;
+    // Get all bookings and filter client-side to avoid raw SQL in browser
+    const allBookings = await this.list('-created_at', 1000);
     
-    return await db.query(query, [`%${cleanTerm}%`]);
+    return allBookings.filter(booking => {
+      if (!booking.reference_code) return false;
+      const cleanRef = booking.reference_code.replace(/[-\s]/g, '').toUpperCase();
+      return cleanRef.includes(cleanTerm);
+    }).slice(0, 20);
   },
 };
 

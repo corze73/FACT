@@ -11,7 +11,7 @@ import { toast } from 'sonner';
  * Compact sidebar search for booking references
  * Always visible in admin sidebar for quick lookup
  */
-export const SidebarBookingSearch = ({ onBookingFound }) => {
+export const SidebarBookingSearch = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -30,17 +30,19 @@ export const SidebarBookingSearch = ({ onBookingFound }) => {
       setIsExpanded(true);
       
       if (results.length === 0) {
-        toast.error('No bookings found');
+        toast.error(`No bookings found for "${searchTerm}"`);
       } else if (results.length === 1) {
-        // Auto-select single result
-        onBookingFound?.(results[0]);
+        // Auto-select single result and show details
+        setSelectedBooking(results[0]);
         toast.success(`Found booking ${results[0].reference_code}`);
       } else {
-        toast.success(`Found ${results.length} bookings`);
+        toast.success(`Found ${results.length} matching bookings`);
       }
     } catch (error) {
       console.error('Search error:', error);
-      toast.error('Search failed');
+      toast.error('Failed to search bookings. Please try again.');
+      setSearchResults([]);
+      setIsExpanded(false);
     } finally {
       setIsSearching(false);
     }
@@ -169,12 +171,12 @@ export const SidebarBookingInfo = ({ booking, onClose }) => {
 
   const handleViewFullDetails = () => {
     // Navigate to admin bookings with this booking highlighted
-    window.location.href = `/admin-bookings?highlight=${booking.id}`;
+    window.location.href = `/AdminBookings?highlight=${booking.id}`;
   };
 
   const handleOpenChat = () => {
     // Navigate to conversation for this booking
-    window.location.href = `/conversation?booking_id=${booking.id}`;
+    window.location.href = `/Conversation?booking_id=${booking.id}`;
   };
 
   const getStatusColor = (status) => {
