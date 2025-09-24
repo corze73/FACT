@@ -10,11 +10,12 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { CreditCard, Shield, Clock } from 'lucide-react';
+import { calculatePaymentBreakdown, formatCurrency, poundsToPence } from '../../utils/payment';
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
-const PaymentForm = ({ booking, onPaymentSuccess, onPaymentError }) => {
+const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -41,9 +42,9 @@ const PaymentForm = ({ booking, onPaymentSuccess, onPaymentError }) => {
         },
         body: JSON.stringify({
           booking_id: booking.id,
-          amount: Math.round(booking.total_price * 100), // Convert to cents
+          amount: poundsToPence(paymentBreakdown.totalAmount), // Total including £3 admin fee
           currency: 'gbp',
-          admin_fee: Math.round((booking.admin_fee || 0) * 100)
+          admin_fee: poundsToPence(paymentBreakdown.adminFee) // £3 admin fee in pence
         }),
       });
 
@@ -133,7 +134,7 @@ const PaymentForm = ({ booking, onPaymentSuccess, onPaymentError }) => {
         size="lg"
       >
         <CreditCard className="w-4 h-4 mr-2" />
-        {isProcessing ? 'Processing...' : `Pay £${booking.total_price}`}
+        {isProcessing ? 'Processing...' : `Pay ${formatCurrency(paymentBreakdown.totalAmount)}`}
       </Button>
     </form>
   );
@@ -141,6 +142,9 @@ const PaymentForm = ({ booking, onPaymentSuccess, onPaymentError }) => {
 
 export default function StripePaymentModal({ booking, isOpen, onClose, onPaymentSuccess }) {
   const [paymentStep, setPaymentStep] = useState('payment'); // payment, success, error
+
+  // Calculate payment breakdown with fixed £3 admin fee
+  const paymentBreakdown = calculatePaymentBreakdown(booking.service_price || booking.price || booking.total_price);
 
   const handlePaymentSuccess = (paymentIntent) => {
     setPaymentStep('success');
@@ -186,15 +190,17 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
                       <span>Coach:</span>
                       <span>{booking.coach_name}</span>
                     </div>
-                    {booking.admin_fee > 0 && (
-                      <div className="flex justify-between text-slate-600">
-                        <span>Admin Fee:</span>
-                        <span>£{booking.admin_fee}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between">
+                      <span>Service Price:</span>
+                      <span>{formatCurrency(paymentBreakdown.servicePrice)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Admin Fee:</span>
+                      <span>{formatCurrency(paymentBreakdown.adminFee)}</span>
+                    </div>
                     <div className="flex justify-between font-medium border-t pt-2">
                       <span>Total:</span>
-                      <span>£{booking.total_price}</span>
+                      <span>{formatCurrency(paymentBreakdown.totalAmount)}</span>
                     </div>
                   </div>
                 </div>
@@ -215,6 +221,7 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
 
                 <PaymentForm
                   booking={booking}
+                  paymentBreakdown={paymentBreakdown}
                   onPaymentSuccess={handlePaymentSuccess}
                   onPaymentError={handlePaymentError}
                 />

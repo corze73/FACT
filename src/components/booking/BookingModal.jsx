@@ -9,8 +9,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, addDays, isToday, isBefore } from "date-fns";
 import { CalendarIcon, Clock, CreditCard } from "lucide-react";
+import { calculatePaymentBreakdown, getAdminFee } from "../../utils/payment";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
+  const servicePrice = coach?.coach_profile?.hourly_rate || 50;
+  const paymentBreakdown = calculatePaymentBreakdown(servicePrice);
+  
   const [bookingData, setBookingData] = useState({
     service_type: '',
     session_date: null,
@@ -22,9 +26,9 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       notes: ''
     },
     client_notes: '',
-    price: coach?.coach_profile?.hourly_rate || 50,
-    admin_fee: 3,
-    total_price: (coach?.coach_profile?.hourly_rate || 50) + 3
+    price: servicePrice,
+    admin_fee: paymentBreakdown.adminFee,
+    total_price: paymentBreakdown.totalAmount
   });
 
   const handleSubmit = (e) => {
