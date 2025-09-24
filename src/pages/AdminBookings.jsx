@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { format, isValid } from "date-fns";
 import { BookingReference, BookingReferenceSearch } from "../components/booking/BookingReference";
@@ -25,9 +25,11 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
 
 export default function AdminBookings() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [userMap, setUserMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [highlightedBookingId, setHighlightedBookingId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -54,6 +56,18 @@ export default function AdminBookings() {
     };
     load();
   }, []);
+
+  // Handle navigation from sidebar search
+  useEffect(() => {
+    if (location.state?.selectedBookingId) {
+      setHighlightedBookingId(location.state.selectedBookingId);
+      // Clear the highlight after 3 seconds
+      const timer = setTimeout(() => {
+        setHighlightedBookingId(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
 
   const filtered = useMemo(() => {
     return bookings.filter(b => statusParam === "all" ? true : b.status === statusParam);
@@ -98,7 +112,14 @@ export default function AdminBookings() {
                 const client = userMap[b.client_id];
                 const coach = userMap[b.coach_id];
                 return (
-                  <div key={b.id} className="flex flex-col md:flex-row md:items-center md:justify-between p-3 rounded-lg border border-slate-200">
+                  <div 
+                    key={b.id} 
+                    className={`flex flex-col md:flex-row md:items-center md:justify-between p-3 rounded-lg border transition-all duration-300 ${
+                      highlightedBookingId === b.id 
+                        ? 'border-blue-400 bg-blue-50 shadow-md' 
+                        : 'border-slate-200'
+                    }`}
+                  >
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-1">
                         <p className="font-medium text-slate-900">{b.service_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>

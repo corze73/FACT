@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
 // Toast and auth imports removed as unused
 import {
   Sidebar,
@@ -151,6 +152,20 @@ export default function Layout({ children, currentPageName }) {
               </Link>
             </div>
           </SidebarHeader>
+          
+          {/* Booking Search for Admin Users */}
+          {currentUser?.role === 'admin' && (
+            <div className="px-4 py-2 border-b border-slate-200">
+              <SidebarBookingSearch 
+                onBookingFound={(booking) => {
+                  // Navigate to admin bookings with the selected booking highlighted
+                  navigate(createPageUrl("AdminBookings"), { 
+                    state: { selectedBookingId: booking.id, searchReference: booking.reference_code } 
+                  });
+                }}
+              />
+            </div>
+          )}
           
           <SidebarContent className="p-4">
             <SidebarGroup>
