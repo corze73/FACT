@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { neon } from '@neondatabase/serverless';
+import process from 'process';
 
 config();
 const sql = neon(process.env.VITE_DATABASE_URL);
