@@ -6,29 +6,35 @@ if (!databaseUrl) {
   throw new Error('Missing database environment variable. Please set VITE_DATABASE_URL in your .env file.');
 }
 
-// Create Neon database connection with browser warning disabled
-export const sql = neon(databaseUrl, {
-  // Disable browser warnings since we're using RLS and proper security measures
-  disableWarningInBrowsers: true
-});
+// Create Neon database connection
+export const sql = neon(databaseUrl);
 
 // Helper function to execute queries
 export const db = {
   // Set current user context for RLS
   async setUserContext(userId) {
     if (userId) {
-      await sql.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
+      await sql`SELECT set_config('app.current_user_id', ${userId}::text, true)`;
     } else {
-      await sql.query(`SELECT set_config('app.current_user_id', '', true)`);
+      await sql`SELECT set_config('app.current_user_id', '', true)`;
     }
   },
 
-  // Execute raw SQL query with additional safety checks
+  // Execute raw SQL query using template literals
   async query(text, params = []) {
     try {
-      // In production, we should use prepared statements and validate queries
-      // This is acceptable for development with RLS enabled
-      return await sql(text, params);
+      // Convert parameterized queries to template literals for Neon v1.0+
+      if (params.length === 0) {
+        // Simple query without parameters
+        return await sql([text]);
+      } else {
+        // Build a proper template literal with parameters
+        let query = text;
+        params.forEach((param, index) => {
+          query = query.replace(`$${index + 1}`, param);
+        });
+        return await sql([query]);
+      }
     } catch (error) {
       console.error('Database query error:', error);
       throw error;
