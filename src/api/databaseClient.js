@@ -41,104 +41,140 @@ export const db = {
     }
   },
 
-  // SELECT queries
+  // SELECT queries using template literals
   async select(table, options = {}) {
-    let query = `SELECT * FROM ${table}`;
-    const params = [];
-    let paramIndex = 1;
+    try {
+      let baseQuery = `SELECT * FROM ${table}`;
+      const whereConditions = [];
+      const queryParts = [baseQuery];
 
-    if (options.where) {
-      const conditions = [];
-      for (const [key, value] of Object.entries(options.where)) {
-        if (value === null) {
-          conditions.push(`${key} IS NULL`);
-        } else {
-          conditions.push(`${key} = $${paramIndex}`);
-          params.push(value);
-          paramIndex++;
+      if (options.where) {
+        for (const [key, value] of Object.entries(options.where)) {
+          if (value === null) {
+            whereConditions.push(`${key} IS NULL`);
+          } else {
+            whereConditions.push(`${key} = ${typeof value === 'string' ? `'${value}'` : value}`);
+          }
+        }
+        if (whereConditions.length > 0) {
+          queryParts.push(` WHERE ${whereConditions.join(' AND ')}`);
         }
       }
-      if (conditions.length > 0) {
-        query += ` WHERE ${conditions.join(' AND ')}`;
+
+      if (options.orderBy) {
+        const orderParts = [];
+        for (const [column, direction] of Object.entries(options.orderBy)) {
+          orderParts.push(`${column} ${direction.toUpperCase()}`);
+        }
+        queryParts.push(` ORDER BY ${orderParts.join(', ')}`);
       }
-    }
 
-    if (options.orderBy) {
-      const orderParts = [];
-      for (const [column, direction] of Object.entries(options.orderBy)) {
-        orderParts.push(`${column} ${direction.toUpperCase()}`);
+      if (options.limit) {
+        queryParts.push(` LIMIT ${options.limit}`);
       }
-      query += ` ORDER BY ${orderParts.join(', ')}`;
-    }
 
-    if (options.limit) {
-      query += ` LIMIT $${paramIndex}`;
-      params.push(options.limit);
+      const finalQuery = queryParts.join('');
+      return await sql([finalQuery]);
+    } catch (error) {
+      console.error('Database select error:', error);
+      throw error;
     }
-
-    return await this.query(query, params);
   },
 
-  // INSERT query
+  // INSERT query using template literals
   async insert(table, data) {
-    const columns = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-    
-    const query = `
-      INSERT INTO ${table} (${columns.join(', ')}) 
-      VALUES (${placeholders}) 
-      RETURNING *
-    `;
-    
-    const result = await this.query(query, values);
-    return result[0];
+    try {
+      const columns = Object.keys(data);
+      const values = Object.values(data);
+      const valueStrings = values.map(v => 
+        v === null ? 'NULL' : 
+        typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : 
+        v
+      );
+      
+      const query = `
+        INSERT INTO ${table} (${columns.join(', ')}) 
+        VALUES (${valueStrings.join(', ')}) 
+        RETURNING *
+      `;
+      
+      const result = await sql([query]);
+      return result[0];
+    } catch (error) {
+      console.error('Database insert error:', error);
+      throw error;
+    }
   },
 
-  // UPDATE query
+  // UPDATE query using template literals
   async update(table, id, data) {
-    const columns = Object.keys(data);
-    const values = Object.values(data);
-    const setClauses = columns.map((col, i) => `${col} = $${i + 2}`).join(', ');
-    
-    const query = `
-      UPDATE ${table} 
-      SET ${setClauses}, updated_at = NOW()
-      WHERE id = $1 
-      RETURNING *
-    `;
-    
-    const result = await this.query(query, [id, ...values]);
-    return result[0];
+    try {
+      const columns = Object.keys(data);
+      const values = Object.values(data);
+      const setClauses = columns.map((col, i) => {
+        const value = values[i];
+        const valueStr = value === null ? 'NULL' : 
+                        typeof value === 'string' ? `'${value.replace(/'/g, "''")}'` : 
+                        value;
+        return `${col} = ${valueStr}`;
+      }).join(', ');
+      
+      const query = `
+        UPDATE ${table} 
+        SET ${setClauses}, updated_at = NOW()
+        WHERE id = ${typeof id === 'string' ? `'${id}'` : id}
+        RETURNING *
+      `;
+      
+      const result = await sql([query]);
+      return result[0];
+    } catch (error) {
+      console.error('Database update error:', error);
+      throw error;
+    }
   },
 
-  // DELETE query
+  // DELETE query using template literals
   async delete(table, id) {
-    const query = `DELETE FROM ${table} WHERE id = $1 RETURNING *`;
-    const result = await this.query(query, [id]);
-    return result[0];
+    try {
+      const query = `DELETE FROM ${table} WHERE id = ${typeof id === 'string' ? `'${id}'` : id} RETURNING *`;
+      const result = await sql([query]);
+      return result[0];
+    } catch (error) {
+      console.error('Database delete error:', error);
+      throw error;
+    }
   },
 
-  // UPSERT (INSERT or UPDATE)
+  // UPSERT (INSERT or UPDATE) using template literals
   async upsert(table, data) {
-    const columns = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-    const updateClauses = columns
-      .filter(col => col !== 'id' && col !== 'created_at')
-      .map(col => `${col} = EXCLUDED.${col}`)
-      .join(', ');
-    
-    const query = `
-      INSERT INTO ${table} (${columns.join(', ')}) 
-      VALUES (${placeholders}) 
-      ON CONFLICT (id) DO UPDATE SET 
-      ${updateClauses}, updated_at = NOW()
-      RETURNING *
-    `;
-    
-    const result = await this.query(query, values);
-    return result[0];
+    try {
+      const columns = Object.keys(data);
+      const values = Object.values(data);
+      const valueStrings = values.map(v => 
+        v === null ? 'NULL' : 
+        typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : 
+        v
+      );
+      const updateClauses = columns
+        .filter(col => col !== 'id' && col !== 'created_at')
+        .map(col => `${col} = EXCLUDED.${col}`)
+        .join(', ');
+      
+      const query = `
+        INSERT INTO ${table} (${columns.join(', ')}) 
+        VALUES (${valueStrings.join(', ')}) 
+        ON CONFLICT (id) DO UPDATE SET 
+        ${updateClauses}, updated_at = NOW()
+        RETURNING *
+      `;
+      
+      const result = await sql([query]);
+      return result[0];
+    } catch (error) {
+      console.error('Database upsert error:', error);
+      throw error;
+    }
   }
 };
 
