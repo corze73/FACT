@@ -9,7 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, addDays, isToday, isBefore } from "date-fns";
 import { CalendarIcon, Clock, CreditCard } from "lucide-react";
-import { calculatePaymentBreakdown, getAdminFee } from "../../utils/payment";
+import { calculatePaymentBreakdown } from "../../utils/payment";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   const servicePrice = coach?.coach_profile?.hourly_rate || 50;
