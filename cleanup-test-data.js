@@ -1,3 +1,5 @@
+/* eslint-env node */
+/* eslint-disable no-undef */
 import { config } from 'dotenv';
 import { neon } from '@neondatabase/serverless';
 
@@ -120,7 +122,7 @@ async function executeCleanup() {
 }
 
 // Check if --confirm flag is provided
-const args = globalThis.process?.argv?.slice(2) || [];
+const args = process.argv.slice(2);
 if (args.includes('--confirm')) {
   executeCleanup();
 } else {
