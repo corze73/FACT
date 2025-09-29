@@ -31,6 +31,7 @@ export default function CoachProfile() {
         coach_profile: {
           hourly_rate: currentUser.coach_profile?.hourly_rate || 50,
           services_offered: currentUser.coach_profile?.services_offered || [],
+          age_groups: currentUser.coach_profile?.age_groups || [],
         },
       });
     } catch (error) {
@@ -59,6 +60,14 @@ export default function CoachProfile() {
     });
   };
 
+  const handleAgeGroupsChange = (value, checked) => {
+    setFormData(prev => {
+      const currentAgeGroups = prev.coach_profile?.age_groups || [];
+      const newAgeGroups = checked ? [...currentAgeGroups, value] : currentAgeGroups.filter(s => s !== value);
+      return { ...prev, coach_profile: { ...prev.coach_profile, age_groups: newAgeGroups }};
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -80,6 +89,17 @@ export default function CoachProfile() {
     { value: 'goalkeeping', label: 'Goalkeeping' },
     { value: 'fitness_conditioning', label: 'Fitness & Conditioning' },
     { value: 'tactical_analysis', label: 'Tactical Analysis' }
+  ];
+
+  const ageGroups = [
+    { value: 'under_8', label: 'Under 8s' },
+    { value: 'under_10', label: 'Under 10s' },
+    { value: 'under_12', label: 'Under 12s' },
+    { value: 'under_14', label: 'Under 14s' },
+    { value: 'under_16', label: 'Under 16s' },
+    { value: 'under_18', label: 'Under 18s' },
+    { value: 'adults', label: 'Adults (18+)' },
+    { value: 'seniors', label: 'Seniors (35+)' }
   ];
 
   if (isLoading || !formData) return <div>Loading...</div>;
@@ -127,6 +147,22 @@ export default function CoachProfile() {
                     <div key={type.value} className="flex items-center space-x-2">
                       <Checkbox id={`service-${type.value}`} checked={formData.coach_profile.services_offered.includes(type.value)} onCheckedChange={(checked) => handleServicesChange(type.value, checked)} />
                       <Label htmlFor={`service-${type.value}`} className="text-sm font-normal">{type.label}</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Age Groups You Coach</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {ageGroups.map((age) => (
+                    <div key={age.value} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`age-${age.value}`} 
+                        checked={formData.coach_profile.age_groups?.includes(age.value)} 
+                        onCheckedChange={(checked) => handleAgeGroupsChange(age.value, checked)} 
+                      />
+                      <Label htmlFor={`age-${age.value}`} className="text-sm font-normal">{age.label}</Label>
                     </div>
                   ))}
                 </div>

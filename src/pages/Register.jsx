@@ -37,7 +37,8 @@ export default function Register() {
       services_offered: [],
       hourly_rate: 50,
       availability: {},
-      service_radius: 25
+      service_radius: 25,
+      age_groups: []
     } : undefined
   });
 
@@ -145,6 +146,17 @@ export default function Register() {
     { value: 'weekend', label: 'Weekends' }
   ];
 
+  const ageGroups = [
+    { value: 'under_8', label: 'Under 8s' },
+    { value: 'under_10', label: 'Under 10s' },
+    { value: 'under_12', label: 'Under 12s' },
+    { value: 'under_14', label: 'Under 14s' },
+    { value: 'under_16', label: 'Under 16s' },
+    { value: 'under_18', label: 'Under 18s' },
+    { value: 'adults', label: 'Adults (18+)' },
+    { value: 'seniors', label: 'Seniors (35+)' }
+  ];
+
   return (
     <div className="min-h-screen py-12 px-6 relative">
       <div className="max-w-2xl mx-auto">
@@ -210,7 +222,8 @@ export default function Register() {
                     credentials: [],
                     services_offered: [],
                     hourly_rate: 50,
-                    availability: {}
+                    availability: {},
+                    age_groups: []
                   }
                 }));
               }}
@@ -429,6 +442,31 @@ export default function Register() {
                             />
                             <Label htmlFor={`services-${type.value}`} className="text-sm">
                               {type.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>Age Groups You Coach</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {ageGroups.map((age) => (
+                          <div key={age.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`age-${age.value}`}
+                              checked={formData.coach_profile?.age_groups?.includes(age.value)}
+                              onCheckedChange={(checked) => {
+                                const current = formData.coach_profile?.age_groups || [];
+                                if (checked) {
+                                  handleInputChange('coach_profile.age_groups', [...current, age.value]);
+                                } else {
+                                  handleInputChange('coach_profile.age_groups', current.filter(s => s !== age.value));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`age-${age.value}`} className="text-sm">
+                              {age.label}
                             </Label>
                           </div>
                         ))}

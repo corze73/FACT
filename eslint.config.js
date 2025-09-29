@@ -36,9 +36,9 @@ export default [
       'react/prop-types': 'off', // Disable prop-types validation
     },
   },
-  // Node.js configuration for test and utility scripts
+  // Node.js configuration for server and utility scripts
   {
-    files: ['test-*.js', 'check-*.js', 'debug-*.js'],
+    files: ['server.js', 'src/databaseClient.js', 'test-*.js', 'check-*.js', 'debug-*.js'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.node,
