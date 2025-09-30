@@ -167,20 +167,39 @@ export const User = {
   },
 
   async signUpWithEmail(email, password, userData) {
-    // Mock signup - you'll need to implement proper auth
-    const userId = crypto.randomUUID();
-    const user = { id: userId, email };
+    // Check if user already exists
+    const existingUsers = await db.select('profiles', { where: { email } });
+    if (existingUsers.length > 0) {
+      throw new Error('User already registered');
+    }
     
-    // Create profile (password handling would be implemented in production)
+    // Create new user profile
+    const userId = crypto.randomUUID();
     const profileData = { ...userData };
     delete profileData.password; // Remove password from profile data
-    await this.updateMyUserData({
-      ...profileData,
-      email: user.email,
-      id: user.id
-    });
     
-    return { user };
+    // Handle location field
+    if (typeof profileData.location === 'object' && profileData.location !== null && 'address' in profileData.location) {
+      profileData.location = profileData.location.address;
+    }
+    
+    const newUser = {
+      id: userId,
+      email: email,
+      ...profileData,
+      role: 'user',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    // Insert the new user profile
+    await db.insert('profiles', newUser);
+    
+    // Set the user as authenticated
+    await auth.setCurrentUser({ id: userId, email: email });
+    
+    return { user: auth.currentUser };
   },
 
   async signInWithEmail(email, password) {
