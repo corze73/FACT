@@ -1,7 +1,15 @@
 import { neon } from '@neondatabase/serverless';
 
 // Get database URL from environment variables
-const databaseUrl = import.meta.env.VITE_DATABASE_URL || process.env.VITE_DATABASE_URL;
+// In Node.js server context, use process.env; in browser, use import.meta.env
+const databaseUrl = (typeof window === 'undefined') 
+  ? process.env.VITE_DATABASE_URL 
+  : import.meta.env.VITE_DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error('VITE_DATABASE_URL environment variable is not set');
+}
+
 const sql = neon(databaseUrl);
 
 // Simple auth state management for client-side

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-// Load environment variables
+// Load environment variables first
 dotenv.config();
 
 const app = express();
@@ -20,12 +20,16 @@ app.use('/stripe/webhook', express.raw({ type: 'application/json' }));
 // For other routes, use JSON middleware
 app.use(express.json());
 
-// Import and use Stripe routes
-import('./src/api/stripe-routes.js').then(({ default: stripeRoutes }) => {
-  app.use('/stripe', stripeRoutes);
-}).catch(err => {
-  console.error('Error loading Stripe routes:', err);
-});
+// Import and use Stripe routes after a slight delay to ensure env vars are loaded
+setTimeout(async () => {
+  try {
+    const { default: stripeRoutes } = await import('./src/api/stripe-routes.js');
+    app.use('/stripe', stripeRoutes);
+    console.log('✅ Stripe routes loaded successfully');
+  } catch (err) {
+    console.error('❌ Error loading Stripe routes:', err);
+  }
+}, 100);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
