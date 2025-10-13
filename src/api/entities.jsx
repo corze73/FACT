@@ -167,111 +167,188 @@ export const User = {
   },
 
   async signUpWithEmail(email, password, userData) {
-    // Check if user already exists
-    const existingUsers = await db.select('profiles', { where: { email } });
-    if (existingUsers.length > 0) {
-      throw new Error('User already registered');
+    let errorDetails = null;
+
+    try {
+      // Check if user already exists
+      const existingUsers = await db.select('profiles', { where: { email } });
+      if (existingUsers.length > 0) {
+        throw new Error('User already registered');
+      }
+      
+      // Create new user profile
+      const userId = crypto.randomUUID();
+      const profileData = { ...userData };
+      delete profileData.password; // Remove password from profile data
+      
+      // Handle location field
+      if (typeof profileData.location === 'object' && profileData.location !== null && 'address' in profileData.location) {
+        profileData.location = profileData.location.address;
+      }
+      
+      // For profiles table, role must be 'user' or 'admin' (based on constraint)
+      // Use 'user' for both coaches and regular users in profiles
+      const profileRole = 'user';
+      
+      // For users table, role can be 'coach' or 'user'
+      const userRole = profileData.user_type === 'coach' ? 'coach' : 'user';
+      
+      const newProfile = {
+        id: userId,
+        email: email,
+        full_name: profileData.full_name,
+        user_type: profileData.user_type,
+        location: profileData.location,
+        skills: profileData.skills || [],
+        bio: profileData.bio,
+        phone: profileData.phone,
+        role: profileRole,
+        preferred_coaching_types: profileData.preferred_coaching_types || [],
+        preferred_session_times: profileData.preferred_session_times || [],
+        coach_profile: profileData.coach_profile || null,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      // Insert profile using direct SQL to handle arrays properly
+      await db.query(`
+        INSERT INTO profiles (
+          id, email, full_name, user_type, location, skills, bio, phone, role,
+          preferred_coaching_types, preferred_session_times, coach_profile,
+          is_active, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+        )
+      `, [
+        newProfile.id,
+        newProfile.email,
+        newProfile.full_name,
+        newProfile.user_type,
+        newProfile.location,
+        newProfile.skills,
+        newProfile.bio,
+        newProfile.phone,
+        newProfile.role,
+        newProfile.preferred_coaching_types,
+        newProfile.preferred_session_times,
+        JSON.stringify(newProfile.coach_profile),
+        newProfile.is_active,
+        newProfile.created_at,
+        newProfile.updated_at
+      ]);
+      
+      // Also insert into users table for consistency
+      await db.query(`
+        INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        userId,
+        email,
+        profileData.full_name,
+        userRole,
+        profileData.phone,
+        new Date().toISOString(),
+        new Date().toISOString()
+      ]);
+      
+      // Set the user as authenticated
+      await auth.setCurrentUser({ id: userId, email: email });
+
+      // Send notifications asynchronously (don't block the user)
+      setTimeout(async () => {
+        try {
+          const { AuthNotificationService } = await import('./authLogger.js');
+          await AuthNotificationService.handleSignupEvent(
+            email,
+            profileData.full_name,
+            profileData.user_type,
+            true
+          );
+        } catch (notificationError) {
+          console.error('Notification error (non-blocking):', notificationError);
+        }
+      }, 0);
+
+      return { user: auth.currentUser };
+
+    } catch (error) {
+      errorDetails = {
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      };
+
+      // Send failure notifications asynchronously
+      setTimeout(async () => {
+        try {
+          const { AuthNotificationService } = await import('./authLogger.js');
+          await AuthNotificationService.handleSignupEvent(
+            email,
+            userData.full_name || 'User',
+            userData.user_type || 'user',
+            false,
+            errorDetails
+          );
+        } catch (notificationError) {
+          console.error('Failure notification error (non-blocking):', notificationError);
+        }
+      }, 0);
+
+      throw error;
     }
-    
-    // Create new user profile
-    const userId = crypto.randomUUID();
-    const profileData = { ...userData };
-    delete profileData.password; // Remove password from profile data
-    
-    // Handle location field
-    if (typeof profileData.location === 'object' && profileData.location !== null && 'address' in profileData.location) {
-      profileData.location = profileData.location.address;
-    }
-    
-    // For profiles table, role must be 'user' or 'admin' (based on constraint)
-    // Use 'user' for both coaches and regular users in profiles
-    const profileRole = 'user';
-    
-    // For users table, role can be 'coach' or 'user'
-    const userRole = profileData.user_type === 'coach' ? 'coach' : 'user';
-    
-    const newProfile = {
-      id: userId,
-      email: email,
-      full_name: profileData.full_name,
-      user_type: profileData.user_type,
-      location: profileData.location,
-      skills: profileData.skills || [],
-      bio: profileData.bio,
-      phone: profileData.phone,
-      role: profileRole,
-      preferred_coaching_types: profileData.preferred_coaching_types || [],
-      preferred_session_times: profileData.preferred_session_times || [],
-      coach_profile: profileData.coach_profile || null,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    // Insert profile using direct SQL to handle arrays properly
-    await db.query(`
-      INSERT INTO profiles (
-        id, email, full_name, user_type, location, skills, bio, phone, role,
-        preferred_coaching_types, preferred_session_times, coach_profile,
-        is_active, created_at, updated_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-      )
-    `, [
-      newProfile.id,
-      newProfile.email,
-      newProfile.full_name,
-      newProfile.user_type,
-      newProfile.location,
-      newProfile.skills,
-      newProfile.bio,
-      newProfile.phone,
-      newProfile.role,
-      newProfile.preferred_coaching_types,
-      newProfile.preferred_session_times,
-      JSON.stringify(newProfile.coach_profile),
-      newProfile.is_active,
-      newProfile.created_at,
-      newProfile.updated_at
-    ]);
-    
-    // Also insert into users table for consistency
-    await db.query(`
-      INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [
-      userId,
-      email,
-      profileData.full_name,
-      userRole,
-      profileData.phone,
-      new Date().toISOString(),
-      new Date().toISOString()
-    ]);
-    
-    // Set the user as authenticated
-    await auth.setCurrentUser({ id: userId, email: email });
-    
-    return { user: auth.currentUser };
   },
 
   async signInWithEmail(email, password) {
-    // Basic email validation
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+    let errorDetails = null;
+
+    try {
+      // Basic email validation
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      // Find user by email
+      const profiles = await db.select('profiles', { where: { email } });
+      if (profiles.length === 0) {
+        throw new Error('Invalid email or password');
+      }
+      
+      // For now, accept any password for existing users
+      // In production, you'd validate against a hashed password
+      const user = profiles[0];
+      await auth.setCurrentUser({ id: user.id, email: user.email });
+
+      // Log successful signin (non-blocking)
+      setTimeout(async () => {
+        try {
+          const { AuthNotificationService } = await import('./authLogger.js');
+          await AuthNotificationService.handleSigninEvent(email, true);
+        } catch (notificationError) {
+          console.error('Signin notification error (non-blocking):', notificationError);
+        }
+      }, 0);
+
+      return { user: auth.currentUser };
+
+    } catch (error) {
+      errorDetails = {
+        message: error.message,
+        timestamp: new Date().toISOString()
+      };
+
+      // Log failed signin (non-blocking)
+      setTimeout(async () => {
+        try {
+          const { AuthNotificationService } = await import('./authLogger.js');
+          await AuthNotificationService.handleSigninEvent(email, false, errorDetails);
+        } catch (notificationError) {
+          console.error('Signin failure notification error (non-blocking):', notificationError);
+        }
+      }, 0);
+
+      throw error;
     }
-    
-    // Find user by email
-    const profiles = await db.select('profiles', { where: { email } });
-    if (profiles.length === 0) {
-      throw new Error('Invalid email or password');
-    }
-    
-    // For now, accept any password for existing users
-    // In production, you'd validate against a hashed password
-    const user = profiles[0];
-    await auth.setCurrentUser({ id: user.id, email: user.email });
-    return { user: auth.currentUser };
   },
 
   async logout() {
