@@ -183,18 +183,71 @@ export const User = {
       profileData.location = profileData.location.address;
     }
     
-    const newUser = {
+    // For profiles table, role must be 'user' or 'admin' (based on constraint)
+    // Use 'user' for both coaches and regular users in profiles
+    const profileRole = 'user';
+    
+    // For users table, role can be 'coach' or 'user'
+    const userRole = profileData.user_type === 'coach' ? 'coach' : 'user';
+    
+    const newProfile = {
       id: userId,
       email: email,
-      ...profileData,
-      role: 'user',
+      full_name: profileData.full_name,
+      user_type: profileData.user_type,
+      location: profileData.location,
+      skills: profileData.skills || [],
+      bio: profileData.bio,
+      phone: profileData.phone,
+      role: profileRole,
+      preferred_coaching_types: profileData.preferred_coaching_types || [],
+      preferred_session_times: profileData.preferred_session_times || [],
+      coach_profile: profileData.coach_profile || null,
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
     
-    // Insert the new user profile
-    await db.insert('profiles', newUser);
+    // Insert profile using direct SQL to handle arrays properly
+    await db.query(`
+      INSERT INTO profiles (
+        id, email, full_name, user_type, location, skills, bio, phone, role,
+        preferred_coaching_types, preferred_session_times, coach_profile,
+        is_active, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+      )
+    `, [
+      newProfile.id,
+      newProfile.email,
+      newProfile.full_name,
+      newProfile.user_type,
+      newProfile.location,
+      newProfile.skills,
+      newProfile.bio,
+      newProfile.phone,
+      newProfile.role,
+      newProfile.preferred_coaching_types,
+      newProfile.preferred_session_times,
+      JSON.stringify(newProfile.coach_profile),
+      newProfile.is_active,
+      newProfile.created_at,
+      newProfile.updated_at
+    ]);
+    
+    // Also insert into users table for consistency
+    await db.query(`
+      INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+      userId,
+      email,
+      profileData.full_name,
+      userRole,
+      profileData.phone,
+      new Date().toISOString(),
+      new Date().toISOString()
+    ]);
     
     // Set the user as authenticated
     await auth.setCurrentUser({ id: userId, email: email });
