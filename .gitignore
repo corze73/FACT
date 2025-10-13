@@ -18,6 +18,15 @@ dist-ssr
 .idea
 .DS_Store
 *.suo
+
+# Documentation with sensitive information
+*-TROUBLESHOOTING.md
+*-SETUP-GUIDE.md
+*-VERIFICATION-REPORT.md
+SECURITY-ASSESSMENT.md
+GOOGLE_OAUTH_SETUP.md
+TESTING-STATUS.md
+REGISTRATION-ISSUE-RESOLVED.md
 *.ntvs*
 *.njsproj
 *.sln
