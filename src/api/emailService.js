@@ -1,20 +1,31 @@
 // Email notification service for authentication events
-import { db } from './databaseClient';
+import { db } from './databaseClient.js';
+import nodemailer from 'nodemailer';
+
+// Create SMTP transporter for Ionos
+const createTransporter = () => {
+  return nodemailer.createTransporter({
+    host: import.meta.env.SMTP_HOST,
+    port: parseInt(import.meta.env.SMTP_PORT),
+    secure: import.meta.env.SMTP_SECURE === 'true',
+    auth: {
+      user: import.meta.env.SMTP_USER,
+      pass: import.meta.env.SMTP_PASS
+    }
+  });
+};
 
 export const EmailService = {
-  // Send email via a service (you'll need to configure with your email provider)
+  // Send email via Ionos SMTP
   async sendEmail(to, subject, htmlContent, textContent = '') {
     try {
-      // For now, we'll log emails and store them in database
-      // You can integrate with services like SendGrid, Mailgun, or AWS SES
-      
       const emailLog = {
         id: crypto.randomUUID(),
         to_email: to,
         subject: subject,
         html_content: htmlContent,
         text_content: textContent,
-        status: 'pending',
+        status: 'sending',
         sent_at: new Date().toISOString(),
         created_at: new Date().toISOString()
       };
@@ -22,24 +33,33 @@ export const EmailService = {
       // Log email attempt
       await this.logEmail(emailLog);
       
-      // TODO: Implement actual email sending here
-      // Example with SendGrid:
-      // const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-      //     'Content-Type': 'application/json'
-      //   },
-      //   body: JSON.stringify({
-      //     personalizations: [{ to: [{ email: to }] }],
-      //     from: { email: process.env.FROM_EMAIL },
-      //     subject: subject,
-      //     content: [{ type: 'text/html', value: htmlContent }]
-      //   })
-      // });
+      // Send actual email via Ionos SMTP
+      try {
+        const transporter = createTransporter();
+        
+        const mailOptions = {
+          from: `"FACT Support" <${import.meta.env.VITE_SUPPORT_EMAIL}>`,
+          to: to,
+          subject: subject,
+          html: htmlContent,
+          text: textContent || htmlContent.replace(/<[^>]*>/g, '') // Strip HTML for text version
+        };
 
-      console.log(`📧 Email queued: ${subject} to ${to}`);
-      return { success: true, emailId: emailLog.id };
+        const info = await transporter.sendMail(mailOptions);
+        
+        // Update email log as sent
+        await this.updateEmailStatus(emailLog.id, 'sent', info.messageId);
+        
+        console.log(`📧 Email sent: ${subject} to ${to} - Message ID: ${info.messageId}`);
+        return { success: true, emailId: emailLog.id, messageId: info.messageId };
+
+      } catch (smtpError) {
+        // Update email log as failed
+        await this.updateEmailStatus(emailLog.id, 'failed', null, smtpError.message);
+        
+        console.error(`❌ Email failed: ${subject} to ${to}`, smtpError.message);
+        return { success: false, error: smtpError.message, emailId: emailLog.id };
+      }
 
     } catch (error) {
       console.error('Email sending error:', error);
@@ -65,6 +85,19 @@ export const EmailService = {
       ]);
     } catch (error) {
       console.error('Failed to log email:', error);
+    }
+  },
+
+  // Update email status in database
+  async updateEmailStatus(emailId, status, messageId = null, errorMessage = null) {
+    try {
+      await db.query(`
+        UPDATE email_logs 
+        SET status = $1, message_id = $2, error_message = $3, updated_at = $4
+        WHERE id = $5
+      `, [status, messageId, errorMessage, new Date().toISOString(), emailId]);
+    } catch (error) {
+      console.error('Failed to update email status:', error);
     }
   },
 

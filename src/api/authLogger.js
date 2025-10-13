@@ -1,6 +1,6 @@
 // Authentication event logging service
-import { db } from './databaseClient';
-import { EmailService } from './emailService';
+import { db } from './databaseClient.js';
+import { EmailService } from './emailService.js';
 
 export const AuthLogger = {
   // Log authentication events to database
