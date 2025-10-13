@@ -1,18 +1,10 @@
 // Email notification service for authentication events
 import { db } from './databaseClient.js';
-import nodemailer from 'nodemailer';
 
-// Create SMTP transporter for Ionos
+// Server-side email service - credentials handled by backend API
 const createTransporter = () => {
-  return nodemailer.createTransporter({
-    host: import.meta.env.SMTP_HOST,
-    port: parseInt(import.meta.env.SMTP_PORT),
-    secure: import.meta.env.SMTP_SECURE === 'true',
-    auth: {
-      user: import.meta.env.SMTP_USER,
-      pass: import.meta.env.SMTP_PASS
-    }
-  });
+  // This will be handled by the server.js backend
+  throw new Error('Email service must be called via API endpoint, not directly from client');
 };
 
 export const EmailService = {

@@ -6,8 +6,40 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
   { ignores: ['dist'] },
+  // Configuration files (Node.js environment)
+  {
+    files: ['tailwind.config.js', 'vite.config.js', 'postcss.config.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: { ...globals.node, module: true, require: true },
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+      },
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+    },
+  },
+  // Server-side files (Node.js environment)
+  {
+    files: ['server.js', 'src/api/email-routes.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+      },
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+    },
+  },
+  // Client-side files (Browser environment)
   {
     files: ['**/*.{js,jsx}'],
+    ignores: ['server.js', 'src/api/email-routes.js', 'tailwind.config.js', 'vite.config.js', 'postcss.config.js'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,

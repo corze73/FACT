@@ -20,14 +20,19 @@ app.use('/stripe/webhook', express.raw({ type: 'application/json' }));
 // For other routes, use JSON middleware
 app.use(express.json());
 
-// Import and use Stripe routes after a slight delay to ensure env vars are loaded
+// Import and use API routes after a slight delay to ensure env vars are loaded
 setTimeout(async () => {
   try {
     const { default: stripeRoutes } = await import('./src/api/stripe-routes.js');
     app.use('/stripe', stripeRoutes);
     console.log('✅ Stripe routes loaded successfully');
+    
+    // Add email API routes
+    const { default: emailRoutes } = await import('./src/api/email-routes.js');
+    app.use('/api/email', emailRoutes);
+    console.log('✅ Email API routes loaded successfully');
   } catch (err) {
-    console.error('❌ Error loading Stripe routes:', err);
+    console.error('❌ Error loading API routes:', err);
   }
 }, 100);
 
