@@ -5,14 +5,14 @@
 Your existing email addresses through Ionos:
 
 - **Support Email**: `support@findacoachtoday.com`
-- **Admin Email**: `admin@findacoachtoday.co.uk`
+- **Admin Email**: `corze73@gmail.com`
 
 ## Environment Variables
 
 The following are already configured in your `.env` file:
 
 ```bash
-VITE_ADMIN_EMAIL=admin@findacoachtoday.co.uk
+VITE_ADMIN_EMAIL=corze73@gmail.com
 VITE_SUPPORT_EMAIL=support@findacoachtoday.com
 ```
 
@@ -60,7 +60,7 @@ const info = await transporter.sendMail({
 
 ## Email Flow Summary
 
-1. **Admin Notifications**: All authentication events → `admin@findacoachtoday.co.uk`
+1. **Admin Notifications**: All authentication events → `corze73@gmail.com`
 2. **User Support**: Help requests and failure notifications → `support@findacoachtoday.com`
 3. **Welcome Emails**: Sent from support email to maintain consistency
 4. **Error Handling**: All failures are logged and admin is notified
