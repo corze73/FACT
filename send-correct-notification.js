@@ -3,21 +3,22 @@
 // Send manual admin notification about Tia's registration to the correct admin email
 import dotenv from 'dotenv';
 import pg from 'pg';
+import { randomUUID } from 'crypto';
 
-dotenv.config();
+const config = dotenv.config();
 const { Client } = pg;
 
 async function sendCorrectAdminNotification() {
   const client = new Client({
-    connectionString: process.env.VITE_DATABASE_URL
+    connectionString: config.parsed.VITE_DATABASE_URL
   });
 
   try {
     await client.connect();
     console.log('📧 Sending corrected admin notification for Tia Charles...\n');
 
-    const emailId = crypto.randomUUID();
-    const adminEmail = process.env.VITE_ADMIN_EMAIL; // This should now be corze73@gmail.com
+    const emailId = randomUUID();
+    const adminEmail = config.parsed.VITE_ADMIN_EMAIL; // This should now be corze73@gmail.com
     const subject = '✅ New User Registration: tia.charles1@googlemail.com (Corrected Notification)';
     
     // Create the admin notification email log entry
