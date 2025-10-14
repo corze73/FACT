@@ -1,12 +1,16 @@
 
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
+import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
+import { ExternalLink } from "lucide-react";
 
 export default function AdminUsers() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -16,6 +20,15 @@ export default function AdminUsers() {
 
   const urlParams = new URLSearchParams(window.location.search);
   const typeParam = urlParams.get("type") || "all";
+
+  const handleCardClick = (user) => {
+    // Navigate to the appropriate profile page based on user type
+    if (user.user_type === "coach") {
+      navigate(createPageUrl(`CoachProfile?userId=${user.id}`));
+    } else {
+      navigate(createPageUrl(`UserProfile?userId=${user.id}`));
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -63,14 +76,20 @@ export default function AdminUsers() {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((u, idx) => (
                 <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }}>
-                  <Card className="border border-slate-200">
+                  <Card 
+                    className="border border-slate-200 cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all duration-200 group"
+                    onClick={() => handleCardClick(u)}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
                           <span className="font-semibold text-slate-600">{u.full_name?.charAt(0) || "U"}</span>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-slate-900 truncate">{u.full_name || "Unnamed"}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-slate-900 truncate">{u.full_name || "Unnamed"}</p>
+                            <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                          </div>
                           {/* Hide email (PII) for GDPR */}
                           <p className="text-xs text-slate-500">Email hidden</p>
                           <div className="flex gap-2 mt-2 flex-wrap">
