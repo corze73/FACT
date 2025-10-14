@@ -20,6 +20,7 @@ export default function UserProfile() {
   const [currentUser, setCurrentUser] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();

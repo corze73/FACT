@@ -23,7 +23,9 @@ export default function CoachProfile() {
   const [currentUser, setCurrentUser] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [uploadingImage, setUploadingImage] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [uploadingVideo, setUploadingVideo] = useState({ 1: false, 2: false, 3: false });
   const fileInputRef = useRef(null);
   const videoInputRefs = {
