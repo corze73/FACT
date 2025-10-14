@@ -250,11 +250,22 @@ export default function Layout({ children, currentPageName }) {
           </div>
 
           <footer className="py-6 border-t border-slate-200 bg-white/80">
-            <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-3">
-              <p className="text-slate-500 text-sm">© {new Date().getFullYear()} FACT</p>
-              <div className="flex items-center gap-4">
-                <Link to={createPageUrl("PrivacyPolicy")} className="text-slate-600 hover:text-slate-900 text-sm">Privacy</Link>
-                <Link to={createPageUrl("Terms")} className="text-slate-600 hover:text-slate-900 text-sm">Terms</Link>
+            <div className="max-w-7xl mx-auto px-6">
+              {/* Development Disclaimer */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 text-center">
+                  <span className="inline-block mr-1">🚀</span>
+                  We&apos;re constantly improving! Some features may be temporarily unavailable during updates. Thanks for your patience as we make FACT even better.
+                </p>
+              </div>
+              
+              {/* Footer Links */}
+              <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+                <p className="text-slate-500 text-sm">© {new Date().getFullYear()} FACT</p>
+                <div className="flex items-center gap-4">
+                  <Link to={createPageUrl("PrivacyPolicy")} className="text-slate-600 hover:text-slate-900 text-sm">Privacy</Link>
+                  <Link to={createPageUrl("Terms")} className="text-slate-600 hover:text-slate-900 text-sm">Terms</Link>
+                </div>
               </div>
             </div>
           </footer>
