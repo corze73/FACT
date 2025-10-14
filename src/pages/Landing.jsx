@@ -7,6 +7,7 @@ import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
 import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
+import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -314,15 +315,21 @@ export default function Landing() {
 
       {/* Footer with legal links */}
       <footer className="py-8 bg-slate-900">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-slate-300 text-sm">© {new Date().getFullYear()} FACT: Find a Coach Today</p>
-          <div className="flex items-center gap-6">
-            <Link to={createPageUrl("PrivacyPolicy")} className="text-slate-300 hover:text-white text-sm">
-              Privacy Policy
-            </Link>
-            <Link to={createPageUrl("Terms")} className="text-slate-300 hover:text-white text-sm">
-              Terms & Conditions
-            </Link>
+        <div className="max-w-7xl mx-auto px-6">
+          {/* Development Disclaimer */}
+          <DevelopmentDisclaimer />
+          
+          {/* Footer Links */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-slate-300 text-sm">© {new Date().getFullYear()} FACT: Find a Coach Today</p>
+            <div className="flex items-center gap-6">
+              <Link to={createPageUrl("PrivacyPolicy")} className="text-slate-300 hover:text-white text-sm">
+                Privacy Policy
+              </Link>
+              <Link to={createPageUrl("Terms")} className="text-slate-300 hover:text-white text-sm">
+                Terms & Conditions
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
