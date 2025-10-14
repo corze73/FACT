@@ -27,8 +27,8 @@ export default function UserProfile() {
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('userId');
         
-        // Only redirect if admin is NOT viewing someone else's profile
-        if (me.role === "admin" && !userId) {
+        // Allow admins to view other user profiles, but redirect to dashboard if viewing their own profile
+        if (me.role === "admin" && !userId && me.user_type !== 'user') {
           navigate(createPageUrl("AdminDashboard"));
         }
       } catch (error) {

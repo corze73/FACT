@@ -29,18 +29,19 @@ export default function CoachProfile() {
       // Get current logged-in user
       const loggedInUser = await User.me();
       setCurrentUser(loggedInUser);
-      
-      // Check if admin is viewing another user's profile
+
+      // Check if viewing another user's profile (admin viewing someone else)
       const urlParams = new URLSearchParams(window.location.search);
-      const userId = urlParams.get('userId');
+      const userIdParam = urlParams.get('userId');
       
-      let userToLoad = loggedInUser;
-      
-      if (userId && loggedInUser.role === 'admin') {
+      let userToLoad;
+      if (userIdParam && loggedInUser.role === 'admin') {
         // Admin viewing another user's profile
         setIsViewingAsAdmin(true);
-        const targetUser = await User.get(userId);
-        userToLoad = targetUser;
+        userToLoad = await User.get(userIdParam);
+      } else {
+        // User viewing their own profile
+        userToLoad = loggedInUser;
       }
       
       setFormData({
