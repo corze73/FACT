@@ -33,7 +33,7 @@ export default function AdminUsers() {
     return users
       .filter(u => {
         if (typeParam === "all") return true;
-        if (typeParam === "client") return u.user_type === "client" && u.role !== "admin";
+        if (typeParam === "client") return (u.user_type === "client" || u.user_type === "user") && u.role !== "admin";
         if (typeParam === "coach") return u.user_type === "coach" && u.role !== "admin";
         return u.user_type === typeParam;
       })
@@ -93,7 +93,7 @@ export default function AdminUsers() {
                           )}
 
                           {/* Client requirements */}
-                          {u.user_type === "client" && u.preferred_coaching_types?.length > 0 && (
+                          {(u.user_type === "client" || u.user_type === "user") && u.preferred_coaching_types?.length > 0 && (
                             <div className="mt-3">
                               <p className="text-xs text-slate-500 mb-1">Needs:</p>
                               <div className="flex flex-wrap gap-1.5">
