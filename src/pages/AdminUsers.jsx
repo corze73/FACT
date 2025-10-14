@@ -24,9 +24,9 @@ export default function AdminUsers() {
   const handleCardClick = (user) => {
     // Navigate to the appropriate profile page based on user type
     if (user.user_type === "coach") {
-      navigate(createPageUrl(`CoachProfile?userId=${user.id}`));
+      navigate(`${createPageUrl("CoachProfile")}?userId=${user.id}`);
     } else {
-      navigate(createPageUrl(`UserProfile?userId=${user.id}`));
+      navigate(`${createPageUrl("UserProfile")}?userId=${user.id}`);
     }
   };
 
