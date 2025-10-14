@@ -6,6 +6,7 @@ import { createPageUrl } from "@/utils";
 import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
+import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 // Toast and auth imports removed as unused
 import {
   Sidebar,
@@ -252,12 +253,7 @@ export default function Layout({ children, currentPageName }) {
           <footer className="py-6 border-t border-slate-200 bg-white/80">
             <div className="max-w-7xl mx-auto px-6">
               {/* Development Disclaimer */}
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800 text-center">
-                  <span className="inline-block mr-1">🚀</span>
-                  We&apos;re constantly improving! Some features may be temporarily unavailable during updates. Thanks for your patience as we make FACT even better.
-                </p>
-              </div>
+              <DevelopmentDisclaimer />
               
               {/* Footer Links */}
               <div className="flex flex-col md:flex-row items-center justify-between gap-3">
