@@ -2,10 +2,13 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, Shield, Zap, Target, User, BarChart, Calendar } from "lucide-react";
+import { Star, MapPin, Shield, Zap, Target, User, BarChart, Calendar, Eye } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 
 export default function CoachCard({ coach, onBook }) {
+  const navigate = useNavigate();
   const getServiceStyle = (service) => {
     const styles = {
       goalkeeping: { icon: User, color: "bg-orange-100 text-orange-800" },
@@ -106,13 +109,29 @@ export default function CoachCard({ coach, onBook }) {
                 <p className="text-xs text-slate-500">per session</p>
               </div>
               
-              <Button 
-                onClick={() => onBook(coach)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Book Now
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`${createPageUrl("CoachProfile")}?userId=${coach.id}`);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                >
+                  <Eye className="w-4 h-4" />
+                </Button>
+                <Button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onBook(coach);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Book
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>

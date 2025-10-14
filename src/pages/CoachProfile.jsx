@@ -44,16 +44,16 @@ export default function CoachProfile() {
       setCurrentUser(loggedInUser);
       console.log('Logged in user:', loggedInUser.full_name, 'Role:', loggedInUser.role);
 
-      // Check if viewing another user's profile (admin viewing someone else)
+      // Check if viewing another user's profile
       const urlParams = new URLSearchParams(window.location.search);
       const userIdParam = urlParams.get('userId');
       console.log('userId parameter:', userIdParam);
       
       let userToLoad;
-      if (userIdParam && loggedInUser.role === 'admin') {
-        // Admin viewing another user's profile
-        console.log('Admin viewing another coach profile, loading user:', userIdParam);
-        setIsViewingAsAdmin(true);
+      if (userIdParam && userIdParam !== loggedInUser.id) {
+        // Viewing another coach's profile (could be admin or regular user)
+        console.log('Viewing another coach profile, loading user:', userIdParam);
+        setIsViewingAsAdmin(true); // Use this flag for "read-only" mode
         userToLoad = await User.get(userIdParam);
         console.log('Loaded coach:', userToLoad.full_name);
       } else {
@@ -130,10 +130,51 @@ export default function CoachProfile() {
     
     setUploadingImage(true);
     
-    // Create a preview URL
+    // Create a compressed image
     const reader = new FileReader();
     reader.onload = (event) => {
-      setFormData(prev => ({ ...prev, avatar_url: event.target.result }));
+      const img = new Image();
+      img.onload = () => {
+        // Create canvas to resize image
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set max dimensions
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to base64 with reduced quality
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        setFormData(prev => ({ ...prev, avatar_url: compressedBase64 }));
+        setUploadingImage(false);
+      };
+      img.onerror = () => {
+        alert('Failed to load image');
+        setUploadingImage(false);
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      alert('Failed to read file');
       setUploadingImage(false);
     };
     reader.readAsDataURL(file);
@@ -157,10 +198,15 @@ export default function CoachProfile() {
     
     setUploadingVideo(prev => ({ ...prev, [clipNumber]: true }));
     
-    // Create a preview URL
+    // For videos, we just store the URL directly
+    // In production, you would upload to cloud storage and store the URL
     const reader = new FileReader();
     reader.onload = (event) => {
       setFormData(prev => ({ ...prev, [`video_clip_${clipNumber}`]: event.target.result }));
+      setUploadingVideo(prev => ({ ...prev, [clipNumber]: false }));
+    };
+    reader.onerror = () => {
+      alert('Failed to read video file. Try a smaller file or different format.');
       setUploadingVideo(prev => ({ ...prev, [clipNumber]: false }));
     };
     reader.readAsDataURL(file);

@@ -130,10 +130,51 @@ export default function UserProfile() {
     
     setUploadingImage(true);
     
-    // Create a preview URL
+    // Create a compressed image
     const reader = new FileReader();
     reader.onload = (event) => {
-      setFormData(prev => ({ ...prev, avatar_url: event.target.result }));
+      const img = new Image();
+      img.onload = () => {
+        // Create canvas to resize image
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set max dimensions
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to base64 with reduced quality
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        setFormData(prev => ({ ...prev, avatar_url: compressedBase64 }));
+        setUploadingImage(false);
+      };
+      img.onerror = () => {
+        alert('Failed to load image');
+        setUploadingImage(false);
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      alert('Failed to read file');
       setUploadingImage(false);
     };
     reader.readAsDataURL(file);
