@@ -18,7 +18,6 @@ export default function UserProfile() {
   const [isSaving, setIsSaving] = useState(false);
   // eslint-disable-next-line no-unused-vars
   const [currentUser, setCurrentUser] = useState(null);
-  // eslint-disable-next-line no-unused-vars
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
   // eslint-disable-next-line no-unused-vars
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -176,12 +175,16 @@ export default function UserProfile() {
     <div className="p-6 md:p-8">
       <div className="max-w-6xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">My Profile</h1>
-          <p className="text-slate-600">Update your personal information and preferences.</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+            {isViewingAsAdmin ? 'User Profile' : 'My Profile'}
+          </h1>
+          <p className="text-slate-600">
+            {isViewingAsAdmin ? 'Viewing user information and preferences.' : 'Update your personal information and preferences.'}
+          </p>
         </motion.div>
 
         <Card>
-          <CardHeader><CardTitle>Edit Profile</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{isViewingAsAdmin ? 'View Profile' : 'Edit Profile'}</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit}>
               <div className="grid lg:grid-cols-2 gap-8">
@@ -190,22 +193,22 @@ export default function UserProfile() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="full_name">Full Name</Label>
-                      <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange('full_name', e.target.value)} />
+                      <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange('full_name', e.target.value)} disabled={isViewingAsAdmin} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone Number</Label>
-                      <Input id="phone" type="tel" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} />
+                      <Input id="phone" type="tel" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} disabled={isViewingAsAdmin} />
                     </div>
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="location">Your Location</Label>
-                    <Input id="location" value={formData.location.address} onChange={(e) => handleInputChange('location.address', e.target.value)} />
+                    <Input id="location" value={formData.location.address} onChange={(e) => handleInputChange('location.address', e.target.value)} disabled={isViewingAsAdmin} />
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="bio">About You</Label>
-                    <Textarea id="bio" value={formData.bio} onChange={(e) => handleInputChange('bio', e.target.value)} rows={4} />
+                    <Textarea id="bio" value={formData.bio} onChange={(e) => handleInputChange('bio', e.target.value)} rows={4} disabled={isViewingAsAdmin} />
                   </div>
 
                   <div className="space-y-3">
@@ -213,7 +216,12 @@ export default function UserProfile() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {coachingTypes.map((type) => (
                         <div key={type.value} className="flex items-center space-x-2">
-                          <Checkbox id={`pref-${type.value}`} checked={formData.preferred_coaching_types.includes(type.value)} onCheckedChange={(checked) => handleArrayChange('preferred_coaching_types', type.value, checked)} />
+                          <Checkbox 
+                            id={`pref-${type.value}`} 
+                            checked={formData.preferred_coaching_types.includes(type.value)} 
+                            onCheckedChange={(checked) => handleArrayChange('preferred_coaching_types', type.value, checked)}
+                            disabled={isViewingAsAdmin}
+                          />
                           <Label htmlFor={`pref-${type.value}`} className="text-sm font-normal cursor-pointer">{type.label}</Label>
                         </div>
                       ))}
@@ -225,16 +233,23 @@ export default function UserProfile() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {sessionTimes.map((time) => (
                         <div key={time.value} className="flex items-center space-x-2">
-                          <Checkbox id={`time-${time.value}`} checked={formData.preferred_session_times.includes(time.value)} onCheckedChange={(checked) => handleArrayChange('preferred_session_times', time.value, checked)} />
+                          <Checkbox 
+                            id={`time-${time.value}`} 
+                            checked={formData.preferred_session_times.includes(time.value)} 
+                            onCheckedChange={(checked) => handleArrayChange('preferred_session_times', time.value, checked)}
+                            disabled={isViewingAsAdmin}
+                          />
                           <Label htmlFor={`time-${time.value}`} className="text-sm cursor-pointer">{time.label}</Label>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                  </Button>
+                  {!isViewingAsAdmin && (
+                    <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Right Column - Profile Picture */}
@@ -249,34 +264,42 @@ export default function UserProfile() {
                             alt="Profile" 
                             className="w-full h-full object-cover"
                           />
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="absolute bottom-4 right-4"
-                            onClick={() => fileInputRef.current?.click()}
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Change Photo
-                          </Button>
+                          {!isViewingAsAdmin && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="absolute bottom-4 right-4"
+                              onClick={() => fileInputRef.current?.click()}
+                            >
+                              <Upload className="w-4 h-4 mr-2" />
+                              Change Photo
+                            </Button>
+                          )}
                         </div>
                       ) : (
                         <div 
-                          className="w-full aspect-square max-w-md mx-auto rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                          onClick={() => fileInputRef.current?.click()}
+                          className={`w-full aspect-square max-w-md mx-auto rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center ${!isViewingAsAdmin ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50' : ''} transition-colors`}
+                          onClick={() => !isViewingAsAdmin && fileInputRef.current?.click()}
                         >
                           <Upload className="w-12 h-12 text-slate-400 mb-2" />
-                          <p className="text-sm text-slate-600 font-medium">Upload Profile Picture</p>
-                          <p className="text-xs text-slate-400 mt-1">Click to browse (Max 5MB)</p>
+                          <p className="text-sm text-slate-600 font-medium">
+                            {isViewingAsAdmin ? 'No Profile Picture' : 'Upload Profile Picture'}
+                          </p>
+                          {!isViewingAsAdmin && (
+                            <p className="text-xs text-slate-400 mt-1">Click to browse (Max 5MB)</p>
+                          )}
                         </div>
                       )}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfilePictureUpload}
-                      />
+                      {!isViewingAsAdmin && (
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleProfilePictureUpload}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

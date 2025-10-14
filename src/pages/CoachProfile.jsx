@@ -21,7 +21,6 @@ export default function CoachProfile() {
   const [isSaving, setIsSaving] = useState(false);
   // eslint-disable-next-line no-unused-vars
   const [currentUser, setCurrentUser] = useState(null);
-  // eslint-disable-next-line no-unused-vars
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
   // eslint-disable-next-line no-unused-vars
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -214,12 +213,16 @@ export default function CoachProfile() {
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">My Coach Profile</h1>
-          <p className="text-slate-600">Update your public profile and coaching details.</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+            {isViewingAsAdmin ? 'Coach Profile' : 'My Coach Profile'}
+          </h1>
+          <p className="text-slate-600">
+            {isViewingAsAdmin ? 'Viewing coach profile and coaching details.' : 'Update your public profile and coaching details.'}
+          </p>
         </motion.div>
 
         <Card>
-          <CardHeader><CardTitle>Edit Profile</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{isViewingAsAdmin ? 'View Profile' : 'Edit Profile'}</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit}>
               <div className="grid lg:grid-cols-2 gap-8">
@@ -228,27 +231,27 @@ export default function CoachProfile() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="full_name">Full Name</Label>
-                      <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange('full_name', e.target.value)} />
+                      <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange('full_name', e.target.value)} disabled={isViewingAsAdmin} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone Number</Label>
-                      <Input id="phone" type="tel" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} />
+                      <Input id="phone" type="tel" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} disabled={isViewingAsAdmin} />
                     </div>
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="location">Your Location</Label>
-                    <Input id="location" value={formData.location.address} onChange={(e) => handleInputChange('location.address', e.target.value)} />
+                    <Input id="location" value={formData.location.address} onChange={(e) => handleInputChange('location.address', e.target.value)} disabled={isViewingAsAdmin} />
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="bio">About You (Public Bio)</Label>
-                    <Textarea id="bio" value={formData.bio} onChange={(e) => handleInputChange('bio', e.target.value)} rows={4} />
+                    <Textarea id="bio" value={formData.bio} onChange={(e) => handleInputChange('bio', e.target.value)} rows={4} disabled={isViewingAsAdmin} />
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="hourly_rate">Hourly Rate (£)</Label>
-                    <Input id="hourly_rate" type="number" value={formData.coach_profile.hourly_rate} onChange={(e) => handleInputChange('coach_profile.hourly_rate', parseInt(e.target.value))} />
+                    <Input id="hourly_rate" type="number" value={formData.coach_profile.hourly_rate} onChange={(e) => handleInputChange('coach_profile.hourly_rate', parseInt(e.target.value))} disabled={isViewingAsAdmin} />
                   </div>
 
                   <div className="space-y-3">
@@ -256,7 +259,12 @@ export default function CoachProfile() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {coachingTypes.map((type) => (
                         <div key={type.value} className="flex items-center space-x-2">
-                          <Checkbox id={`service-${type.value}`} checked={formData.coach_profile.services_offered.includes(type.value)} onCheckedChange={(checked) => handleServicesChange(type.value, checked)} />
+                          <Checkbox 
+                            id={`service-${type.value}`} 
+                            checked={formData.coach_profile.services_offered.includes(type.value)} 
+                            onCheckedChange={(checked) => handleServicesChange(type.value, checked)}
+                            disabled={isViewingAsAdmin}
+                          />
                           <Label htmlFor={`service-${type.value}`} className="text-sm font-normal cursor-pointer">{type.label}</Label>
                         </div>
                       ))}
@@ -271,7 +279,8 @@ export default function CoachProfile() {
                           <Checkbox 
                             id={`age-${age.value}`} 
                             checked={formData.coach_profile.age_groups?.includes(age.value)} 
-                            onCheckedChange={(checked) => handleAgeGroupsChange(age.value, checked)} 
+                            onCheckedChange={(checked) => handleAgeGroupsChange(age.value, checked)}
+                            disabled={isViewingAsAdmin}
                           />
                           <Label htmlFor={`age-${age.value}`} className="text-sm font-normal cursor-pointer">{age.label}</Label>
                         </div>
@@ -279,9 +288,11 @@ export default function CoachProfile() {
                     </div>
                   </div>
 
-                  <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                  </Button>
+                  {!isViewingAsAdmin && (
+                    <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Right Column - Media Upload */}
@@ -297,41 +308,51 @@ export default function CoachProfile() {
                             alt="Profile" 
                             className="w-full h-full object-cover"
                           />
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="absolute bottom-4 right-4"
-                            onClick={() => fileInputRef.current?.click()}
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Change Photo
-                          </Button>
+                          {!isViewingAsAdmin && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="absolute bottom-4 right-4"
+                              onClick={() => fileInputRef.current?.click()}
+                            >
+                              <Upload className="w-4 h-4 mr-2" />
+                              Change Photo
+                            </Button>
+                          )}
                         </div>
                       ) : (
                         <div 
-                          className="w-full aspect-square max-w-md mx-auto rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                          onClick={() => fileInputRef.current?.click()}
+                          className={`w-full aspect-square max-w-md mx-auto rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center ${!isViewingAsAdmin ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50' : ''} transition-colors`}
+                          onClick={() => !isViewingAsAdmin && fileInputRef.current?.click()}
                         >
                           <Upload className="w-12 h-12 text-slate-400 mb-2" />
-                          <p className="text-sm text-slate-600 font-medium">Upload Profile Picture</p>
-                          <p className="text-xs text-slate-400 mt-1">Click to browse (Max 5MB)</p>
+                          <p className="text-sm text-slate-600 font-medium">
+                            {isViewingAsAdmin ? 'No Profile Picture' : 'Upload Profile Picture'}
+                          </p>
+                          {!isViewingAsAdmin && (
+                            <p className="text-xs text-slate-400 mt-1">Click to browse (Max 5MB)</p>
+                          )}
                         </div>
                       )}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfilePictureUpload}
-                      />
+                      {!isViewingAsAdmin && (
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleProfilePictureUpload}
+                        />
+                      )}
                     </div>
                   </div>
 
                   {/* Video Clips */}
                   <div className="space-y-3">
                     <Label>Coaching Session Clips</Label>
-                    <p className="text-xs text-slate-500">Upload up to 3 video clips showcasing your coaching (Max 50MB each)</p>
+                    {!isViewingAsAdmin && (
+                      <p className="text-xs text-slate-500">Upload up to 3 video clips showcasing your coaching (Max 50MB each)</p>
+                    )}
                     
                     <div className="grid grid-cols-2 gap-4">
                       {[1, 2, 3].map((clipNumber) => (
@@ -343,32 +364,36 @@ export default function CoachProfile() {
                                 className="w-full h-full object-cover"
                                 controls
                               />
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                className="absolute top-2 right-2"
-                                onClick={() => removeVideo(clipNumber)}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
+                              {!isViewingAsAdmin && (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute top-2 right-2"
+                                  onClick={() => removeVideo(clipNumber)}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              )}
                             </div>
                           ) : (
                             <div
-                              className="aspect-video rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors bg-slate-900"
-                              onClick={() => videoInputRefs[clipNumber].current?.click()}
+                              className={`aspect-video rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center ${!isViewingAsAdmin ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50' : ''} transition-colors bg-slate-900`}
+                              onClick={() => !isViewingAsAdmin && videoInputRefs[clipNumber].current?.click()}
                             >
                               <Video className="w-8 h-8 text-slate-400 mb-1" />
                               <p className="text-xs text-slate-300 font-medium">Video {clipNumber}</p>
                             </div>
                           )}
-                          <input
-                            ref={videoInputRefs[clipNumber]}
-                            type="file"
-                            accept="video/*"
-                            className="hidden"
-                            onChange={(e) => handleVideoUpload(clipNumber, e)}
-                          />
+                          {!isViewingAsAdmin && (
+                            <input
+                              ref={videoInputRefs[clipNumber]}
+                              type="file"
+                              accept="video/*"
+                              className="hidden"
+                              onChange={(e) => handleVideoUpload(clipNumber, e)}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
