@@ -15,7 +15,9 @@ export default function UserProfile() {
   const [formData, setFormData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [currentUser, setCurrentUser] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
   const navigate = useNavigate();
 
