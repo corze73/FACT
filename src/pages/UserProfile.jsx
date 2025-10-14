@@ -29,8 +29,10 @@ export default function UserProfile() {
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('userId');
         
-        // Allow admins to view other user profiles, but redirect to dashboard if viewing their own profile
-        if (me.role === "admin" && !userId && me.user_type !== 'user') {
+        // Only redirect admin to dashboard if they're trying to view their own profile without userId
+        // Allow admin to view other users when userId is present
+        if (me.role === "admin" && !userId) {
+          // Admin trying to view their own user profile - redirect to dashboard
           navigate(createPageUrl("AdminDashboard"));
         }
       } catch (error) {
@@ -51,18 +53,24 @@ export default function UserProfile() {
       // Get current logged-in user
       const loggedInUser = await User.me();
       setCurrentUser(loggedInUser);
+      console.log('Logged in user:', loggedInUser.full_name, 'Role:', loggedInUser.role);
       
       // Check if admin is viewing another user's profile
       const urlParams = new URLSearchParams(window.location.search);
       const userId = urlParams.get('userId');
+      console.log('userId parameter:', userId);
       
       let userToLoad = loggedInUser;
       
       if (userId && loggedInUser.role === 'admin') {
         // Admin viewing another user's profile
+        console.log('Admin viewing another user profile, loading user:', userId);
         setIsViewingAsAdmin(true);
         const targetUser = await User.get(userId);
         userToLoad = targetUser;
+        console.log('Loaded user:', userToLoad.full_name);
+      } else {
+        console.log('User viewing own profile');
       }
       
       setFormData({
