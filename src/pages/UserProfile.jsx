@@ -15,14 +15,20 @@ export default function UserProfile() {
   const [formData, setFormData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
   const navigate = useNavigate();
 
-  // Redirect admins to AdminDashboard
+  // Check if admin is viewing another user's profile
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
         const me = await User.me();
-        if (me.role === "admin") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId');
+        
+        // Only redirect if admin is NOT viewing someone else's profile
+        if (me.role === "admin" && !userId) {
           navigate(createPageUrl("AdminDashboard"));
         }
       } catch (error) {
@@ -40,14 +46,31 @@ export default function UserProfile() {
 
   const loadUser = async () => {
     try {
-      const currentUser = await User.me();
+      // Get current logged-in user
+      const loggedInUser = await User.me();
+      setCurrentUser(loggedInUser);
+      
+      // Check if admin is viewing another user's profile
+      const urlParams = new URLSearchParams(window.location.search);
+      const userId = urlParams.get('userId');
+      
+      let userToLoad = loggedInUser;
+      
+      if (userId && loggedInUser.role === 'admin') {
+        // Admin viewing another user's profile
+        setIsViewingAsAdmin(true);
+        const targetUser = await User.get(userId);
+        userToLoad = targetUser;
+      }
+      
       setFormData({
-        full_name: currentUser.full_name || '',
-        phone: currentUser.phone || '',
-        location: { address: currentUser.location?.address || '' },
-        bio: currentUser.bio || '',
-        preferred_coaching_types: currentUser.preferred_coaching_types || [],
-        preferred_session_times: currentUser.preferred_session_times || [],
+        id: userToLoad.id,
+        full_name: userToLoad.full_name || '',
+        phone: userToLoad.phone || '',
+        location: { address: userToLoad.location?.address || '' },
+        bio: userToLoad.bio || '',
+        preferred_coaching_types: userToLoad.preferred_coaching_types || [],
+        preferred_session_times: userToLoad.preferred_session_times || [],
       });
     } catch (error) {
       console.error("Failed to load user", error);

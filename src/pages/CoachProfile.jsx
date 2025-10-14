@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,12 @@ import { motion } from "framer-motion";
 // In a larger app, this could be refactored to reduce duplication.
 
 export default function CoachProfile() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -22,16 +26,33 @@ export default function CoachProfile() {
 
   const loadUser = async () => {
     try {
-      const currentUser = await User.me();
+      // Get current logged-in user
+      const loggedInUser = await User.me();
+      setCurrentUser(loggedInUser);
+      
+      // Check if admin is viewing another user's profile
+      const urlParams = new URLSearchParams(window.location.search);
+      const userId = urlParams.get('userId');
+      
+      let userToLoad = loggedInUser;
+      
+      if (userId && loggedInUser.role === 'admin') {
+        // Admin viewing another user's profile
+        setIsViewingAsAdmin(true);
+        const targetUser = await User.get(userId);
+        userToLoad = targetUser;
+      }
+      
       setFormData({
-        full_name: currentUser.full_name || '',
-        phone: currentUser.phone || '',
-        location: { address: currentUser.location?.address || '' },
-        bio: currentUser.bio || '',
+        id: userToLoad.id,
+        full_name: userToLoad.full_name || '',
+        phone: userToLoad.phone || '',
+        location: { address: userToLoad.location?.address || '' },
+        bio: userToLoad.bio || '',
         coach_profile: {
-          hourly_rate: currentUser.coach_profile?.hourly_rate || 50,
-          services_offered: currentUser.coach_profile?.services_offered || [],
-          age_groups: currentUser.coach_profile?.age_groups || [],
+          hourly_rate: userToLoad.coach_profile?.hourly_rate || 50,
+          services_offered: userToLoad.coach_profile?.services_offered || [],
+          age_groups: userToLoad.coach_profile?.age_groups || [],
         },
       });
     } catch (error) {
