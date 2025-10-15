@@ -10,6 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format, addDays, isToday, isBefore } from "date-fns";
 import { CalendarIcon, Clock, CreditCard } from "lucide-react";
 import { calculatePaymentBreakdown } from "../../utils/payment";
+import { validateAndSanitize, bookingSchema, formatValidationErrors } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimiter";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   const servicePrice = coach?.coach_profile?.hourly_rate || 50;
@@ -31,17 +33,55 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
     total_price: paymentBreakdown.totalAmount
   });
 
-  const handleSubmit = (e) => {
+  const [validationErrors, setValidationErrors] = useState({});
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setValidationErrors({});
     
-    if (!bookingData.session_date || !bookingData.session_time || !bookingData.service_type) {
-      alert('Please fill in all required fields');
+    // Check rate limit
+    const rateLimitCheck = checkRateLimit('booking');
+    if (!rateLimitCheck.allowed) {
+      alert(`Too many booking attempts. Please wait until ${new Date(rateLimitCheck.resetTime).toLocaleTimeString()}`);
       return;
     }
 
+    // Prepare data for validation
+    const dataToValidate = {
+      coach_id: coach?.id,
+      service_type: bookingData.service_type,
+      session_date: bookingData.session_date ? format(bookingData.session_date, 'yyyy-MM-dd') : '',
+      session_time: bookingData.session_time,
+      duration: bookingData.duration,
+      location_type: bookingData.location.type,
+      location_address: bookingData.location.address || '',
+      client_notes: bookingData.client_notes || '',
+      price: bookingData.price,
+      admin_fee: bookingData.admin_fee,
+      total_price: bookingData.total_price
+    };
+
+    // Validate booking data
+    const validation = validateAndSanitize(dataToValidate, bookingSchema);
+    
+    if (!validation.success) {
+      const errors = formatValidationErrors(validation.error);
+      setValidationErrors(errors);
+      
+      // Show first error to user
+      const firstError = Object.values(errors)[0];
+      alert(firstError || 'Please check the form for errors');
+      return;
+    }
+
+    // Submit validated and sanitized data
     onSubmit({
-      ...bookingData,
-      session_date: format(bookingData.session_date, 'yyyy-MM-dd')
+      ...validation.data,
+      location: {
+        type: validation.data.location_type,
+        address: validation.data.location_address,
+        notes: ''
+      }
     });
   };
 
@@ -107,7 +147,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
               value={bookingData.service_type}
               onValueChange={(value) => setBookingData(prev => ({ ...prev, service_type: value }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className={validationErrors.service_type ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Select a service" />
               </SelectTrigger>
               <SelectContent>
@@ -118,6 +158,9 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
                 ))}
               </SelectContent>
             </Select>
+            {validationErrors.service_type && (
+              <p className="text-sm text-red-500">{validationErrors.service_type}</p>
+            )}
           </div>
 
           {/* Date Selection */}
@@ -125,7 +168,10 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
             <Label>Session Date *</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                <Button 
+                  variant="outline" 
+                  className={`w-full justify-start text-left font-normal ${validationErrors.session_date ? 'border-red-500' : ''}`}
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {bookingData.session_date ? 
                     format(bookingData.session_date, "PPP") : 
@@ -144,6 +190,9 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
                 />
               </PopoverContent>
             </Popover>
+            {validationErrors.session_date && (
+              <p className="text-sm text-red-500">{validationErrors.session_date}</p>
+            )}
           </div>
 
           {/* Time Selection */}
@@ -153,7 +202,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
               value={bookingData.session_time}
               onValueChange={(value) => setBookingData(prev => ({ ...prev, session_time: value }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className={validationErrors.session_time ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Select time" />
               </SelectTrigger>
               <SelectContent>
@@ -167,6 +216,9 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
                 ))}
               </SelectContent>
             </Select>
+            {validationErrors.session_time && (
+              <p className="text-sm text-red-500">{validationErrors.session_time}</p>
+            )}
           </div>
 
           {/* Duration */}
@@ -222,7 +274,11 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
                   ...prev,
                   location: { ...prev.location, address: e.target.value }
                 }))}
+                className={validationErrors.location_address ? 'border-red-500' : ''}
               />
+              {validationErrors.location_address && (
+                <p className="text-sm text-red-500">{validationErrors.location_address}</p>
+              )}
             </div>
           )}
 
@@ -234,7 +290,11 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
               value={bookingData.client_notes}
               onChange={(e) => setBookingData(prev => ({ ...prev, client_notes: e.target.value }))}
               rows={3}
+              className={validationErrors.client_notes ? 'border-red-500' : ''}
             />
+            {validationErrors.client_notes && (
+              <p className="text-sm text-red-500">{validationErrors.client_notes}</p>
+            )}
           </div>
 
           {/* Price Summary */}

@@ -8,7 +8,7 @@
     "test": "tests"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.1",
+    "@neondatabase/serverless": "^1.0.2",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-aspect-ratio": "^1.1.2",
@@ -422,13 +422,15 @@
     "zod": "^3.25.76"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "netlify dev",
+    "dev:vite": "vite",
     "server": "node server.js",
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "start": "node server.js"
+    "preview": "netlify serve",
+    "start": "node server.js",
+    "deploy": "netlify deploy --prod"
   },
   "repository": {
     "type": "git",
@@ -440,5 +442,8 @@
   "bugs": {
     "url": "https://github.com/corze73/FACT/issues"
   },
-  "homepage": "https://github.com/corze73/FACT#readme"
+  "homepage": "https://github.com/corze73/FACT#readme",
+  "devDependencies": {
+    "netlify-cli": "^23.9.1"
+  }
 }

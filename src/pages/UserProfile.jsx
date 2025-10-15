@@ -11,11 +11,14 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Upload } from "lucide-react";
+import { validateAndSanitize, profileUpdateSchema, formatValidationErrors } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimiter";
 
 export default function UserProfile() {
   const [formData, setFormData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
   // eslint-disable-next-line no-unused-vars
   const [currentUser, setCurrentUser] = useState(null);
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
@@ -182,13 +185,52 @@ export default function UserProfile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSaving(true);
+    
+    // Clear previous validation errors
+    setValidationErrors({});
+    
     try {
-      await User.updateMyUserData(formData);
-      alert("Profile updated successfully!");
+      // Check rate limit (20 profile updates per 15 minutes)
+      checkRateLimit('profile');
+      
+      // Prepare data for validation
+      const dataToValidate = {
+        full_name: formData.full_name,
+        phone: formData.phone || undefined,
+        location: formData.location?.address || undefined,
+        bio: formData.bio || undefined,
+        avatar_url: formData.avatar_url || undefined,
+      };
+      
+      // Validate and sanitize input
+      const validatedData = validateAndSanitize(profileUpdateSchema, dataToValidate);
+      
+      // Merge validated data back with form data structure
+      const dataToSave = {
+        ...formData,
+        ...validatedData,
+        location: { address: validatedData.location || '' }
+      };
+      
+      setIsSaving(true);
+      await User.updateMyUserData(dataToSave);
+      alert("Profile updated successfully! ✅");
+      
     } catch (error) {
       console.error("Failed to update profile", error);
-      alert("Failed to update profile.");
+      
+      if (error.name === 'ZodError') {
+        // Validation error - show specific field errors
+        const errors = formatValidationErrors(error);
+        setValidationErrors(errors);
+        alert("Please check your input and try again.");
+      } else if (error.message && error.message.includes('rate limit')) {
+        // Rate limit error
+        alert("⚠️ " + error.message);
+      } else {
+        // Other errors
+        alert("Failed to update profile. Please try again.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -234,22 +276,60 @@ export default function UserProfile() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="full_name">Full Name</Label>
-                      <Input id="full_name" value={formData.full_name} onChange={(e) => handleInputChange('full_name', e.target.value)} disabled={isViewingAsAdmin} />
+                      <Input 
+                        id="full_name" 
+                        value={formData.full_name} 
+                        onChange={(e) => handleInputChange('full_name', e.target.value)} 
+                        disabled={isViewingAsAdmin}
+                        className={validationErrors.full_name ? 'border-red-500' : ''}
+                      />
+                      {validationErrors.full_name && (
+                        <p className="text-sm text-red-600">{validationErrors.full_name[0]}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone Number</Label>
-                      <Input id="phone" type="tel" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} disabled={isViewingAsAdmin} />
+                      <Input 
+                        id="phone" 
+                        type="tel" 
+                        value={formData.phone} 
+                        onChange={(e) => handleInputChange('phone', e.target.value)} 
+                        disabled={isViewingAsAdmin}
+                        className={validationErrors.phone ? 'border-red-500' : ''}
+                      />
+                      {validationErrors.phone && (
+                        <p className="text-sm text-red-600">{validationErrors.phone[0]}</p>
+                      )}
                     </div>
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="location">Your Location</Label>
-                    <Input id="location" value={formData.location.address} onChange={(e) => handleInputChange('location.address', e.target.value)} disabled={isViewingAsAdmin} />
+                    <Input 
+                      id="location" 
+                      value={formData.location.address} 
+                      onChange={(e) => handleInputChange('location.address', e.target.value)} 
+                      disabled={isViewingAsAdmin}
+                      className={validationErrors.location ? 'border-red-500' : ''}
+                    />
+                    {validationErrors.location && (
+                      <p className="text-sm text-red-600">{validationErrors.location[0]}</p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="bio">About You</Label>
-                    <Textarea id="bio" value={formData.bio} onChange={(e) => handleInputChange('bio', e.target.value)} rows={4} disabled={isViewingAsAdmin} />
+                    <Textarea 
+                      id="bio" 
+                      value={formData.bio} 
+                      onChange={(e) => handleInputChange('bio', e.target.value)} 
+                      rows={4} 
+                      disabled={isViewingAsAdmin}
+                      className={validationErrors.bio ? 'border-red-500' : ''}
+                    />
+                    {validationErrors.bio && (
+                      <p className="text-sm text-red-600">{validationErrors.bio[0]}</p>
+                    )}
                   </div>
 
                   <div className="space-y-3">

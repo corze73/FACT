@@ -1,0 +1,334 @@
+name: Security Monitoring & Alerts
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run npm audit
+        id: npm-audit
+        run: |
+          npm audit --audit-level=moderate --json > audit-report.json || true
+          VULNS=$(cat audit-report.json | jq '.metadata.vulnerabilities | .moderate + .high + .critical')
+          echo "vulnerabilities=$VULNS" >> $GITHUB_OUTPUT
+          
+          if [ "$VULNS" -gt "0" ]; then
+            echo "⚠️ Found $VULNS vulnerabilities"
+            npm audit
+            exit 1
+          fi
+      
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: audit-report.json
+      
+      - name: Send Slack notification on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚨 Security Alert: Dependency vulnerabilities found",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Security Scan Failed*\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Vulnerabilities:* ${{ steps.npm-audit.outputs.vulnerabilities }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+  snyk-scan:
+    name: Snyk Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+      
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: snyk.sarif
+
+  code-security:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript
+          queries: security-and-quality
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  security-headers-check:
+    name: Security Headers Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Check Security Headers
+        run: |
+          # Check if site is live
+          SITE_URL="${{ secrets.PRODUCTION_URL }}"
+          
+          if [ -z "$SITE_URL" ]; then
+            echo "⚠️ PRODUCTION_URL not set, skipping live site check"
+            exit 0
+          fi
+          
+          echo "Checking security headers for $SITE_URL"
+          
+          # Check headers
+          RESPONSE=$(curl -I -s "$SITE_URL")
+          
+          # Required headers
+          REQUIRED_HEADERS=(
+            "X-Frame-Options"
+            "X-Content-Type-Options"
+            "Strict-Transport-Security"
+            "Content-Security-Policy"
+          )
+          
+          MISSING_HEADERS=()
+          
+          for header in "${REQUIRED_HEADERS[@]}"; do
+            if ! echo "$RESPONSE" | grep -qi "$header"; then
+              MISSING_HEADERS+=("$header")
+            fi
+          done
+          
+          if [ ${#MISSING_HEADERS[@]} -gt 0 ]; then
+            echo "❌ Missing security headers:"
+            printf '%s\n' "${MISSING_HEADERS[@]}"
+            exit 1
+          fi
+          
+          echo "✅ All required security headers present"
+
+  sql-injection-check:
+    name: SQL Injection Pattern Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Search for SQL injection patterns
+        run: |
+          echo "Searching for potential SQL injection vulnerabilities..."
+          
+          # Patterns that might indicate SQL injection risks
+          PATTERNS=(
+            '\$\{.*\}.*FROM'
+            'query\(.*\+.*\)'
+            'WHERE.*\+.*'
+            'SELECT \* FROM .*\+.*'
+          )
+          
+          FOUND=0
+          
+          for pattern in "${PATTERNS[@]}"; do
+            MATCHES=$(grep -r -n -E "$pattern" src/ --include="*.js" --include="*.jsx" || true)
+            if [ ! -z "$MATCHES" ]; then
+              echo "⚠️ Potential SQL injection pattern found:"
+              echo "$MATCHES"
+              FOUND=1
+            fi
+          done
+          
+          if [ $FOUND -eq 1 ]; then
+            echo "❌ Please review the code for potential SQL injection vulnerabilities"
+            exit 1
+          fi
+          
+          echo "✅ No obvious SQL injection patterns detected"
+
+  xss-check:
+    name: XSS Pattern Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Search for XSS vulnerabilities
+        run: |
+          echo "Searching for potential XSS vulnerabilities..."
+          
+          # Check for dangerous patterns
+          DANGEROUS=$(grep -r -n "dangerouslySetInnerHTML" src/ --include="*.jsx" --include="*.js" || true)
+          INNER_HTML=$(grep -r -n "\.innerHTML" src/ --include="*.jsx" --include="*.js" || true)
+          EVAL=$(grep -r -n "eval(" src/ --include="*.jsx" --include="*.js" || true)
+          
+          FOUND=0
+          
+          if [ ! -z "$DANGEROUS" ]; then
+            echo "⚠️ dangerouslySetInnerHTML usage found:"
+            echo "$DANGEROUS"
+            FOUND=1
+          fi
+          
+          if [ ! -z "$INNER_HTML" ]; then
+            echo "⚠️ innerHTML usage found:"
+            echo "$INNER_HTML"
+            FOUND=1
+          fi
+          
+          if [ ! -z "$EVAL" ]; then
+            echo "❌ eval() usage found (HIGH RISK):"
+            echo "$EVAL"
+            exit 1
+          fi
+          
+          if [ $FOUND -eq 1 ]; then
+            echo "⚠️ Review the above for potential XSS vulnerabilities"
+            # Don't fail, just warn
+          else
+            echo "✅ No obvious XSS patterns detected"
+          fi
+
+  env-security-check:
+    name: Environment Variable Security
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for exposed secrets
+        run: |
+          echo "Checking for exposed secrets in code..."
+          
+          # Check for hardcoded secrets/passwords
+          SECRETS=$(grep -r -i -E "(password|secret|api_key|private_key).*=.*['\"]" src/ --include="*.js" --include="*.jsx" || true)
+          
+          if [ ! -z "$SECRETS" ]; then
+            echo "⚠️ Potential hardcoded secrets found:"
+            echo "$SECRETS"
+            exit 1
+          fi
+          
+          # Check for database URLs in code
+          DB_URLS=$(grep -r "postgresql://" src/ --include="*.js" --include="*.jsx" || true)
+          
+          if [ ! -z "$DB_URLS" ]; then
+            echo "❌ Database URLs found in code:"
+            echo "$DB_URLS"
+            exit 1
+          fi
+          
+          echo "✅ No obvious hardcoded secrets detected"
+
+  report:
+    name: Security Report Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, code-security, secret-scan, sql-injection-check, xss-check, env-security-check]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Dependency Scan: ${{ needs.dependency-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- CodeQL Analysis: ${{ needs.code-security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Secret Scanning: ${{ needs.secret-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- SQL Injection Check: ${{ needs.sql-injection-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- XSS Check: ${{ needs.xss-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment Security: ${{ needs.env-security-check.result }}" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Send email notification on failure
+        if: |
+          needs.dependency-scan.result == 'failure' ||
+          needs.code-security.result == 'failure' ||
+          needs.secret-scan.result == 'failure' ||
+          needs.sql-injection-check.result == 'failure' ||
+          needs.env-security-check.result == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: 🚨 FACT Security Scan Failed
+          to: ${{ secrets.SECURITY_TEAM_EMAIL }}
+          from: GitHub Actions <noreply@github.com>
+          body: |
+            Security scan failed for ${{ github.repository }}
+            
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Actor: ${{ github.actor }}
+            
+            Please review the failed checks:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

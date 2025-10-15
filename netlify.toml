@@ -6,7 +6,24 @@
   NODE_VERSION = "18"
   NPM_FLAGS = "--legacy-peer-deps"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Redirect API calls to Netlify functions
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[dev]
+  command = "npm run dev"
+  port = 5173
+  targetPort = 5173
+  framework = "vite"
+  autoLaunch = false

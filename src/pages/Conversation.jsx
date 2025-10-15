@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import MessageBubble from '../components/messaging/MessageBubble';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { validateAndSanitize, messageSchema, formatValidationErrors } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimiter";
 
 export default function Conversation() {
     const [messages, setMessages] = useState([]);
@@ -21,6 +23,7 @@ export default function Conversation() {
     const [booking, setBooking] = useState(null);
     const [bookingId, setBookingId] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [validationError, setValidationError] = useState('');
     const messagesEndRef = useRef(null);
     const navigate = useNavigate();
 
@@ -93,7 +96,16 @@ export default function Conversation() {
     
     const handleSendMessage = async (e) => {
         e.preventDefault();
+        setValidationError('');
+
         if (!newMessage.trim() || !currentUser || !booking) return;
+
+        // Check rate limit
+        const rateLimitCheck = checkRateLimit('messages');
+        if (!rateLimitCheck.allowed) {
+            setValidationError(`Too many messages. Please wait until ${new Date(rateLimitCheck.resetTime).toLocaleTimeString()}`);
+            return;
+        }
 
         const receiverId = currentUser.role === 'admin'
             ? (recipientForAdmin === 'coach' ? booking.coach_id : booking.client_id)
@@ -101,17 +113,38 @@ export default function Conversation() {
 
         if (!receiverId) return;
 
+        // Prepare message data for validation
         const messageData = {
             booking_id: booking.id,
             sender_id: currentUser.id,
             receiver_id: receiverId,
-            content: newMessage,
-            is_read: false
+            content: newMessage
         };
 
-        setNewMessage('');
-        const sentMessage = await Message.create(messageData);
-        setMessages(prev => [...prev, sentMessage]);
+        // Validate and sanitize message content
+        const validation = validateAndSanitize(messageData, messageSchema);
+        
+        if (!validation.success) {
+            const errors = formatValidationErrors(validation.error);
+            const firstError = Object.values(errors)[0];
+            setValidationError(firstError || 'Invalid message content');
+            return;
+        }
+
+        try {
+            // Use validated and sanitized data
+            const sanitizedMessageData = {
+                ...validation.data,
+                is_read: false
+            };
+
+            setNewMessage('');
+            const sentMessage = await Message.create(sanitizedMessageData);
+            setMessages(prev => [...prev, sentMessage]);
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            setValidationError('Failed to send message. Please try again.');
+        }
     };
 
     if (isLoading) return <div className="h-screen flex items-center justify-center">Loading conversation...</div>;
@@ -171,13 +204,19 @@ export default function Conversation() {
 
             {/* Input Form */}
             <footer className="bg-white p-4 border-t border-slate-200 sticky bottom-0">
+                {validationError && (
+                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+                        {validationError}
+                    </div>
+                )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-3">
                     <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type your message..."
-                        className="flex-1"
+                        className={`flex-1 ${validationError ? 'border-red-500' : ''}`}
                         autoComplete="off"
+                        maxLength={5000}
                     />
                     <Button type="submit" size="icon" disabled={!newMessage.trim()}>
                         <Send className="w-5 h-5" />
