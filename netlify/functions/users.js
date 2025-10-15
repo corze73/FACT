@@ -38,7 +38,7 @@ export async function handler(event) {
             `SELECT u.*, 
                     cp.hourly_rate, cp.bio as coach_bio, cp.certifications, 
                     cp.experience_years, cp.specializations, cp.services_offered, cp.age_groups
-             FROM users u
+             FROM profiles u
              LEFT JOIN coach_profiles cp ON u.id = cp.user_id
              WHERE u.id = $1`,
             [userId]
@@ -85,7 +85,7 @@ export async function handler(event) {
           const queryParams = event.queryStringParameters || {};
           let query = `SELECT u.*, 
                               cp.hourly_rate, cp.bio as coach_bio, cp.certifications
-                       FROM users u
+                       FROM profiles u
                        LEFT JOIN coach_profiles cp ON u.id = cp.user_id`;
           const conditions = [];
           const params = [];
@@ -99,7 +99,7 @@ export async function handler(event) {
             query += ' WHERE ' + conditions.join(' AND ');
           }
 
-          query += ' ORDER BY u.created_date DESC';
+          query += ' ORDER BY u.created_at DESC';
 
           const users = await executeQuery(query, params);
 
@@ -124,18 +124,19 @@ export async function handler(event) {
         }
 
         const newUser = await executeQueryOne(
-          `INSERT INTO users (email, full_name, role, phone, location, bio, avatar_url, is_verified)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `INSERT INTO profiles (email, full_name, user_type, role, phone, location, bio, avatar_url, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING *`,
           [
             userData.email,
             userData.full_name || '',
-            userData.role || 'client',
+            userData.user_type || 'user',
+            userData.role || 'user',
             userData.phone || null,
             userData.location || null,
             userData.bio || null,
             userData.avatar_url || null,
-            userData.is_verified || false
+            userData.is_active !== undefined ? userData.is_active : true
           ]
         );
 
@@ -159,14 +160,14 @@ export async function handler(event) {
         const updateData = JSON.parse(body);
         
         const updatedUser = await executeQueryOne(
-          `UPDATE users 
+          `UPDATE profiles 
            SET full_name = COALESCE($1, full_name),
                phone = COALESCE($2, phone),
                location = COALESCE($3, location),
                bio = COALESCE($4, bio),
                avatar_url = COALESCE($5, avatar_url),
-               is_verified = COALESCE($6, is_verified),
-               updated_date = NOW()
+               is_active = COALESCE($6, is_active),
+               updated_at = NOW()
            WHERE id = $7
            RETURNING *`,
           [
@@ -175,7 +176,7 @@ export async function handler(event) {
             updateData.location,
             updateData.bio,
             updateData.avatar_url,
-            updateData.is_verified,
+            updateData.is_active,
             userId
           ]
         );
@@ -205,7 +206,7 @@ export async function handler(event) {
           };
         }
 
-        await executeQuery('DELETE FROM users WHERE id = $1', [userId]);
+        await executeQuery('DELETE FROM profiles WHERE id = $1', [userId]);
 
         return {
           statusCode: 204,

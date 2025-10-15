@@ -40,8 +40,8 @@ export async function handler(event) {
                   s.full_name as sender_name, s.avatar_url as sender_avatar,
                   r.full_name as receiver_name, r.avatar_url as receiver_avatar
            FROM messages m
-           LEFT JOIN users s ON m.sender_id = s.id
-           LEFT JOIN users r ON m.receiver_id = r.id
+           LEFT JOIN profiles s ON m.sender_id = s.id
+           LEFT JOIN profiles r ON m.receiver_id = r.id
            WHERE m.booking_id = $1
            ORDER BY m.created_date ASC`,
           [queryStringParameters.booking_id]

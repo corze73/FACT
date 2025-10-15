@@ -37,7 +37,7 @@ export const User = {
       console.warn('API fetch failed, creating profile:', apiError);
       
       // Get from database directly (fallback)
-      const profiles = await db.select('users', { where: { id: user.id } });
+      const profiles = await db.select('profiles', { where: { id: user.id } });
       let profile = profiles[0];
 
       if (!profile) {
@@ -46,8 +46,9 @@ export const User = {
           id: user.id,
           email: user.email,
           full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'User',
-          role: 'client',
-          is_verified: false
+          role: 'user',
+          user_type: 'user',
+          is_active: true
         };
 
         try {
@@ -55,7 +56,7 @@ export const User = {
         } catch (createError) {
           console.error('Failed to create user via API:', createError);
           // Fallback to direct DB
-          profile = await db.insert('users', newProfile);
+          profile = await db.insert('profiles', newProfile);
         }
       }
 
@@ -73,8 +74,8 @@ export const User = {
     } catch (error) {
       console.error('API list failed, using fallback:', error);
       // Fallback to direct DB
-      const data = await db.select('users', {
-        orderBy: { created_date: 'desc' },
+      const data = await db.select('profiles', {
+        orderBy: { created_at: 'desc' },
         limit: 1000
       });
       return data || [];
@@ -87,7 +88,7 @@ export const User = {
     } catch (error) {
       console.error('API get failed, using fallback:', error);
       // Fallback to direct DB
-      const users = await db.select('users', { where: { id } });
+      const users = await db.select('profiles', { where: { id } });
       if (users.length === 0) {
         throw new Error('User not found');
       }
@@ -109,7 +110,7 @@ export const User = {
       
       if (filters.id?.in) {
         const placeholders = filters.id.in.map((_, i) => `$${i + 1}`).join(', ');
-        const query = `SELECT * FROM users WHERE id IN (${placeholders})`;
+        const query = `SELECT * FROM profiles WHERE id IN (${placeholders})`;
         return await db.query(query, filters.id.in);
       }
       
@@ -117,7 +118,7 @@ export const User = {
         options.where.role = filters.role;
       }
       
-      return await db.select('users', options);
+      return await db.select('profiles', options);
     }
   },
 
@@ -127,7 +128,7 @@ export const User = {
     } catch (error) {
       console.error('API update failed, using fallback:', error);
       // Fallback to direct DB
-      await db.update('users', { where: { id } }, userData);
+      await db.update('profiles', { where: { id } }, userData);
       return await this.get(id);
     }
   },
@@ -181,20 +182,21 @@ export const User = {
             const googleUser = await userInfoResponse.json();
 
             // Check if user exists in database, create if not
-            let users = await db.select('users', { where: { email: googleUser.email } });
+            let users = await db.select('profiles', { where: { email: googleUser.email } });
             let user = users[0];
 
             if (!user) {
-              // Create new user
-              user = await db.insert('users', {
+              // Create new user profile
+              user = await db.insert('profiles', {
                 id: crypto.randomUUID(),
                 email: googleUser.email,
                 full_name: googleUser.name || '',
                 avatar_url: googleUser.picture || null,
-                role: 'client',
-                is_verified: googleUser.email_verified || false,
-                created_date: new Date().toISOString(),
-                updated_date: new Date().toISOString()
+                user_type: 'user',
+                role: 'user',
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
               });
             }
 
