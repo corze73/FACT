@@ -55,23 +55,37 @@ export default function Landing() {
     if (next === 'dashboard') {
       (async () => {
         try {
-          // Poll for authentication with exponential backoff
+          // Check localStorage first for cached user data
+          const cachedUser = localStorage.getItem('currentUser');
           let me = null;
-          let attempts = 0;
-          const maxAttempts = 10;
           
-          while (attempts < maxAttempts && !me) {
+          if (cachedUser) {
             try {
-              me = await User.me();
-              break;
-            } catch (error) {
-              attempts++;
-              if (attempts >= maxAttempts) {
-                throw error;
+              me = JSON.parse(cachedUser);
+              console.log('Using cached user data:', me);
+            } catch (e) {
+              console.error('Failed to parse cached user:', e);
+            }
+          }
+          
+          // If no cached data, poll for authentication with exponential backoff
+          if (!me) {
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            while (attempts < maxAttempts && !me) {
+              try {
+                me = await User.me();
+                break;
+              } catch (error) {
+                attempts++;
+                if (attempts >= maxAttempts) {
+                  throw error;
+                }
+                // Exponential backoff: 100ms, 200ms, 400ms, 800ms, etc.
+                const delay = Math.min(100 * Math.pow(2, attempts - 1), 2000);
+                await new Promise(resolve => setTimeout(resolve, delay));
               }
-              // Exponential backoff: 100ms, 200ms, 400ms, 800ms, etc.
-              const delay = Math.min(100 * Math.pow(2, attempts - 1), 2000);
-              await new Promise(resolve => setTimeout(resolve, delay));
             }
           }
           
