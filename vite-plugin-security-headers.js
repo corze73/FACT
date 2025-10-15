@@ -65,10 +65,9 @@ export default function securityHeaders() {
     },
     
     transformIndexHtml(html) {
-      // Add security meta tags
+      // Add security meta tags (X-Frame-Options removed - must be HTTP header only)
       const securityMeta = [
         '<meta http-equiv="X-Content-Type-Options" content="nosniff">',
-        '<meta http-equiv="X-Frame-Options" content="DENY">',
         '<meta http-equiv="X-XSS-Protection" content="1; mode=block">',
         '<meta name="referrer" content="strict-origin-when-cross-origin">'
       ].join('\n    ');
