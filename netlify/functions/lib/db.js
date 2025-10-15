@@ -20,8 +20,9 @@ const getDatabaseConnection = () => {
 export async function executeQuery(query, params = []) {
   try {
     const sql = getDatabaseConnection();
-    const result = await sql(query, params);
-    return result;
+    // Use sql.query() for parameterized queries with $1, $2, etc.
+    const result = await sql.query(query, params);
+    return result.rows || result;
   } catch (error) {
     console.error('Database query error:', error);
     throw new Error(`Database error: ${error.message}`);
