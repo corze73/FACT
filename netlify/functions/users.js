@@ -192,13 +192,19 @@ export async function handler(event) {
         };
     }
   } catch (error) {
-    console.error('Error in users function:', error);
+    console.error('Error in users function:', {
+      error: error.message,
+      stack: error.stack,
+      path: event.path,
+      method: event.httpMethod
+    });
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: error.message 
+        message: error.message,
+        stack: error.stack
       })
     };
   }
