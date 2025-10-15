@@ -28,6 +28,7 @@ import ReviewModal from "../components/reviews/ReviewModal";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import CancelBookingModal from "../components/booking/CancelBookingModal";
+import RescheduleBookingModal from "../components/booking/RescheduleBookingModal";
 import { BookingReference } from "../components/booking/BookingReference";
 import SessionStatus from "../components/booking/SessionStatus";
 
@@ -41,6 +42,7 @@ export default function MyBookings() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming");
   const [bookingToCancel, setBookingToCancel] = useState(null);
+  const [bookingToReschedule, setBookingToReschedule] = useState(null);
   const navigate = useNavigate();
 
   // Redirect admins to AdminDashboard
@@ -295,6 +297,29 @@ export default function MyBookings() {
                                 <MessageCircle className="w-4 h-4 mr-2" />
                                 Message
                               </Button>
+
+                              {/* Reschedule button for pending/confirmed bookings */}
+                              {(booking.status === "pending" || booking.status === "confirmed") && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => setBookingToReschedule(booking)}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                >
+                                  <Calendar className="w-4 h-4 mr-2" />
+                                  {booking.reschedule_status === 'pending' && booking.reschedule_requested_by !== currentUser.id
+                                    ? 'Review Reschedule'
+                                    : 'Reschedule'
+                                  }
+                                </Button>
+                              )}
+
+                              {/* Show reschedule status badge if pending */}
+                              {booking.reschedule_status === 'pending' && (
+                                <Badge className="bg-orange-100 text-orange-800">
+                                  Reschedule Pending
+                                </Badge>
+                              )}
                               
                               {(booking.status === "pending" || booking.status === "confirmed") && isClient && (
                                 <Button 
@@ -398,6 +423,17 @@ export default function MyBookings() {
         isOpen={!!bookingToCancel}
         onClose={() => setBookingToCancel(null)}
         onSubmit={handleCancelBooking}
+      />
+
+      <RescheduleBookingModal
+        booking={bookingToReschedule}
+        isOpen={!!bookingToReschedule}
+        onClose={() => setBookingToReschedule(null)}
+        onSuccess={() => {
+          setBookingToReschedule(null);
+          loadData();
+        }}
+        currentUserId={currentUser?.id}
       />
     </div>
   );

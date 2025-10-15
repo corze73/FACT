@@ -599,6 +599,52 @@ export const Booking = {
       return cleanRef.includes(cleanTerm);
     }).slice(0, 20);
   },
+
+  // Reschedule methods
+  async requestReschedule(bookingId, userId, proposedDate) {
+    const booking = await this.get(bookingId);
+    
+    // Can't reschedule completed or cancelled bookings
+    if (booking.status === 'completed' || booking.status === 'cancelled') {
+      throw new Error('Cannot reschedule a completed or cancelled booking');
+    }
+    
+    return await db.update('bookings', bookingId, {
+      reschedule_requested_by: userId,
+      reschedule_proposed_date: proposedDate,
+      reschedule_status: 'pending',
+      reschedule_requested_at: new Date().toISOString()
+    });
+  },
+
+  async acceptReschedule(bookingId) {
+    const booking = await this.get(bookingId);
+    
+    if (booking.reschedule_status !== 'pending') {
+      throw new Error('No pending reschedule request');
+    }
+    
+    return await db.update('bookings', bookingId, {
+      booking_date: booking.reschedule_proposed_date,
+      reschedule_status: 'accepted',
+      reschedule_requested_by: null,
+      reschedule_proposed_date: null
+    });
+  },
+
+  async declineReschedule(bookingId) {
+    const booking = await this.get(bookingId);
+    
+    if (booking.reschedule_status !== 'pending') {
+      throw new Error('No pending reschedule request');
+    }
+    
+    return await db.update('bookings', bookingId, {
+      reschedule_status: 'declined',
+      reschedule_requested_by: null,
+      reschedule_proposed_date: null
+    });
+  }
 };
 
 // Message entity
@@ -726,5 +772,81 @@ export const SessionDispute = {
       resolved_at: new Date().toISOString(),
       status: 'resolved'
     });
+  }
+};
+
+// Coach Availability entity
+export const CoachAvailability = {
+  async create(availabilityData) {
+    return await db.insert('coach_availability', {
+      ...availabilityData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+  },
+
+  async getByCoachId(coachId, startDate = null, endDate = null) {
+    const query = `
+      SELECT * FROM coach_availability 
+      WHERE coach_id = $1
+      ${startDate ? 'AND end_date >= $2' : ''}
+      ${endDate ? 'AND start_date <= $3' : ''}
+      ORDER BY start_date ASC
+    `;
+    const params = [coachId];
+    if (startDate) params.push(startDate);
+    if (endDate) params.push(endDate);
+    
+    return await db.query(query, params);
+  },
+
+  async update(id, updates) {
+    return await db.update('coach_availability', id, updates);
+  },
+
+  async delete(id) {
+    return await db.delete('coach_availability', id);
+  },
+
+  // Get coach's current location (check for active override)
+  async getCurrentLocation(coachId) {
+    const now = new Date().toISOString();
+    const query = `
+      SELECT location_override FROM coach_availability 
+      WHERE coach_id = $1 
+        AND start_date <= $2 
+        AND end_date >= $2 
+        AND location_override IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const results = await db.query(query, [coachId, now]);
+    return results[0]?.location_override || null;
+  }
+};
+
+// Coach Recurring Availability entity
+export const CoachRecurringAvailability = {
+  async create(recurringData) {
+    return await db.insert('coach_recurring_availability', {
+      ...recurringData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+  },
+
+  async getByCoachId(coachId) {
+    return await db.select('coach_recurring_availability', { 
+      where: { coach_id: coachId, is_active: true },
+      orderBy: { day_of_week: 'asc', start_time: 'asc' }
+    });
+  },
+
+  async update(id, updates) {
+    return await db.update('coach_recurring_availability', id, updates);
+  },
+
+  async delete(id) {
+    return await db.update('coach_recurring_availability', id, { is_active: false });
   }
 };

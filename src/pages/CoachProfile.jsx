@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { Upload, Video, X } from "lucide-react";
+import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
 
 // This component is very similar to UserProfile, but includes coach-specific fields.
 // In a larger app, this could be refactored to reduce duplication.
@@ -449,6 +450,20 @@ export default function CoachProfile() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Availability Calendar - Only for coaches viewing their own profile */}
+        {!isViewingAsAdmin && formData && (
+          <div className="mt-6">
+            <AvailabilityCalendar coachId={formData.id} isReadOnly={false} />
+          </div>
+        )}
+
+        {/* Show availability calendar in read-only mode when viewing others */}
+        {isViewingAsAdmin && formData && (
+          <div className="mt-6">
+            <AvailabilityCalendar coachId={formData.id} isReadOnly={true} />
+          </div>
+        )}
       </div>
     </div>
   );
