@@ -1,3 +1,4 @@
+/* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 
 // CORS headers for all responses

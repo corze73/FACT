@@ -1,7 +1,9 @@
+/* eslint-env node */
 import { neon } from '@neondatabase/serverless';
 
 // Server-side database connection - credentials never sent to client
 const getDatabaseConnection = () => {
+  // eslint-disable-next-line no-undef
   const databaseUrl = process.env.DATABASE_URL;
   
   if (!databaseUrl) {
