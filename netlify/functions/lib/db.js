@@ -10,7 +10,8 @@ const getDatabaseConnection = () => {
     throw new Error('DATABASE_URL environment variable is not set');
   }
   
-  return neon(databaseUrl);
+  // Return the query function with fullResults enabled
+  return neon(databaseUrl, { fullResults: true });
 };
 
 /**
@@ -22,9 +23,9 @@ const getDatabaseConnection = () => {
 export async function executeQuery(query, params = []) {
   try {
     const sql = getDatabaseConnection();
-    // Use sql.query() for parameterized queries with $1, $2, etc.
-    const result = await sql.query(query, params);
-    return result.rows || result;
+    // Neon returns { rows, fields, rowCount, ... }
+    const result = await sql(query, params);
+    return result.rows;
   } catch (error) {
     console.error('Database query error:', error);
     throw new Error(`Database error: ${error.message}`);
