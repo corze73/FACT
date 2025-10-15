@@ -8,14 +8,21 @@ import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { CoachAvailability } from "@/api/entities.jsx";
-import { Calendar as CalendarIcon, MapPin, Plus, Trash2, Edit2 } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Plus, Trash2, Edit2, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
   const [availabilities, setAvailabilities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAvailability, setEditingAvailability] = useState(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Form state
   const [dateRange, setDateRange] = useState({ from: null, to: null });
@@ -118,9 +125,73 @@ export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
     return new Date(availability.start_date) <= now && new Date(availability.end_date) >= now;
   };
 
+  // Get availability for a specific date
+  const getAvailabilityForDate = (date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return availabilities.find(avail => {
+      const start = new Date(avail.start_date).toISOString().split('T')[0];
+      const end = new Date(avail.end_date).toISOString().split('T')[0];
+      return dateStr >= start && dateStr <= end;
+    });
+  };
+
+  // Generate calendar days for current month
+  const generateCalendarDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const days = [];
+
+    // Add empty slots for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+
+    // Add all days in month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day));
+    }
+
+    return days;
+  };
+
+  const previousMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const handleDateClick = (date) => {
+    if (isReadOnly) return;
+    
+    const existingAvail = getAvailabilityForDate(date);
+    if (existingAvail) {
+      handleEdit(existingAvail);
+    } else {
+      // Start creating new availability period with clicked date
+      setEditingAvailability(null);
+      setDateRange({ from: date, to: date });
+      setLocationOverride("");
+      setNotes("");
+      setIsAvailable(true);
+      setShowAddModal(true);
+    }
+  };
+
   if (isLoading) {
     return <div className="p-8 text-center">Loading availability...</div>;
   }
+
+  const calendarDays = generateCalendarDays();
+  const monthName = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   return (
     <Card>
@@ -138,17 +209,135 @@ export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
           )}
         </div>
         <p className="text-sm text-slate-600 mt-2">
-          Manage your availability and temporary location changes when traveling
+          {isReadOnly 
+            ? 'View availability and location when traveling' 
+            : 'Click on any date to set your availability and location'
+          }
         </p>
       </CardHeader>
       <CardContent>
+        {/* Calendar Navigation */}
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="outline" size="sm" onClick={previousMonth}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <h3 className="font-semibold text-lg">{monthName}</h3>
+          <Button variant="outline" size="sm" onClick={nextMonth}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Calendar Grid */}
+        <div className="mb-6">
+          {/* Day headers */}
+          <div className="grid grid-cols-7 gap-2 mb-2">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className="text-center text-sm font-semibold text-slate-600 py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar days */}
+          <div className="grid grid-cols-7 gap-2">
+            {calendarDays.map((date, index) => {
+              if (!date) {
+                return <div key={`empty-${index}`} className="aspect-square" />;
+              }
+
+              const availability = getAvailabilityForDate(date);
+              const isPast = date < today;
+              const isToday = date.toDateString() === today.toDateString();
+
+              return (
+                <TooltipProvider key={index}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <motion.div
+                        whileHover={!isReadOnly && !isPast ? { scale: 1.05 } : {}}
+                        className={`
+                          aspect-square p-2 rounded-lg border-2 flex flex-col items-center justify-center
+                          transition-all cursor-pointer relative
+                          ${isPast ? 'opacity-40 cursor-not-allowed' : ''}
+                          ${isToday ? 'border-blue-500 font-bold' : 'border-slate-200'}
+                          ${availability?.is_available === false 
+                            ? 'bg-red-100 border-red-300' 
+                            : availability?.location_override 
+                            ? 'bg-green-100 border-green-300' 
+                            : availability 
+                            ? 'bg-blue-100 border-blue-300' 
+                            : 'bg-white hover:bg-slate-50'}
+                        `}
+                        onClick={() => !isPast && handleDateClick(date)}
+                      >
+                        <span className="text-sm">{date.getDate()}</span>
+                        {availability && (
+                          <div className="absolute bottom-1 flex gap-1">
+                            {availability.location_override && (
+                              <MapPin className="w-3 h-3 text-green-700" />
+                            )}
+                            {!availability.is_available && (
+                              <div className="w-2 h-2 bg-red-600 rounded-full" />
+                            )}
+                          </div>
+                        )}
+                      </motion.div>
+                    </TooltipTrigger>
+                    {availability && (
+                      <TooltipContent className="max-w-xs">
+                        <div className="space-y-1">
+                          <p className="font-semibold">
+                            {availability.is_available ? 'Available' : 'Unavailable'}
+                          </p>
+                          {availability.location_override && (
+                            <p className="text-sm flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {availability.location_override}
+                            </p>
+                          )}
+                          {availability.notes && (
+                            <p className="text-sm text-slate-600">{availability.notes}</p>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-4 text-sm mb-6 p-4 bg-slate-50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded border-2 border-blue-300 bg-blue-100" />
+            <span>Available</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded border-2 border-green-300 bg-green-100 flex items-center justify-center">
+              <MapPin className="w-3 h-3 text-green-700" />
+            </div>
+            <span>Location Override</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded border-2 border-red-300 bg-red-100" />
+            <span>Unavailable</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded border-2 border-blue-500 bg-white" />
+            <span>Today</span>
+          </div>
+        </div>
+
+        {/* Availability Periods List */}
         <div className="space-y-3">
+          <h4 className="font-semibold text-sm text-slate-700">Upcoming Periods</h4>
           {availabilities.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">
-              <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p>No availability periods set</p>
+            <div className="text-center py-4 text-slate-500">
+              <p className="text-sm">No availability periods set</p>
               {!isReadOnly && (
-                <p className="text-sm mt-2">Add periods to indicate when you&apos;re traveling or unavailable</p>
+                <p className="text-xs mt-1">Click on calendar dates or use the Add Period button</p>
               )}
             </div>
           ) : (
@@ -158,39 +347,39 @@ export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
                   key={avail.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`p-4 border rounded-lg ${isCurrentlyActive(avail) ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                  className={`p-3 border rounded-lg ${isCurrentlyActive(avail) ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant={avail.is_available ? "default" : "secondary"}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant={avail.is_available ? "default" : "secondary"} className="text-xs">
                           {avail.is_available ? 'Available' : 'Unavailable'}
                         </Badge>
                         {isCurrentlyActive(avail) && (
-                          <Badge className="bg-blue-600">Active Now</Badge>
+                          <Badge className="bg-blue-600 text-xs">Active Now</Badge>
                         )}
                       </div>
-                      <p className="font-medium text-slate-900">
+                      <p className="text-sm font-medium text-slate-900">
                         {formatDateRange(avail.start_date, avail.end_date)}
                       </p>
                       {avail.location_override && (
-                        <div className="flex items-center gap-2 mt-2 text-sm text-slate-600">
-                          <MapPin className="w-4 h-4" />
+                        <div className="flex items-center gap-1 mt-1 text-xs text-slate-600">
+                          <MapPin className="w-3 h-3" />
                           <span>{avail.location_override}</span>
                         </div>
                       )}
                       {avail.notes && (
-                        <p className="text-sm text-slate-600 mt-2">{avail.notes}</p>
+                        <p className="text-xs text-slate-600 mt-1">{avail.notes}</p>
                       )}
                     </div>
                     {!isReadOnly && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(avail)}
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3 h-3" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -198,7 +387,7 @@ export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
                           onClick={() => handleDelete(avail.id)}
                           className="text-red-600 hover:text-red-700"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
                     )}
