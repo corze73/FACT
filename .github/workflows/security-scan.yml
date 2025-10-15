@@ -48,48 +48,50 @@ jobs:
           name: npm-audit-report
           path: audit-report.json
       
-      - name: Send Slack notification on failure
-        if: failure()
-        uses: slackapi/slack-github-action@v1
-        continue-on-error: true
-        with:
-          payload: |
-            {
-              "text": "🚨 Security Alert: Dependency vulnerabilities found",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Security Scan Failed*\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Vulnerabilities:* ${{ steps.npm-audit.outputs.vulnerabilities }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      # Slack notifications disabled - uncomment and add SLACK_WEBHOOK_URL secret to enable
+      # - name: Send Slack notification on failure
+      #   if: failure()
+      #   uses: slackapi/slack-github-action@v1
+      #   continue-on-error: true
+      #   with:
+      #     payload: |
+      #       {
+      #         "text": "🚨 Security Alert: Dependency vulnerabilities found",
+      #         "blocks": [
+      #           {
+      #             "type": "section",
+      #             "text": {
+      #               "type": "mrkdwn",
+      #               "text": "*Security Scan Failed*\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Vulnerabilities:* ${{ steps.npm-audit.outputs.vulnerabilities }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
+      #             }
+      #           }
+      #         ]
+      #       }
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
-  snyk-scan:
-    name: Snyk Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high --sarif-file-output=snyk.sarif
-      
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
-        with:
-          sarif_file: snyk.sarif
+  # Snyk scan disabled - uncomment and add SNYK_TOKEN secret to enable
+  # snyk-scan:
+  #   name: Snyk Security Scan
+  #   runs-on: ubuntu-latest
+  #   
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     
+  #     - name: Run Snyk to check for vulnerabilities
+  #       uses: snyk/actions/node@master
+  #       continue-on-error: true
+  #       env:
+  #         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  #       with:
+  #         args: --severity-threshold=high --sarif-file-output=snyk.sarif
+  #     
+  #     - name: Upload result to GitHub Code Scanning
+  #       uses: github/codeql-action/upload-sarif@v2
+  #       if: always()
+  #       with:
+  #         sarif_file: snyk.sarif
 
   code-security:
     name: CodeQL Security Analysis
@@ -137,13 +139,8 @@ jobs:
     steps:
       - name: Check Security Headers
         run: |
-          # Check if site is live
-          SITE_URL="${{ secrets.PRODUCTION_URL || '' }}"
-          
-          if [ -z "$SITE_URL" ]; then
-            echo "⚠️ PRODUCTION_URL not set, skipping live site check"
-            exit 0
-          fi
+          # Use hardcoded production URL
+          SITE_URL="https://findacoachtoday.com"
           
           echo "Checking security headers for $SITE_URL"
           
@@ -308,29 +305,30 @@ jobs:
           echo "- XSS Check: ${{ needs.xss-check.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Environment Security: ${{ needs.env-security-check.result }}" >> $GITHUB_STEP_SUMMARY
       
-      - name: Send email notification on failure
-        if: |
-          needs.dependency-scan.result == 'failure' ||
-          needs.code-security.result == 'failure' ||
-          needs.secret-scan.result == 'failure' ||
-          needs.sql-injection-check.result == 'failure' ||
-          needs.env-security-check.result == 'failure'
-        uses: dawidd6/action-send-mail@v3
-        continue-on-error: true
-        with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: 🚨 FACT Security Scan Failed
-          to: ${{ secrets.SECURITY_TEAM_EMAIL }}
-          from: GitHub Actions <noreply@github.com>
-          body: |
-            Security scan failed for ${{ github.repository }}
-            
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-            Actor: ${{ github.actor }}
-            
-            Please review the failed checks:
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # Email notifications disabled - uncomment and add SMTP secrets to enable
+      # - name: Send email notification on failure
+      #   if: |
+      #     needs.dependency-scan.result == 'failure' ||
+      #     needs.code-security.result == 'failure' ||
+      #     needs.secret-scan.result == 'failure' ||
+      #     needs.sql-injection-check.result == 'failure' ||
+      #     needs.env-security-check.result == 'failure'
+      #   uses: dawidd6/action-send-mail@v3
+      #   continue-on-error: true
+      #   with:
+      #     server_address: ${{ secrets.SMTP_SERVER }}
+      #     server_port: ${{ secrets.SMTP_PORT }}
+      #     username: ${{ secrets.SMTP_USERNAME }}
+      #     password: ${{ secrets.SMTP_PASSWORD }}
+      #     subject: 🚨 FACT Security Scan Failed
+      #     to: ${{ secrets.SECURITY_TEAM_EMAIL }}
+      #     from: GitHub Actions <noreply@github.com>
+      #     body: |
+      #       Security scan failed for ${{ github.repository }}
+      #       
+      #       Branch: ${{ github.ref_name }}
+      #       Commit: ${{ github.sha }}
+      #       Actor: ${{ github.actor }}
+      #       
+      #       Please review the failed checks:
+      #       ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
