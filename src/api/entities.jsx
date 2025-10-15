@@ -148,7 +148,7 @@ export const User = {
     return await this.update(user.id, dataToUpdate);
   },
 
-  // Auth functions remain unchanged (use auth client)
+  // Auth functions use Google OAuth + custom auth object
   async login() {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -160,30 +160,77 @@ export const User = {
     }
 
     return new Promise((resolve, reject) => {
-      window.google.accounts.id.initialize({
+      const client = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        callback: async (response) => {
+        scope: 'email profile openid',
+        callback: async (tokenResponse) => {
           try {
-            const { data, error } = await auth.signInWithIdToken({
-              provider: 'google',
-              token: response.credential,
+            if (tokenResponse.error) {
+              throw new Error(tokenResponse.error);
+            }
+
+            // Get user info from Google
+            const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
             });
 
-            if (error) throw error;
-            resolve(data);
+            if (!userInfoResponse.ok) {
+              throw new Error('Failed to get user info from Google');
+            }
+
+            const googleUser = await userInfoResponse.json();
+
+            // Check if user exists in database, create if not
+            let users = await db.select('users', { where: { email: googleUser.email } });
+            let user = users[0];
+
+            if (!user) {
+              // Create new user
+              user = await db.insert('users', {
+                id: crypto.randomUUID(),
+                email: googleUser.email,
+                full_name: googleUser.name || '',
+                avatar_url: googleUser.picture || null,
+                role: 'client',
+                is_verified: googleUser.email_verified || false,
+                created_date: new Date().toISOString(),
+                updated_date: new Date().toISOString()
+              });
+            }
+
+            // Set as current user
+            await auth.setCurrentUser({ id: user.id, email: user.email });
+            resolve({ user: auth.currentUser });
           } catch (error) {
             reject(error);
           }
-        },
+        }
       });
-
-      window.google.accounts.id.prompt();
+      
+      client.requestAccessToken();
     });
   },
 
   async logout() {
     const { error } = await auth.signOut();
     if (error) throw error;
+  },
+
+  async loginWithRedirect(redirectUrl) {
+    // Store redirect URL for after login
+    if (redirectUrl) {
+      sessionStorage.setItem('authRedirect', redirectUrl);
+    }
+    return await this.login();
+  },
+
+  async isAuthenticated() {
+    try {
+      const { data: { user }, error } = await auth.getUser();
+      return !error && user !== null;
+    } catch (error) {
+      return false;
+    }
   },
 
   onAuthStateChange(callback) {
