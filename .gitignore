@@ -32,4 +32,9 @@ REGISTRATION-ISSUE-RESOLVED.md
 *.sln
 *.sw?
 
-.env.env
+# Environment variables (NEVER commit these!)
+.env
+.env.local
+.env.*.local
+*.env
+.env.*
