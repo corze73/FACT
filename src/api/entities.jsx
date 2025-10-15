@@ -200,8 +200,15 @@ export const User = {
               });
             }
 
-            // Set as current user
-            await auth.setCurrentUser({ id: user.id, email: user.email });
+            // Set as current user with full profile data
+            await auth.setCurrentUser({
+              id: user.id,
+              email: user.email,
+              full_name: user.full_name,
+              avatar_url: user.avatar_url,
+              role: user.role,
+              user_type: user.user_type
+            });
             resolve({ user: auth.currentUser });
           } catch (error) {
             reject(error);
