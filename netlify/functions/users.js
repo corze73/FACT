@@ -18,6 +18,12 @@ const headers = {
  * - DELETE /api/users/:id - Delete user
  */
 export async function handler(event) {
+  console.log('🔍 Users function called:', {
+    method: event.httpMethod,
+    path: event.path,
+    userId: event.path.split('/').filter(Boolean).pop()
+  });
+
   // Handle preflight CORS
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
@@ -26,18 +32,25 @@ export async function handler(event) {
   try {
     const { httpMethod, body, path } = event;
     
+    console.log('📊 Processing request:', { httpMethod, path });
+    
     // Extract user ID from path (e.g., /api/users/123 -> 123)
     const pathParts = path.split('/').filter(Boolean);
     const userId = pathParts.length > 2 ? pathParts[pathParts.length - 1] : null;
+    
+    console.log('🎯 Extracted userId:', userId);
 
     switch (httpMethod) {
       case 'GET':
         if (userId && userId !== 'users') {
+          console.log('📖 Fetching single user:', userId);
           // Get single user by ID
           const user = await executeQueryOne(
             `SELECT * FROM profiles WHERE id = $1`,
             [userId]
           );
+          
+          console.log('✅ User query result:', user ? 'Found' : 'Not found');
 
           if (!user) {
             return {
