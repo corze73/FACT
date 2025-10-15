@@ -35,12 +35,7 @@ export async function handler(event) {
         if (userId && userId !== 'users') {
           // Get single user by ID
           const user = await executeQueryOne(
-            `SELECT u.*, 
-                    cp.hourly_rate, cp.bio as coach_bio, cp.certifications, 
-                    cp.experience_years, cp.specializations, cp.services_offered, cp.age_groups
-             FROM profiles u
-             LEFT JOIN coach_profiles cp ON u.id = cp.user_id
-             WHERE u.id = $1`,
+            `SELECT * FROM profiles WHERE id = $1`,
             [userId]
           );
 
@@ -52,46 +47,21 @@ export async function handler(event) {
             };
           }
 
-          // Structure response with nested coach_profile
-          const response = {
-            ...user,
-            coach_profile: user.hourly_rate ? {
-              hourly_rate: user.hourly_rate,
-              bio: user.coach_bio,
-              certifications: user.certifications,
-              experience_years: user.experience_years,
-              specializations: user.specializations,
-              services_offered: user.services_offered,
-              age_groups: user.age_groups
-            } : null
-          };
-
-          // Remove duplicated fields
-          delete response.coach_bio;
-          delete response.certifications;
-          delete response.experience_years;
-          delete response.specializations;
-          delete response.services_offered;
-          delete response.age_groups;
-          if (!response.coach_profile) delete response.hourly_rate;
-
+          // Return user with coach_profile from JSONB field
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(response)
+            body: JSON.stringify(user)
           };
         } else {
           // Get all users (with query filters if provided)
           const queryParams = event.queryStringParameters || {};
-          let query = `SELECT u.*, 
-                              cp.hourly_rate, cp.bio as coach_bio, cp.certifications
-                       FROM profiles u
-                       LEFT JOIN coach_profiles cp ON u.id = cp.user_id`;
+          let query = `SELECT * FROM profiles`;
           const conditions = [];
           const params = [];
 
           if (queryParams.role) {
-            conditions.push(`u.role = $${params.length + 1}`);
+            conditions.push(`role = $${params.length + 1}`);
             params.push(queryParams.role);
           }
 
@@ -99,7 +69,7 @@ export async function handler(event) {
             query += ' WHERE ' + conditions.join(' AND ');
           }
 
-          query += ' ORDER BY u.created_at DESC';
+          query += ' ORDER BY created_at DESC';
 
           const users = await executeQuery(query, params);
 
