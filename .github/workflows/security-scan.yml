@@ -51,6 +51,7 @@ jobs:
       - name: Send Slack notification on failure
         if: failure()
         uses: slackapi/slack-github-action@v1
+        continue-on-error: true
         with:
           payload: |
             {
@@ -137,7 +138,7 @@ jobs:
       - name: Check Security Headers
         run: |
           # Check if site is live
-          SITE_URL="${{ secrets.PRODUCTION_URL }}"
+          SITE_URL="${{ secrets.PRODUCTION_URL || '' }}"
           
           if [ -z "$SITE_URL" ]; then
             echo "⚠️ PRODUCTION_URL not set, skipping live site check"
@@ -315,6 +316,7 @@ jobs:
           needs.sql-injection-check.result == 'failure' ||
           needs.env-security-check.result == 'failure'
         uses: dawidd6/action-send-mail@v3
+        continue-on-error: true
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
           server_port: ${{ secrets.SMTP_PORT }}

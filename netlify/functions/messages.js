@@ -20,7 +20,7 @@ export async function handler(event) {
   }
 
   try {
-    const { httpMethod, body, path, queryStringParameters } = event;
+    const { body, path, queryStringParameters } = event;
     const pathParts = path.split('/').filter(Boolean);
     const messageId = pathParts.length > 2 ? pathParts[pathParts.length - 1] : null;
 

@@ -237,7 +237,7 @@ export const User = {
     try {
       const { data: { user }, error } = await auth.getUser();
       return !error && user !== null;
-    } catch (error) {
+    } catch {
       return false;
     }
   },

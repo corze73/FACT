@@ -7,13 +7,10 @@ updates:
       interval: "daily"
       time: "03:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "corze73"
     assignees:
       - "corze73"
     labels:
       - "dependencies"
-      - "security"
       - "automated"
     
     # Automatically merge minor and patch updates
@@ -23,13 +20,6 @@ updates:
     
     # Group updates to reduce PR noise
     groups:
-      # Group all security updates together
-      security-updates:
-        patterns:
-          - "*"
-        update-types:
-          - "security"
-      
       # Group production dependencies
       production-dependencies:
         dependency-type: "production"
@@ -45,7 +35,7 @@ updates:
           - "patch"
     
     # Ignore specific updates if needed
-    ignore:
+    ignore: []
       # Example: ignore major version updates for specific packages
       # - dependency-name: "react"
       #   update-types: ["version-update:semver-major"]
