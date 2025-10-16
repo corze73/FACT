@@ -181,35 +181,38 @@ export const User = {
 
             const googleUser = await userInfoResponse.json();
 
-            // Check if user exists in database, create if not
-            let users = await db.select('profiles', { where: { email: googleUser.email } });
-            let user = users[0];
-
-            if (!user) {
-              // Create new user profile
-              user = await db.insert('profiles', {
-                id: crypto.randomUUID(),
-                email: googleUser.email,
-                full_name: googleUser.name || '',
-                avatar_url: googleUser.picture || null,
-                user_type: 'user',
-                role: 'user',
-                is_active: true,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+            // Call login API function to check if user exists and create if needed
+            try {
+              const loginResponse = await fetch('/.netlify/functions/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: googleUser.email,
+                  full_name: googleUser.name || '',
+                  avatar_url: googleUser.picture || null
+                })
               });
-            }
 
-            // Set as current user with full profile data
-            await auth.setCurrentUser({
-              id: user.id,
-              email: user.email,
-              full_name: user.full_name,
-              avatar_url: user.avatar_url,
-              role: user.role,
-              user_type: user.user_type
-            });
-            resolve({ user: auth.currentUser });
+              if (!loginResponse.ok) {
+                throw new Error(`Login API failed: ${loginResponse.status}`);
+              }
+
+              const user = await loginResponse.json();
+
+              // Set as current user with full profile data
+              await auth.setCurrentUser({
+                id: user.id,
+                email: user.email,
+                full_name: user.full_name,
+                avatar_url: user.avatar_url,
+                role: user.role,
+                user_type: user.user_type
+              });
+              resolve({ user: auth.currentUser });
+            } catch (apiError) {
+              console.error('Login API error:', apiError);
+              throw apiError;
+            }
           } catch (error) {
             reject(error);
           }

@@ -96,7 +96,7 @@ export async function handler(event) {
         }
 
       case 'POST': {
-        // Create new user
+        // Login: Check if user exists, create if not (idempotent)
         const userData = JSON.parse(body);
         
         // Validate required fields
@@ -108,23 +108,40 @@ export async function handler(event) {
           };
         }
 
+        console.log('🔐 Login attempt for:', userData.email);
+
+        // Check if user already exists
+        let user = await executeQueryOne(
+          `SELECT * FROM profiles WHERE email = $1`,
+          [userData.email]
+        );
+
+        if (user) {
+          console.log('✅ User exists:', userData.email);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(user)
+          };
+        }
+
+        // User doesn't exist, create new profile
+        console.log('📝 Creating new user:', userData.email);
         const newUser = await executeQueryOne(
-          `INSERT INTO profiles (email, full_name, user_type, role, phone, location, bio, avatar_url, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          `INSERT INTO profiles (email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
            RETURNING *`,
           [
             userData.email,
             userData.full_name || '',
-            userData.user_type || 'user',
-            userData.role || 'user',
-            userData.phone || null,
-            userData.location || null,
-            userData.bio || null,
+            'user',
+            'user',
             userData.avatar_url || null,
-            userData.is_active !== undefined ? userData.is_active : true
+            true
           ]
         );
 
+        console.log('✅ New user created:', userData.email);
         return {
           statusCode: 201,
           headers,
