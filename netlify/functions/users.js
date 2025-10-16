@@ -9,6 +9,7 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
+// Version: 2024-10-16-001
 /**
  * Netlify Function: User Operations
  * Endpoints:
