@@ -183,21 +183,11 @@ export const User = {
 
             // Call login API function to check if user exists and create if needed
             try {
-              const loginResponse = await fetch('/.netlify/functions/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  email: googleUser.email,
-                  full_name: googleUser.name || '',
-                  avatar_url: googleUser.picture || null
-                })
+              const user = await apiClient.createUser({
+                email: googleUser.email,
+                full_name: googleUser.name || '',
+                avatar_url: googleUser.picture || null
               });
-
-              if (!loginResponse.ok) {
-                throw new Error(`Login API failed: ${loginResponse.status}`);
-              }
-
-              const user = await loginResponse.json();
 
               // Set as current user with full profile data
               await auth.setCurrentUser({

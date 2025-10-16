@@ -1,5 +1,6 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
+import { Buffer } from 'buffer';
 
 // CORS headers for all responses
 const headers = {
