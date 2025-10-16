@@ -14,15 +14,8 @@ fi
 # Check if .env file exists
 if [ -f ".env" ]; then
     echo "✅ .env file exists"
-    
-    # Check if required env vars are set (without showing values)
-    if grep -q "VITE_SUPABASE_URL" .env && grep -q "VITE_SUPABASE_ANON_KEY" .env; then
-        echo "✅ Supabase environment variables found"
-    else
-        echo "❌ Missing Supabase environment variables"
-    fi
 else
-    echo "❌ .env file missing - copy .env.example to .env and configure"
+    echo "❌ .env file missing - create one with required variables (see README)"
 fi
 
 # Check if package.json exists
@@ -56,10 +49,9 @@ if [ -d "src" ]; then
         echo "❌ AdminDashboard.jsx missing"
     fi
     
+    # Legacy Supabase client file should not exist anymore
     if [ -f "src/api/supabaseClient.js" ]; then
-        echo "✅ supabaseClient.js exists"
-    else
-        echo "❌ supabaseClient.js missing"
+        echo "⚠️  Legacy supabaseClient.js found (should be removed)"
     fi
 else
     echo "❌ src directory missing"

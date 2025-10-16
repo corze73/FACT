@@ -1,6 +1,6 @@
 /**
  * Frontend API Client for Netlify Functions
- * Replaces direct Supabase database access with secure server-side API calls
+ * Frontend talks only to Netlify Functions (no direct DB or Supabase access)
  */
 
 const API_BASE = import.meta.env.DEV 

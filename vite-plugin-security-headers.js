@@ -19,7 +19,7 @@ export default function securityHeaders() {
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: https: blob:",
             "font-src 'self' data:",
-            "connect-src 'self' https://*.neon.tech https://accounts.google.com https://api.stripe.com wss://*.neon.tech",
+            "connect-src 'self' https://*.neon.tech https://accounts.google.com https://www.googleapis.com https://region1.google-analytics.com https://api.stripe.com https://*.netlify.app https://*.netlify.com wss://*.neon.tech",
             "frame-src 'self' https://accounts.google.com https://js.stripe.com",
             "object-src 'none'",
             "base-uri 'self'",
