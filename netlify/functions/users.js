@@ -140,7 +140,7 @@ export async function handler(event) {
 
         // Upsert profile to avoid duplicate key race conditions
         // If a row exists for this email, update selected fields; otherwise insert new
-        const upsertedUser = await executeQueryOne(
+        let upsertedUser = await executeQueryOne(
           `INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
            VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW(), NOW())
            ON CONFLICT (email) DO UPDATE
@@ -157,7 +157,16 @@ export async function handler(event) {
           ]
         );
 
-        console.log('✅ User upserted (created or existing returned):', email);
+        // Safety net: if the UPSERT didn't return a row (some drivers may)
+        if (!upsertedUser || !upsertedUser.id) {
+          console.warn('⚠️ Upsert returned no id; selecting by email fallback');
+          upsertedUser = await executeQueryOne(
+            `SELECT * FROM profiles WHERE email = $1 LIMIT 1`,
+            [email]
+          );
+        }
+
+        console.log('✅ User upserted/loaded:', email, 'id:', upsertedUser?.id);
         return {
           statusCode: 200,
           headers,

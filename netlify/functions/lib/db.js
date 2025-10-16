@@ -23,10 +23,20 @@ const getDatabaseConnection = () => {
 export async function executeQuery(query, params = []) {
   try {
     const sql = getDatabaseConnection();
-    // Use the new Neon API: conventional function calls go through sql.query
-    const result = await sql.query(query, params);
+    // Support both Neon invocation styles depending on runtime/bundler
+    // - sql.query(text, params) returns { rows: [...] }
+    // - sql(text, params) returns [ ... ]
+    let result;
+    if (typeof sql.query === 'function') {
+      result = await sql.query(query, params);
+    } else {
+      result = await sql(query, params);
+    }
+
     // Normalize to an array of rows for callers
-    return result.rows || [];
+    if (Array.isArray(result)) return result;
+    if (result && Array.isArray(result.rows)) return result.rows;
+    return [];
   } catch (error) {
     console.error('Database query error:', error);
     throw new Error(`Database error: ${error.message}`);
