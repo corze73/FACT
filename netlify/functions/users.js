@@ -154,16 +154,15 @@ export async function handler(event) {
         // User doesn't exist, create new profile
         console.log('📝 Creating new user:', userData.email);
         const newUser = await executeQueryOne(
-          `INSERT INTO profiles (email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+          `INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW(), NOW())
            RETURNING *`,
           [
             userData.email,
             userData.full_name || '',
             'user',
             'user',
-            userData.avatar_url || null,
-            true
+            userData.avatar_url || null
           ]
         );
 
