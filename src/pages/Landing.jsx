@@ -48,6 +48,32 @@ export default function Landing() {
     }
   };
 
+  // Check if user is already logged in and redirect them
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      const cachedUser = localStorage.getItem('currentUser');
+      if (cachedUser) {
+        try {
+          const user = JSON.parse(cachedUser);
+          console.log('User already logged in, redirecting:', user);
+          
+          // Redirect based on role
+          if (user.role === 'admin') {
+            navigate(createPageUrl("AdminDashboard"), { replace: true });
+          } else if (user.user_type === 'coach') {
+            navigate(createPageUrl("CoachDashboard"), { replace: true });
+          } else {
+            navigate(createPageUrl("FindCoaches"), { replace: true });
+          }
+        } catch (e) {
+          console.error('Failed to parse cached user:', e);
+        }
+      }
+    };
+    
+    checkExistingAuth();
+  }, [navigate]);
+
   // Only redirect after a successful login callback (when next=dashboard)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
