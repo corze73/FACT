@@ -183,20 +183,24 @@ export const User = {
 
             // Call login API function to check if user exists and create if needed
             try {
-              const user = await apiClient.createUser({
+              const profile = await apiClient.createUser({
                 email: googleUser.email,
                 full_name: googleUser.name || '',
                 avatar_url: googleUser.picture || null
               });
 
+              if (!profile || !profile.id) {
+                throw new Error('Profile creation/login did not return a user id');
+              }
+
               // Set as current user with full profile data
               await auth.setCurrentUser({
-                id: user.id,
-                email: user.email,
-                full_name: user.full_name,
-                avatar_url: user.avatar_url,
-                role: user.role,
-                user_type: user.user_type
+                id: profile.id,
+                email: profile.email,
+                full_name: profile.full_name,
+                avatar_url: profile.avatar_url,
+                role: profile.role,
+                user_type: profile.user_type
               });
               resolve({ user: auth.currentUser });
             } catch (apiError) {
