@@ -32,9 +32,15 @@ export async function handler(event) {
   }
 
   try {
-    const { httpMethod, body, path } = event;
+    let { httpMethod, body, path } = event;
     
-    console.log('📊 Processing request:', { httpMethod, path });
+    console.log('📊 Processing request:', { httpMethod, path, hasBody: !!body });
+    
+    // Parse body if it exists and is base64 encoded
+    if (body && event.isBase64Encoded) {
+      body = Buffer.from(body, 'base64').toString('utf-8');
+      console.log('🔐 Decoded base64 body');
+    }
     
     // Extract user ID from path (e.g., /api/users/123 -> 123)
     const pathParts = path.split('/').filter(Boolean);
@@ -97,7 +103,26 @@ export async function handler(event) {
 
       case 'POST': {
         // Login: Check if user exists, create if not (idempotent)
-        const userData = JSON.parse(body);
+        if (!body) {
+          console.error('❌ No request body provided');
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Request body is required' })
+          };
+        }
+
+        let userData;
+        try {
+          userData = JSON.parse(body);
+        } catch (parseError) {
+          console.error('❌ Failed to parse JSON body:', parseError.message);
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Invalid JSON in request body' })
+          };
+        }
         
         // Validate required fields
         if (!userData.email) {
