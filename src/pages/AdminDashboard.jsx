@@ -121,6 +121,7 @@ export default function AdminDashboard() {
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
+
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -142,6 +143,8 @@ export default function AdminDashboard() {
           <StatCard icon={Calendar} label="Completed" value={stats.completed} color="text-blue-600" onClick={() => navigate(createPageUrl("AdminBookings?status=completed"))} />
           <StatCard icon={Calendar} label="Cancelled" value={stats.cancelled} color="text-red-600" onClick={() => navigate(createPageUrl("AdminBookings?status=cancelled"))} />
         </div>
+
+        {/* Demo data controls removed by request */}
 
         <Card className="border-0 shadow-lg">
           <CardHeader>
