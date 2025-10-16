@@ -20,7 +20,7 @@ export default function securityHeaders() {
             "img-src 'self' data: https: blob:",
             "font-src 'self' data:",
             "connect-src 'self' https://*.neon.tech https://accounts.google.com https://www.googleapis.com https://region1.google-analytics.com https://api.stripe.com https://*.netlify.app https://*.netlify.com wss://*.neon.tech",
-            "frame-src 'self' https://accounts.google.com https://js.stripe.com",
+            "frame-src 'self' https://accounts.google.com https://js.stripe.com https://www.youtube.com https://youtube.com https://youtu.be https://vimeo.com https://player.vimeo.com",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",

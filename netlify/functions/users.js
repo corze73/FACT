@@ -186,7 +186,7 @@ export async function handler(event) {
 
         const updateData = JSON.parse(body);
 
-        // Validate video clip URLs (only allow http/https URLs; disallow data URIs)
+        // Validate video clip URLs (only allow http/https URLs to approved hosts; disallow data URIs)
         const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v);
         const isDataUri = (v) => typeof v === 'string' && /^data:/i.test(v);
         const allowedHosts = [
@@ -203,19 +203,29 @@ export async function handler(event) {
         const clip2 = updateData.video_clip_2;
         const clip3 = updateData.video_clip_3;
 
+        // Reject any data: URIs explicitly
         if ([clip1, clip2, clip3].some(v => v !== undefined && isDataUri(v))) {
           return {
             statusCode: 400,
             headers,
-            body: JSON.stringify({ error: 'Video clips must be hosted externally (http/https URLs). Data URIs are not allowed.' })
+            body: JSON.stringify({ error: 'Video clips must be hosted on YouTube or Vimeo (http/https URLs). Data URIs are not allowed.' })
           };
         }
 
-        const clip1Url = clip1 === undefined ? null : (isHttpUrl(clip1) && isAllowedHost(clip1) ? clip1 : null);
-        const clip2Url = clip2 === undefined ? null : (isHttpUrl(clip2) && isAllowedHost(clip2) ? clip2 : null);
-        const clip3Url = clip3 === undefined ? null : (isHttpUrl(clip3) && isAllowedHost(clip3) ? clip3 : null);
+        // Distinguish three states per field: not provided (leave as-is), provided empty string (clear to NULL), provided valid URL (set)
+        const clip1Provided = clip1 !== undefined;
+        const clip2Provided = clip2 !== undefined;
+        const clip3Provided = clip3 !== undefined;
+        const clip1Clear = clip1Provided && clip1 === '';
+        const clip2Clear = clip2Provided && clip2 === '';
+        const clip3Clear = clip3Provided && clip3 === '';
 
-        if ([clip1, clip2, clip3].some(v => v && !isAllowedHost(v))) {
+        // If provided and non-empty, enforce http/https and host allowlist
+        const clip1Url = (clip1Provided && !clip1Clear) ? (isHttpUrl(clip1) && isAllowedHost(clip1) ? clip1 : null) : null;
+        const clip2Url = (clip2Provided && !clip2Clear) ? (isHttpUrl(clip2) && isAllowedHost(clip2) ? clip2 : null) : null;
+        const clip3Url = (clip3Provided && !clip3Clear) ? (isHttpUrl(clip3) && isAllowedHost(clip3) ? clip3 : null) : null;
+
+        if ([clip1, clip2, clip3].some(v => (typeof v === 'string' && v.length > 0) && !isAllowedHost(v))) {
           return {
             statusCode: 400,
             headers,
@@ -232,9 +242,10 @@ export async function handler(event) {
                bio = COALESCE($4, bio),
                avatar_url = COALESCE($5, avatar_url),
                is_active = COALESCE($6, is_active),
-               video_clip_1 = COALESCE($8, video_clip_1),
-               video_clip_2 = COALESCE($9, video_clip_2),
-               video_clip_3 = COALESCE($10, video_clip_3),
+               -- Video clip fields: if provided and empty -> NULL (clear); if provided and URL -> set; else keep existing
+               video_clip_1 = CASE WHEN $8::boolean THEN (CASE WHEN $9::boolean THEN NULL ELSE $10 END) ELSE video_clip_1 END,
+               video_clip_2 = CASE WHEN $11::boolean THEN (CASE WHEN $12::boolean THEN NULL ELSE $13 END) ELSE video_clip_2 END,
+               video_clip_3 = CASE WHEN $14::boolean THEN (CASE WHEN $15::boolean THEN NULL ELSE $16 END) ELSE video_clip_3 END,
                deactivated_at = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivated_at END,
                deactivation_reason = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivation_reason END,
                updated_at = NOW()
@@ -248,8 +259,17 @@ export async function handler(event) {
             updateData.avatar_url,
             updateData.is_active,
             userId,
+            // clip 1 controls
+            clip1Provided,
+            clip1Clear,
             clip1Url,
+            // clip 2 controls
+            clip2Provided,
+            clip2Clear,
             clip2Url,
+            // clip 3 controls
+            clip3Provided,
+            clip3Clear,
             clip3Url
           ]
         );

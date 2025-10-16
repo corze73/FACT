@@ -30,6 +30,12 @@ export default function CoachProfile() {
   const [uploadingImage, setUploadingImage] = useState(false);
   // eslint-disable-next-line no-unused-vars
   const fileInputRef = useRef(null);
+  // Refs for video URL inputs (for clearing values reliably)
+  const videoInputRefs = {
+    1: useRef(null),
+    2: useRef(null),
+    3: useRef(null)
+  };
 
   useEffect(() => {
     loadUser();
@@ -475,7 +481,7 @@ export default function CoachProfile() {
                   {/* Video Clips (external URLs only) */}
                   <div className="space-y-3">
                     <Label>Coaching Session Clips</Label>
-                    <p className="text-xs text-slate-500">Link up to 3 video clips hosted on platforms like YouTube, Vimeo, or cloud storage. Paste the video URL below.</p>
+                    <p className="text-xs text-slate-500">Link up to 3 video clips hosted on YouTube or Vimeo. Paste the video URL below.</p>
                     
                     <div className="grid grid-cols-2 gap-4">
                       {[1, 2, 3].map((clipNumber) => (
@@ -484,6 +490,7 @@ export default function CoachProfile() {
                             <div className="flex items-center gap-2">
                               <LinkIcon className="w-4 h-4 text-slate-500" />
                               <Input
+                                ref={videoInputRefs[clipNumber]}
                                 type="url"
                                 placeholder={`https://... (Video ${clipNumber} URL)`}
                                 value={formData[`video_clip_${clipNumber}`] || ''}
