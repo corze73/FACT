@@ -212,12 +212,12 @@ export default function CoachProfile() {
       // YouTube patterns
       if (u.hostname === 'youtu.be') {
         const id = u.pathname.replace('/', '');
-        return <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${id}`} title="YouTube video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
+        return <iframe className="w-full h-full" src={`https://www.youtube-nocookie.com/embed/${id}`} title="YouTube video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
       }
       if (u.hostname === 'www.youtube.com' || u.hostname === 'youtube.com') {
         const v = u.searchParams.get('v');
         if (v) {
-          return <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${v}`} title="YouTube video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
+          return <iframe className="w-full h-full" src={`https://www.youtube-nocookie.com/embed/${v}`} title="YouTube video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
         }
       }
       // Vimeo patterns
