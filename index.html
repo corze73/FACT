@@ -9,12 +9,8 @@
     
     <!-- Google Analytics for FACT -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-D6XDJ31ZX7"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-D6XDJ31ZX7');
-    </script>
+    <!-- Moved GA init to an external file to satisfy strict CSP (no inline scripts) -->
+    <script src="/ga-init.js" defer></script>
   </head>
   <body>
     <div id="root"></div>

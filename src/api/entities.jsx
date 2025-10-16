@@ -227,7 +227,18 @@ export const User = {
     if (redirectUrl) {
       sessionStorage.setItem('authRedirect', redirectUrl);
     }
-    return await this.login();
+    const result = await this.login();
+    try {
+      const target = sessionStorage.getItem('authRedirect');
+      if (target) {
+        sessionStorage.removeItem('authRedirect');
+        // Use a hard navigation to ensure app state (auth + DB context) is fully reloaded
+        window.location.href = target;
+      }
+    } catch (e) {
+      // no-op; fallback to returning normally
+    }
+    return result;
   },
 
   async isAuthenticated() {
