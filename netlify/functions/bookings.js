@@ -87,7 +87,8 @@ export async function handler(event) {
             query += ' WHERE ' + conditions.join(' AND ');
           }
 
-          query += ' ORDER BY b.created_date DESC';
+          // Use correct timestamp column from schema
+          query += ' ORDER BY b.created_at DESC';
 
           const bookings = await executeQuery(query, params);
 
@@ -216,7 +217,8 @@ export async function handler(event) {
           };
         }
 
-        updateFields.push(`updated_date = NOW()`);
+  // Align with schema column name
+  updateFields.push(`updated_at = NOW()`);
         updateParams.push(bookingId);
 
         const updatedBooking = await executeQueryOne(

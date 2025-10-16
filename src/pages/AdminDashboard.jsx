@@ -28,7 +28,9 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
   const [stats, setStats] = useState({
-    totalUsers: 0,
+    totalUsers: 0, // excludes admins
+    totalAccounts: 0, // includes admins
+    admins: 0,
     totalCoaches: 0,
     totalClients: 0,
     totalBookings: 0,
@@ -54,10 +56,12 @@ export default function AdminDashboard() {
 
         const allUsers = await User.list();
 
-        // Exclude admins from member totals
-        const totalCoaches = allUsers.filter(u => u.user_type === "coach" && u.role !== "admin").length;
-        const totalClients = allUsers.filter(u => (u.user_type === "client" || u.user_type === "user") && u.role !== "admin").length;
-        const totalUsers = totalCoaches + totalClients;
+  // Break down by type and role
+  const admins = allUsers.filter(u => u.role === "admin").length;
+  const totalCoaches = allUsers.filter(u => u.user_type === "coach" && u.role !== "admin").length;
+  const totalClients = allUsers.filter(u => (u.user_type === "client" || u.user_type === "user") && u.role !== "admin").length;
+  const totalUsers = totalCoaches + totalClients; // excludes admins
+  const totalAccounts = allUsers.length; // includes admins
 
         const allBookings = await Booking.list('-created_at', 1000);
         
@@ -72,7 +76,7 @@ export default function AdminDashboard() {
         const users = ids.length ? await User.filter({ id: { in: ids } }) : [];
         const umap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
         
-        setStats({ totalUsers, totalCoaches, totalClients, totalBookings, pending, confirmed, cancelled, completed });
+  setStats({ totalUsers, totalAccounts, admins, totalCoaches, totalClients, totalBookings, pending, confirmed, cancelled, completed });
         setRecentBookings(recent);
         setUserMap(umap);
       } catch (error) {
@@ -126,7 +130,7 @@ export default function AdminDashboard() {
         </motion.div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Users} label="Total Users" value={stats.totalUsers} color="text-slate-700" onClick={() => navigate(createPageUrl("AdminUsers?type=all"))} />
+          <StatCard icon={Users} label="Total Accounts" value={stats.totalAccounts || stats.totalUsers} color="text-slate-700" onClick={() => navigate(createPageUrl("AdminUsers?type=all"))} />
           <StatCard icon={Star} label="Coaches" value={stats.totalCoaches} color="text-amber-600" onClick={() => navigate(createPageUrl("AdminUsers?type=coach"))} />
           <StatCard icon={Users} label="Clients" value={stats.totalClients} color="text-blue-600" onClick={() => navigate(createPageUrl("AdminUsers?type=client"))} />
           <StatCard icon={Calendar} label="Total Bookings" value={stats.totalBookings} color="text-green-600" onClick={() => navigate(createPageUrl("AdminBookings?status=all"))} />
