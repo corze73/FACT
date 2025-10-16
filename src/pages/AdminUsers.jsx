@@ -7,7 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Trash2, Check, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -15,6 +18,12 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [reason, setReason] = useState("");
+  const [requests, setRequests] = useState([]);
+  const [requestActionReason, setRequestActionReason] = useState("");
+  const [decidingId, setDecidingId] = useState(null);
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
@@ -30,6 +39,23 @@ export default function AdminUsers() {
     }
   };
 
+  const openRemove = (u) => {
+    setSelectedUser(u);
+    setReason("");
+    setConfirmOpen(true);
+  };
+
+  const handleRemove = async () => {
+    if (!selectedUser) return;
+    try {
+      await User.delete(selectedUser.id, { reason });
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: reason } : u));
+      setConfirmOpen(false);
+    } catch (e) {
+      alert(`Failed to remove user: ${e.message}`);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       const me = await User.me();
@@ -37,6 +63,13 @@ export default function AdminUsers() {
       if (me.role !== "admin") return;
       const all = await User.list();
       setUsers(all);
+      // Load pending deletion requests
+      try {
+        const pending = await User.listDeletionRequests({ status: 'pending' });
+        setRequests(pending);
+      } catch (e) {
+        console.warn('Failed to load deletion requests', e);
+      }
       setLoading(false);
     };
     load();
@@ -65,6 +98,62 @@ export default function AdminUsers() {
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* Deletion Requests Panel */}
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle>Account Deletion Requests</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {requests.length === 0 ? (
+              <p className="text-slate-500">No pending requests.</p>
+            ) : (
+              <div className="space-y-3">
+                {requests.map((r) => (
+                  <div key={r.id} className="p-3 border rounded-md">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <p className="font-medium">User: {r.user_id}</p>
+                        <p className="text-sm text-slate-600">Reason: {r.reason || 'N/A'}</p>
+                        <p className="text-xs text-slate-400">Requested at: {new Date(r.requested_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="Decision reason (optional)"
+                          value={decidingId === r.id ? requestActionReason : ''}
+                          onChange={(e) => { setDecidingId(r.id); setRequestActionReason(e.target.value); }}
+                          className="w-56"
+                        />
+                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={async () => {
+                          try {
+                            await User.decideDeletionRequest(r.id, 'approved', requestActionReason || null, currentUser.id);
+                            // Reflect immediately: deactivate user locally
+                            setUsers(prev => prev.map(u => u.id === r.user_id ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: requestActionReason || 'Account deletion approved' } : u));
+                            setRequests(prev => prev.filter(x => x.id !== r.id));
+                            setRequestActionReason('');
+                            setDecidingId(null);
+                          } catch (e) { alert('Failed to approve request: ' + e.message); }
+                        }}>
+                          <Check className="w-4 h-4 mr-1" /> Approve
+                        </Button>
+                        <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={async () => {
+                          try {
+                            await User.decideDeletionRequest(r.id, 'rejected', requestActionReason || null, currentUser.id);
+                            setRequests(prev => prev.filter(x => x.id !== r.id));
+                            setRequestActionReason('');
+                            setDecidingId(null);
+                          } catch (e) { alert('Failed to reject request: ' + e.message); }
+                        }}>
+                          <X className="w-4 h-4 mr-1" /> Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Users ({typeParam === "all" ? "All" : typeParam.charAt(0).toUpperCase() + typeParam.slice(1)})</CardTitle>
@@ -95,6 +184,9 @@ export default function AdminUsers() {
                           <div className="flex gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="capitalize">{u.user_type || "member"}</Badge>
                             <Badge className={u.role === "admin" ? "bg-yellow-100 text-yellow-800" : "bg-slate-100 text-slate-700"}>{u.role || "user"}</Badge>
+                            {u.is_active === false && (
+                              <Badge className="bg-red-100 text-red-700">deactivated</Badge>
+                            )}
                           </div>
 
                           {/* Coach offerings */}
@@ -127,6 +219,19 @@ export default function AdminUsers() {
                         </div>
                       </div>
                     </CardContent>
+                    {currentUser?.role === 'admin' && u.role !== 'admin' && (
+                      <div className="flex justify-end pb-3 pr-3">
+                        {u.is_active !== false ? (
+                          <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); openRemove(u); }} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                            <Trash2 className="w-4 h-4 mr-2" /> Remove
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={async (e) => { e.stopPropagation(); try { await User.restore(u.id); setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: true, deactivated_at: null, deactivation_reason: null } : x)); } catch (err) { alert('Failed to restore user'); } }} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
+                            Restore
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 </motion.div>
               ))}
@@ -135,6 +240,23 @@ export default function AdminUsers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Confirm Removal Dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove user</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">You're removing {selectedUser?.full_name || 'this user'}. This is a soft deactivation—they won't be able to log in. Please provide a reason (visible to admins only).</p>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for removal (optional)" />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+              <Button className="bg-red-600 hover:bg-red-700" onClick={handleRemove}>Remove user</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

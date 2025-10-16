@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Users, Calendar, MessageCircle, Star, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, isValid } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Utility function to safely parse dates
 const safeParseDate = (dateValue) => {
@@ -42,6 +44,10 @@ export default function AdminDashboard() {
   const [recentBookings, setRecentBookings] = useState([]);
   const [userMap, setUserMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [deletionRequests, setDeletionRequests] = useState([]);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -54,7 +60,7 @@ export default function AdminDashboard() {
           return;
         }
 
-        const allUsers = await User.list();
+  const allUsers = await User.list();
 
   // Break down by type and role
   const admins = allUsers.filter(u => u.role === "admin").length;
@@ -71,14 +77,18 @@ export default function AdminDashboard() {
         const cancelled = allBookings.filter(b => b.status === "cancelled").length;
         const completed = allBookings.filter(b => b.status === "completed").length;
         
-        const recent = allBookings.slice(0, 8);
+  const recent = allBookings.slice(0, 8);
         const ids = Array.from(new Set(recent.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
         const users = ids.length ? await User.filter({ id: { in: ids } }) : [];
         const umap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
         
   setStats({ totalUsers, totalAccounts, admins, totalCoaches, totalClients, totalBookings, pending, confirmed, cancelled, completed });
         setRecentBookings(recent);
-        setUserMap(umap);
+  setUserMap(umap);
+
+  // Load pending account deletion requests
+  const pendingReqs = await User.listDeletionRequests({ status: 'pending' });
+  setDeletionRequests(pendingReqs || []);
       } catch (error) {
         console.error('Error loading admin dashboard data:', error);
       } finally {
@@ -87,6 +97,24 @@ export default function AdminDashboard() {
     };
     load();
   }, [navigate]);
+
+  const openDecision = (req) => {
+    setSelectedRequest(req);
+    setDecisionReason("");
+    setDecisionOpen(true);
+  };
+
+  const decideRequest = async (decision) => {
+    if (!selectedRequest) return;
+    try {
+      await User.decideDeletionRequest(selectedRequest.id, decision, decisionReason, currentUser?.id);
+      setDeletionRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
+      setDecisionOpen(false);
+      setDecisionReason("");
+    } catch (e) {
+      alert(e.message || 'Failed to process request');
+    }
+  };
 
   if (loading) return <div className="p-8">Loading admin dashboard...</div>;
   if (!currentUser || currentUser.role !== "admin") return null;
@@ -144,7 +172,28 @@ export default function AdminDashboard() {
           <StatCard icon={Calendar} label="Cancelled" value={stats.cancelled} color="text-red-600" onClick={() => navigate(createPageUrl("AdminBookings?status=cancelled"))} />
         </div>
 
-        {/* Demo data controls removed by request */}
+          {/* Account Deletion Requests */}
+          {deletionRequests.length > 0 && (
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Account Deletion Requests</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {deletionRequests.map((r) => (
+                  <div key={r.id} className="flex flex-col md:flex-row md:items-center md:justify-between p-3 rounded-lg border border-slate-200">
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">User ID: {r.user_id}</p>
+                      <p className="text-sm text-slate-600">Reason: {r.reason || '—'}</p>
+                      <p className="text-xs text-slate-500 mt-1">Requested {formatSafeDate(r.requested_at, 'Pp')}</p>
+                    </div>
+                    <div className="mt-2 md:mt-0 flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openDecision(r)}>Decide</Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
         <Card className="border-0 shadow-lg">
           <CardHeader>
@@ -183,6 +232,23 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={decisionOpen} onOpenChange={setDecisionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decide deletion request</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">Provide an optional reason. Approving will deactivate the user's account.</p>
+            <Textarea value={decisionReason} onChange={(e)=>setDecisionReason(e.target.value)} placeholder="Decision reason (optional)" />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={()=>setDecisionOpen(false)}>Cancel</Button>
+              <Button className="bg-red-600 hover:bg-red-700" onClick={()=>decideRequest('approved')}>Approve</Button>
+              <Button variant="secondary" onClick={()=>decideRequest('rejected')}>Reject</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

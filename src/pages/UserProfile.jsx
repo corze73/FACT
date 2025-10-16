@@ -13,6 +13,7 @@ import { createPageUrl } from "@/utils";
 import { Upload } from "lucide-react";
 import { validateAndSanitize, profileUpdateSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function UserProfile() {
   const [formData, setFormData] = useState(null);
@@ -26,6 +27,9 @@ export default function UserProfile() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+  const [deletionOpen, setDeletionOpen] = useState(false);
+  const [deletionReason, setDeletionReason] = useState("");
+  const [pendingDeletion, setPendingDeletion] = useState(null);
 
   // Check if admin is viewing another user's profile
   useEffect(() => {
@@ -89,10 +93,30 @@ export default function UserProfile() {
         preferred_coaching_types: userToLoad.preferred_coaching_types || [],
         preferred_session_times: userToLoad.preferred_session_times || [],
       });
+
+      // Load pending deletion request for this profile if viewing own profile
+      try {
+        const requests = await User.listDeletionRequests({ user_id: userToLoad.id, status: 'pending' });
+        setPendingDeletion(requests?.[0] || null);
+      } catch (e) {
+        // non-fatal
+      }
     } catch (error) {
       console.error("Failed to load user", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const requestDeletion = async () => {
+    try {
+      const res = await User.requestDeletion(deletionReason);
+      setPendingDeletion(res);
+      setDeletionOpen(false);
+      setDeletionReason("");
+      alert('Deletion request submitted. An admin will review it shortly.');
+    } catch (e) {
+      alert(e.message || 'Failed to submit deletion request');
     }
   };
 
@@ -367,9 +391,20 @@ export default function UserProfile() {
                   </div>
 
                   {!isViewingAsAdmin && (
-                    <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
-                      {isSaving ? 'Saving...' : 'Save Changes'}
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Button type="submit" disabled={isSaving} className="sm:w-auto">
+                        {isSaving ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50 sm:w-auto"
+                        disabled={!!pendingDeletion}
+                        onClick={() => setDeletionOpen(true)}
+                      >
+                        {pendingDeletion ? 'Deletion Requested (Pending)' : 'Request account deletion'}
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -428,7 +463,45 @@ export default function UserProfile() {
             </form>
           </CardContent>
         </Card>
+        {/* Account deletion request (self-service, requires admin approval) */}
+        {!isViewingAsAdmin && currentUser?.role !== 'admin' && (
+          <div className="mt-8">
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Account deletion</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {pendingDeletion ? (
+                  <p className="text-sm text-slate-600">Your deletion request is pending admin review (requested {new Date(pendingDeletion.requested_at).toLocaleString()}). You’ll be notified once a decision is made.</p>
+                ) : (
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <p className="text-sm text-slate-600">You can request deletion of your account. An admin must approve before your account is deactivated.</p>
+                    <Button variant="outline" onClick={() => setDeletionOpen(true)}>Request deletion</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        <Dialog open={deletionOpen} onOpenChange={setDeletionOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Request account deletion</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Label htmlFor="del-reason">Reason (optional)</Label>
+              <Textarea id="del-reason" value={deletionReason} onChange={(e)=>setDeletionReason(e.target.value)} placeholder="Tell us why you want to delete your account..." />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={()=>setDeletionOpen(false)}>Cancel</Button>
+                <Button className="bg-red-600 hover:bg-red-700" onClick={requestDeletion}>Submit request</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
+
+      
   );
 }

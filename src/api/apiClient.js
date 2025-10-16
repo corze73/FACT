@@ -50,6 +50,26 @@ class APIClient {
     return this.request(`/users/${id}`);
   }
 
+  // ========== ACCOUNT DELETION REQUESTS ==========
+  async createDeletionRequest(userId, reason) {
+    return this.request('/account-deletion-requests', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, reason })
+    });
+  }
+
+  async listDeletionRequests(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/account-deletion-requests?${params}`);
+  }
+
+  async decideDeletionRequest(id, decision, decision_reason, admin_id) {
+    return this.request('/account-deletion-requests', {
+      method: 'PUT',
+      body: JSON.stringify({ id, decision, decision_reason, admin_id })
+    });
+  }
+
   /**
    * Get all users (with optional filters)
    */
@@ -81,10 +101,13 @@ class APIClient {
   /**
    * Delete user
    */
-  async deleteUser(id) {
-    return this.request(`/users/${id}`, {
-      method: 'DELETE'
-    });
+  async deleteUser(id, options = {}) {
+    const { reason, hard } = options;
+    const req = { method: 'DELETE' };
+    if (reason || hard) {
+      req.body = JSON.stringify({ reason, hard });
+    }
+    return this.request(`/users/${id}`, req);
   }
 
   // ========== BOOKING OPERATIONS ==========

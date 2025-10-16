@@ -255,6 +255,48 @@ export const User = {
   }
 };
 
+// Extend User with admin delete helper
+User.delete = async function(id, opts = {}) {
+  try {
+    return await apiClient.deleteUser(id, opts);
+  } catch (error) {
+    console.error('API delete user failed:', error);
+    // Fallback to direct DB soft-deactivation if API not available
+    try {
+      await db.update('profiles', { where: { id } }, { is_active: false, deactivation_reason: opts.reason || null });
+    } catch (e) {
+      // surface original error
+      throw error;
+    }
+  }
+};
+
+// Request account deletion (user-initiated)
+User.requestDeletion = async function(reason) {
+  const { data: { user } } = await auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  return await apiClient.createDeletionRequest(user.id, reason);
+};
+
+// Admin list/decide deletion requests
+User.listDeletionRequests = async function(filters = {}) {
+  return await apiClient.listDeletionRequests(filters);
+};
+
+User.decideDeletionRequest = async function(id, decision, decision_reason, admin_id) {
+  return await apiClient.decideDeletionRequest(id, decision, decision_reason, admin_id);
+};
+
+// Admin restore user (reactivate)
+User.restore = async function(id) {
+  try {
+    return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });
+  } catch (error) {
+    // Fallback direct DB
+    await db.update('profiles', { where: { id } }, { is_active: true, deactivation_reason: null });
+  }
+};
+
 // ========== BOOKING ENTITY (Migrated to API) ==========
 export const Booking = {
   async list() {

@@ -185,7 +185,8 @@ export async function handler(event) {
         }
 
         const updateData = JSON.parse(body);
-        
+
+        // When restoring (is_active === true), clear deactivation fields
         const updatedUser = await executeQueryOne(
           `UPDATE profiles 
            SET full_name = COALESCE($1, full_name),
@@ -194,6 +195,8 @@ export async function handler(event) {
                bio = COALESCE($4, bio),
                avatar_url = COALESCE($5, avatar_url),
                is_active = COALESCE($6, is_active),
+               deactivated_at = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivated_at END,
+               deactivation_reason = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivation_reason END,
                updated_at = NOW()
            WHERE id = $7
            RETURNING *`,
@@ -224,7 +227,7 @@ export async function handler(event) {
       }
 
       case 'DELETE':
-        // Delete user (soft delete - set deleted flag or actually delete)
+        // Admin user removal: default to soft-deactivate with reason
         if (!userId) {
           return {
             statusCode: 400,
@@ -233,13 +236,33 @@ export async function handler(event) {
           };
         }
 
-        await executeQuery('DELETE FROM profiles WHERE id = $1', [userId]);
+        let payload = {};
+        try { payload = body ? JSON.parse(body) : {}; } catch {}
+        const reason = payload.reason || null;
+        const hard = payload.hard === true;
 
-        return {
-          statusCode: 204,
-          headers,
-          body: ''
-        };
+        if (hard) {
+          // Hard delete requested (use sparingly)
+          await executeQuery('DELETE FROM profiles WHERE id = $1', [userId]);
+          return { statusCode: 204, headers, body: '' };
+        }
+
+        const deactivated = await executeQueryOne(
+          `UPDATE profiles
+           SET is_active = false,
+               deactivated_at = NOW(),
+               deactivation_reason = COALESCE($1, deactivation_reason),
+               updated_at = NOW()
+           WHERE id = $2
+           RETURNING *`,
+          [reason, userId]
+        );
+
+        if (!deactivated) {
+          return { statusCode: 404, headers, body: JSON.stringify({ error: 'User not found' }) };
+        }
+
+        return { statusCode: 200, headers, body: JSON.stringify(deactivated) };
 
       default:
         return {
