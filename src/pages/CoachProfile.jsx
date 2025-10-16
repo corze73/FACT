@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
-import { Upload, Video, X } from "lucide-react";
+import { Upload, Video, X, Link as LinkIcon } from "lucide-react";
 import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
 import { validateAndSanitize, profileUpdateSchema, coachProfileSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
@@ -29,13 +29,7 @@ export default function CoachProfile() {
   // eslint-disable-next-line no-unused-vars
   const [uploadingImage, setUploadingImage] = useState(false);
   // eslint-disable-next-line no-unused-vars
-  const [uploadingVideo, setUploadingVideo] = useState({ 1: false, 2: false, 3: false });
   const fileInputRef = useRef(null);
-  const videoInputRefs = {
-    1: useRef(null),
-    2: useRef(null),
-    3: useRef(null)
-  };
 
   useEffect(() => {
     loadUser();
@@ -184,36 +178,55 @@ export default function CoachProfile() {
     reader.readAsDataURL(file);
   };
 
-  const handleVideoUpload = (clipNumber, e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Validate file type
-    if (!file.type.startsWith('video/')) {
-      alert('Please select a video file');
+  const setVideoUrl = (clipNumber, value) => {
+    // Only allow http/https URLs and allowed hosts (YouTube/Vimeo)
+    if (value && !/^https?:\/\//i.test(value)) {
+      alert('Please enter a valid URL starting with http:// or https://');
       return;
     }
-    
-    // Validate file size (max 50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      alert('Video must be smaller than 50MB');
-      return;
+    if (value) {
+      try {
+        const u = new URL(value);
+        const allowed = ['www.youtube.com','youtube.com','youtu.be','vimeo.com','player.vimeo.com'];
+        if (!allowed.includes(u.hostname)) {
+          alert('Only YouTube or Vimeo URLs are allowed.');
+          return;
+        }
+      } catch {
+        // ignore parse error; handled by http/https check already
+      }
     }
-    
-    setUploadingVideo(prev => ({ ...prev, [clipNumber]: true }));
-    
-    // For videos, we just store the URL directly
-    // In production, you would upload to cloud storage and store the URL
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setFormData(prev => ({ ...prev, [`video_clip_${clipNumber}`]: event.target.result }));
-      setUploadingVideo(prev => ({ ...prev, [clipNumber]: false }));
-    };
-    reader.onerror = () => {
-      alert('Failed to read video file. Try a smaller file or different format.');
-      setUploadingVideo(prev => ({ ...prev, [clipNumber]: false }));
-    };
-    reader.readAsDataURL(file);
+    setFormData(prev => ({ ...prev, [`video_clip_${clipNumber}`]: value }));
+  };
+
+  const renderEmbed = (url) => {
+    if (!url) return null;
+    try {
+      const u = new URL(url);
+      // YouTube patterns
+      if (u.hostname === 'youtu.be') {
+        const id = u.pathname.replace('/', '');
+        return <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${id}`} title="YouTube video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
+      }
+      if (u.hostname === 'www.youtube.com' || u.hostname === 'youtube.com') {
+        const v = u.searchParams.get('v');
+        if (v) {
+          return <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${v}`} title="YouTube video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
+        }
+      }
+      // Vimeo patterns
+      if (u.hostname === 'vimeo.com') {
+        const id = u.pathname.split('/').filter(Boolean)[0];
+        if (id) {
+          return <iframe className="w-full h-full" src={`https://player.vimeo.com/video/${id}`} title="Vimeo video" frameBorder="0" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
+        }
+      }
+      if (u.hostname === 'player.vimeo.com') {
+        return <iframe className="w-full h-full" src={url} title="Vimeo video" frameBorder="0" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
+      }
+    } catch {}
+    // Fallback link (though not expected due to allowlist)
+    return <a href={url} target="_blank" rel="noreferrer" className="block w-full h-full text-center text-slate-200 flex items-center justify-center">Open video</a>;
   };
 
   const removeVideo = (clipNumber) => {
@@ -459,53 +472,36 @@ export default function CoachProfile() {
                     </div>
                   </div>
 
-                  {/* Video Clips */}
+                  {/* Video Clips (external URLs only) */}
                   <div className="space-y-3">
                     <Label>Coaching Session Clips</Label>
-                    {!isViewingAsAdmin && (
-                      <p className="text-xs text-slate-500">Upload up to 3 video clips showcasing your coaching (Max 50MB each)</p>
-                    )}
+                    <p className="text-xs text-slate-500">Link up to 3 video clips hosted on platforms like YouTube, Vimeo, or cloud storage. Paste the video URL below.</p>
                     
                     <div className="grid grid-cols-2 gap-4">
                       {[1, 2, 3].map((clipNumber) => (
                         <div key={clipNumber} className="relative">
-                          {formData[`video_clip_${clipNumber}`] ? (
-                            <div className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 bg-slate-900">
-                              <video 
-                                src={formData[`video_clip_${clipNumber}`]} 
-                                className="w-full h-full object-cover"
-                                controls
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <LinkIcon className="w-4 h-4 text-slate-500" />
+                              <Input
+                                type="url"
+                                placeholder={`https://... (Video ${clipNumber} URL)`}
+                                value={formData[`video_clip_${clipNumber}`] || ''}
+                                onChange={(e) => setVideoUrl(clipNumber, e.target.value)}
+                                disabled={isViewingAsAdmin}
                               />
-                              {!isViewingAsAdmin && (
-                                <Button
-                                  type="button"
-                                  variant="destructive"
-                                  size="sm"
-                                  className="absolute top-2 right-2"
-                                  onClick={() => removeVideo(clipNumber)}
-                                >
+                              {!isViewingAsAdmin && formData[`video_clip_${clipNumber}`] && (
+                                <Button type="button" variant="destructive" size="sm" onClick={() => removeVideo(clipNumber)}>
                                   <X className="w-4 h-4" />
                                 </Button>
                               )}
                             </div>
-                          ) : (
-                            <div
-                              className={`aspect-video rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center ${!isViewingAsAdmin ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50' : ''} transition-colors bg-slate-900`}
-                              onClick={() => !isViewingAsAdmin && videoInputRefs[clipNumber].current?.click()}
-                            >
-                              <Video className="w-8 h-8 text-slate-400 mb-1" />
-                              <p className="text-xs text-slate-300 font-medium">Video {clipNumber}</p>
-                            </div>
-                          )}
-                          {!isViewingAsAdmin && (
-                            <input
-                              ref={videoInputRefs[clipNumber]}
-                              type="file"
-                              accept="video/*"
-                              className="hidden"
-                              onChange={(e) => handleVideoUpload(clipNumber, e)}
-                            />
-                          )}
+                            {formData[`video_clip_${clipNumber}`] && (
+                              <div className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-200 bg-slate-900">
+                                {renderEmbed(formData[`video_clip_${clipNumber}`])}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

@@ -186,6 +186,43 @@ export async function handler(event) {
 
         const updateData = JSON.parse(body);
 
+        // Validate video clip URLs (only allow http/https URLs; disallow data URIs)
+        const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v);
+        const isDataUri = (v) => typeof v === 'string' && /^data:/i.test(v);
+        const allowedHosts = [
+          'www.youtube.com', 'youtube.com', 'youtu.be', 'player.vimeo.com', 'vimeo.com'
+        ];
+        const isAllowedHost = (v) => {
+          try {
+            const u = new URL(v);
+            return allowedHosts.includes(u.hostname);
+          } catch { return false; }
+        };
+
+        const clip1 = updateData.video_clip_1;
+        const clip2 = updateData.video_clip_2;
+        const clip3 = updateData.video_clip_3;
+
+        if ([clip1, clip2, clip3].some(v => v !== undefined && isDataUri(v))) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Video clips must be hosted externally (http/https URLs). Data URIs are not allowed.' })
+          };
+        }
+
+        const clip1Url = clip1 === undefined ? null : (isHttpUrl(clip1) && isAllowedHost(clip1) ? clip1 : null);
+        const clip2Url = clip2 === undefined ? null : (isHttpUrl(clip2) && isAllowedHost(clip2) ? clip2 : null);
+        const clip3Url = clip3 === undefined ? null : (isHttpUrl(clip3) && isAllowedHost(clip3) ? clip3 : null);
+
+        if ([clip1, clip2, clip3].some(v => v && !isAllowedHost(v))) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Only YouTube and Vimeo URLs are allowed for video clips.' })
+          };
+        }
+
         // When restoring (is_active === true), clear deactivation fields
         const updatedUser = await executeQueryOne(
           `UPDATE profiles 
@@ -195,6 +232,9 @@ export async function handler(event) {
                bio = COALESCE($4, bio),
                avatar_url = COALESCE($5, avatar_url),
                is_active = COALESCE($6, is_active),
+               video_clip_1 = COALESCE($8, video_clip_1),
+               video_clip_2 = COALESCE($9, video_clip_2),
+               video_clip_3 = COALESCE($10, video_clip_3),
                deactivated_at = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivated_at END,
                deactivation_reason = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivation_reason END,
                updated_at = NOW()
@@ -207,7 +247,10 @@ export async function handler(event) {
             updateData.bio,
             updateData.avatar_url,
             updateData.is_active,
-            userId
+            userId,
+            clip1Url,
+            clip2Url,
+            clip3Url
           ]
         );
 
