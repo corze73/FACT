@@ -1,15 +1,15 @@
 import { neon } from '@neondatabase/serverless';
 
-const databaseUrl = import.meta.env.VITE_DATABASE_URL;
+// In production builds, direct client-side DB access is disabled.
+// Always use Netlify Functions via apiClient instead. This module remains for
+// limited local/dev tooling where RLS is acceptable in browser.
+const isDev = import.meta.env.DEV === true;
+const databaseUrl = isDev ? import.meta.env.VITE_DATABASE_URL : undefined;
 
-if (!databaseUrl) {
-  throw new Error('Missing database environment variable. Please set VITE_DATABASE_URL in your .env file.');
-}
-
-// Create Neon database connection with browser warnings disabled
-export const sql = neon(databaseUrl, {
-  disableWarningInBrowsers: true
-});
+// Create Neon database connection only in dev to avoid leaking envs/secrets.
+export const sql = databaseUrl
+  ? neon(databaseUrl, { disableWarningInBrowsers: true })
+  : null;
 
 // Helper function to execute queries
 export const db = {
@@ -24,6 +24,9 @@ export const db = {
 
   // Execute raw SQL query
   async query(text, params = []) {
+    if (!sql) {
+      throw new Error('Direct DB access is disabled. Use API endpoints instead.');
+    }
     try {
       return await sql.query(text, params);
     } catch (error) {
@@ -143,8 +146,10 @@ export const auth = {
     if (storedUser) {
       try {
         this.currentUser = JSON.parse(storedUser);
-        // Set user context for RLS
-        await db.setUserContext(this.currentUser.id);
+        // Set user context for RLS in dev only
+        if (sql) {
+          await db.setUserContext(this.currentUser.id);
+        }
       } catch (error) {
         console.error('Error loading stored user:', error);
         localStorage.removeItem('currentUser');
@@ -157,10 +162,14 @@ export const auth = {
     // Persist to localStorage
     if (user) {
       localStorage.setItem('currentUser', JSON.stringify(user));
-      await db.setUserContext(user.id);
+      if (sql) {
+        await db.setUserContext(user.id);
+      }
     } else {
       localStorage.removeItem('currentUser');
-      await db.setUserContext(null);
+      if (sql) {
+        await db.setUserContext(null);
+      }
     }
   },
   

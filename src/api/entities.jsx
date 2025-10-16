@@ -1,5 +1,6 @@
 import apiClient from './apiClient';
 import { db, auth } from './databaseClient';
+const dbAvailable = !!db && typeof db.query === 'function';
 
 /**
  * MIGRATION WRAPPER
@@ -35,8 +36,12 @@ export const User = {
     } catch (apiError) {
       // Fallback: If API fails or user doesn't exist in DB yet
       console.warn('API fetch failed, creating profile:', apiError);
-      
-      // Get from database directly (fallback)
+
+      if (!dbAvailable) {
+        throw apiError;
+      }
+
+      // Get from database directly (dev-only fallback)
       const profiles = await db.select('profiles', { where: { id: user.id } });
       let profile = profiles[0];
 
@@ -55,7 +60,8 @@ export const User = {
           profile = await apiClient.createUser(newProfile);
         } catch (createError) {
           console.error('Failed to create user via API:', createError);
-          // Fallback to direct DB
+          if (!dbAvailable) throw createError;
+          // Fallback to direct DB (dev only)
           profile = await db.insert('profiles', newProfile);
         }
       }
@@ -73,11 +79,9 @@ export const User = {
       return await apiClient.getUsers();
     } catch (error) {
       console.error('API list failed, using fallback:', error);
-      // Fallback to direct DB
-      const data = await db.select('profiles', {
-        orderBy: { created_at: 'desc' },
-        limit: 1000
-      });
+      if (!dbAvailable) throw error;
+      // Fallback to direct DB (dev only)
+      const data = await db.select('profiles', { orderBy: { created_at: 'desc' }, limit: 1000 });
       return data || [];
     }
   },
@@ -87,11 +91,10 @@ export const User = {
       return await apiClient.getUser(id);
     } catch (error) {
       console.error('API get failed, using fallback:', error);
-      // Fallback to direct DB
+      if (!dbAvailable) throw error;
+      // Fallback to direct DB (dev only)
       const users = await db.select('profiles', { where: { id } });
-      if (users.length === 0) {
-        throw new Error('User not found');
-      }
+      if (users.length === 0) throw new Error('User not found');
       return users[0];
     }
   },
@@ -105,7 +108,8 @@ export const User = {
       return await apiClient.getUsers(queryParams);
     } catch (error) {
       console.error('API filter failed, using fallback:', error);
-      // Fallback to direct DB
+      if (!dbAvailable) throw error;
+      // Fallback to direct DB (dev only)
       const options = { where: {} };
       
       if (filters.id?.in) {
@@ -127,7 +131,8 @@ export const User = {
       return await apiClient.updateUser(id, userData);
     } catch (error) {
       console.error('API update failed, using fallback:', error);
-      // Fallback to direct DB
+      if (!dbAvailable) throw error;
+      // Fallback to direct DB (dev only)
       await db.update('profiles', { where: { id } }, userData);
       return await this.get(id);
     }
@@ -261,13 +266,9 @@ User.delete = async function(id, opts = {}) {
     return await apiClient.deleteUser(id, opts);
   } catch (error) {
     console.error('API delete user failed:', error);
-    // Fallback to direct DB soft-deactivation if API not available
-    try {
-      await db.update('profiles', { where: { id } }, { is_active: false, deactivation_reason: opts.reason || null });
-    } catch (e) {
-      // surface original error
-      throw error;
-    }
+    if (!dbAvailable) throw error;
+    // Fallback to direct DB soft-deactivation if API not available (dev only)
+    await db.update('profiles', { where: { id } }, { is_active: false, deactivation_reason: opts.reason || null });
   }
 };
 
@@ -292,7 +293,8 @@ User.restore = async function(id) {
   try {
     return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });
   } catch (error) {
-    // Fallback direct DB
+    if (!dbAvailable) throw error;
+    // Fallback direct DB (dev only)
     await db.update('profiles', { where: { id } }, { is_active: true, deactivation_reason: null });
   }
 };
@@ -304,9 +306,8 @@ export const Booking = {
       return await apiClient.getBookings();
     } catch (error) {
       console.error('API list failed, using fallback:', error);
-      const data = await db.select('bookings', {
-        orderBy: { created_date: 'desc' }
-      });
+      if (!dbAvailable) throw error;
+      const data = await db.select('bookings', { orderBy: { created_date: 'desc' } });
       return data || [];
     }
   },
@@ -316,10 +317,9 @@ export const Booking = {
       return await apiClient.getBooking(id);
     } catch (error) {
       console.error('API get failed, using fallback:', error);
+      if (!dbAvailable) throw error;
       const bookings = await db.select('bookings', { where: { id } });
-      if (bookings.length === 0) {
-        throw new Error('Booking not found');
-      }
+      if (bookings.length === 0) throw new Error('Booking not found');
       return bookings[0];
     }
   },
@@ -335,10 +335,8 @@ export const Booking = {
       return await apiClient.getBookings(queryParams);
     } catch (error) {
       console.error('API filter failed, using fallback:', error);
-      const options = {
-        where: { ...filters },
-        orderBy: { [orderBy]: 'desc' }
-      };
+      if (!dbAvailable) throw error;
+      const options = { where: { ...filters }, orderBy: { [orderBy]: 'desc' } };
       return await db.select('bookings', options);
     }
   },
@@ -348,6 +346,7 @@ export const Booking = {
       return await apiClient.createBooking(bookingData);
     } catch (error) {
       console.error('API create failed, using fallback:', error);
+      if (!dbAvailable) throw error;
       return await db.insert('bookings', bookingData);
     }
   },
@@ -357,6 +356,7 @@ export const Booking = {
       return await apiClient.updateBooking(id, updateData);
     } catch (error) {
       console.error('API update failed, using fallback:', error);
+      if (!dbAvailable) throw error;
       await db.update('bookings', { where: { id } }, updateData);
       return await this.get(id);
     }
@@ -367,6 +367,7 @@ export const Booking = {
       await apiClient.deleteBooking(id);
     } catch (error) {
       console.error('API delete failed, using fallback:', error);
+      if (!dbAvailable) throw error;
       await db.delete('bookings', { where: { id } });
     }
   }
@@ -382,10 +383,8 @@ export const Message = {
       return await apiClient.getMessages(filters.booking_id);
     } catch (error) {
       console.error('API filter failed, using fallback:', error);
-      const options = {
-        where: { ...filters },
-        orderBy: { [orderBy]: 'asc' }
-      };
+      if (!dbAvailable) throw error;
+      const options = { where: { ...filters }, orderBy: { [orderBy]: 'asc' } };
       return await db.select('messages', options);
     }
   },
@@ -395,6 +394,7 @@ export const Message = {
       return await apiClient.sendMessage(messageData);
     } catch (error) {
       console.error('API create failed, using fallback:', error);
+      if (!dbAvailable) throw error;
       return await db.insert('messages', messageData);
     }
   },
@@ -404,6 +404,7 @@ export const Message = {
       return await apiClient.markMessageRead(id);
     } catch (error) {
       console.error('API update failed, using fallback:', error);
+      if (!dbAvailable) throw error;
       await db.update('messages', { where: { id } }, updateData);
       const messages = await db.select('messages', { where: { id } });
       return messages[0];
@@ -416,6 +417,7 @@ export const Message = {
 
 export const Review = {
   async filter(filters, orderBy = 'created_date') {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for reviews.');
     const options = {
       where: { ...filters },
       orderBy: { [orderBy]: 'desc' }
@@ -424,21 +426,25 @@ export const Review = {
   },
 
   async create(reviewData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for reviews.');
     return await db.insert('reviews', reviewData);
   }
 };
 
 export const Payment = {
   async filter(filters) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for payments.');
     const options = { where: { ...filters } };
     return await db.select('payments', options);
   },
 
   async create(paymentData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for payments.');
     return await db.insert('payments', paymentData);
   },
 
   async update(id, updateData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for payments.');
     await db.update('payments', { where: { id } }, updateData);
     const payments = await db.select('payments', { where: { id } });
     return payments[0];
@@ -447,15 +453,18 @@ export const Payment = {
 
 export const SessionDispute = {
   async filter(filters) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for session disputes.');
     const options = { where: { ...filters } };
     return await db.select('session_disputes', options);
   },
 
   async create(disputeData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for session disputes.');
     return await db.insert('session_disputes', disputeData);
   },
 
   async update(id, updateData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for session disputes.');
     await db.update('session_disputes', { where: { id } }, updateData);
     const disputes = await db.select('session_disputes', { where: { id } });
     return disputes[0];
@@ -464,6 +473,7 @@ export const SessionDispute = {
 
 export const CoachAvailability = {
   async getByCoachId(coachId) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
     const availabilities = await db.select('coach_availability', {
       where: { coach_id: coachId },
       orderBy: { start_date: 'asc' }
@@ -472,22 +482,26 @@ export const CoachAvailability = {
   },
 
   async create(availabilityData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
     return await db.insert('coach_availability', availabilityData);
   },
 
   async update(id, updateData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
     await db.update('coach_availability', { where: { id } }, updateData);
     const availabilities = await db.select('coach_availability', { where: { id } });
     return availabilities[0];
   },
 
   async delete(id) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
     await db.delete('coach_availability', { where: { id } });
   }
 };
 
 export const CoachRecurringAvailability = {
   async getByCoachId(coachId) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
     const recurring = await db.select('coach_recurring_availability', {
       where: { coach_id: coachId },
       orderBy: { day_of_week: 'asc' }
@@ -496,16 +510,19 @@ export const CoachRecurringAvailability = {
   },
 
   async create(recurringData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
     return await db.insert('coach_recurring_availability', recurringData);
   },
 
   async update(id, updateData) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
     await db.update('coach_recurring_availability', { where: { id } }, updateData);
     const recurring = await db.select('coach_recurring_availability', { where: { id } });
     return recurring[0];
   },
 
   async delete(id) {
+    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
     await db.delete('coach_recurring_availability', { where: { id } });
   }
 };

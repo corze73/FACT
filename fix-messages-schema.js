@@ -1,6 +1,17 @@
 import { neon } from '@neondatabase/serverless';
+import dotenv from 'dotenv';
 
-const databaseUrl = 'REDACTED_NEON_URL';
+// Load env vars from .env if present
+dotenv.config();
+
+const databaseUrl = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL;
+
+if (!databaseUrl) {
+  console.error('❌ Missing DATABASE_URL environment variable');
+  console.error('   Please set DATABASE_URL in your environment (server-side only).');
+  process.exit(1);
+}
+
 const sql = neon(databaseUrl);
 
 async function runMigration() {
