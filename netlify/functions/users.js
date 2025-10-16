@@ -134,31 +134,22 @@ export async function handler(event) {
           };
         }
 
-        console.log('🔐 Login attempt for:', userData.email);
+        // Normalize and log email
+        const email = String(userData.email).trim().toLowerCase();
+        console.log('🔐 Login attempt for:', email);
 
-        // Check if user already exists
-        let user = await executeQueryOne(
-          `SELECT * FROM profiles WHERE email = $1`,
-          [userData.email]
-        );
-
-        if (user) {
-          console.log('✅ User exists:', userData.email);
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(user)
-          };
-        }
-
-        // User doesn't exist, create new profile
-        console.log('📝 Creating new user:', userData.email);
-        const newUser = await executeQueryOne(
+        // Upsert profile to avoid duplicate key race conditions
+        // If a row exists for this email, update selected fields; otherwise insert new
+        const upsertedUser = await executeQueryOne(
           `INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
            VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW(), NOW())
+           ON CONFLICT (email) DO UPDATE
+             SET full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+                 avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+                 updated_at = NOW()
            RETURNING *`,
           [
-            userData.email,
+            email,
             userData.full_name || '',
             'user',
             'user',
@@ -166,11 +157,11 @@ export async function handler(event) {
           ]
         );
 
-        console.log('✅ New user created:', userData.email);
+        console.log('✅ User upserted (created or existing returned):', email);
         return {
-          statusCode: 201,
+          statusCode: 200,
           headers,
-          body: JSON.stringify(newUser)
+          body: JSON.stringify(upsertedUser)
         };
       }
 
