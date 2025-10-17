@@ -61,16 +61,28 @@ export default [
       ...react.configs['jsx-runtime'].rules,
       ...reactHooks.configs.recommended.rules,
       'react/jsx-no-target-blank': 'off',
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      // Disabled on request to keep console clean in production repos
+      'react-refresh/only-export-components': 'off',
       'react/prop-types': 'off', // Disable prop-types validation
     },
   },
   // Node.js configuration for server and utility scripts
   {
-    files: ['server.js', 'src/databaseClient.js', 'test-*.js', 'check-*.js', 'debug-*.js'],
+    files: [
+      'server.js',
+      'src/databaseClient.js',
+      'test-*.js',
+      'check-*.js',
+      'debug-*.js',
+      // utility/migration scripts and script folder
+      '*-schema.js',
+      'run-*.js',
+      'migrate-*.js',
+      'add-*.js',
+      'fix-*.js',
+      'scripts/**/*.js',
+      'netlify/functions/**/*.js'
+    ],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.node,

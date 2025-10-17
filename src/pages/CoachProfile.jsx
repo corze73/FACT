@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
-import { Upload, Video, X, Link as LinkIcon } from "lucide-react";
+import { Upload, X, Link as LinkIcon } from "lucide-react";
 import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
 import { validateAndSanitize, profileUpdateSchema, coachProfileSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
@@ -17,18 +16,13 @@ import { checkRateLimit } from "@/lib/rateLimiter";
 // In a larger app, this could be refactored to reduce duplication.
 
 export default function CoachProfile() {
-  // eslint-disable-next-line no-unused-vars
-  const navigate = useNavigate();
   const [formData, setFormData] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [currentUser, setCurrentUser] = useState(null);
+  const [, setCurrentUser] = useState(null); // value not read; only setter used
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [uploadingImage, setUploadingImage] = useState(false);
-  // eslint-disable-next-line no-unused-vars
+  const [, setUploadingImage] = useState(false); // value not read; only setter used
   const fileInputRef = useRef(null);
   // Refs for video URL inputs (for clearing values reliably)
   const videoInputRefs = {
@@ -230,7 +224,9 @@ export default function CoachProfile() {
       if (u.hostname === 'player.vimeo.com') {
         return <iframe className="w-full h-full" src={url} title="Vimeo video" frameBorder="0" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
       }
-    } catch {}
+    } catch {
+      // Invalid URL; handled by earlier checks
+    }
     // Fallback link (though not expected due to allowlist)
     return <a href={url} target="_blank" rel="noreferrer" className="block w-full h-full text-center text-slate-200 flex items-center justify-center">Open video</a>;
   };

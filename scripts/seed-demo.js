@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-env node */
 import { config } from 'dotenv';
 import { neon } from '@neondatabase/serverless';
 

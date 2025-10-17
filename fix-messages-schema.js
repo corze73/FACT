@@ -1,3 +1,4 @@
+/* eslint-env node */
 import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 

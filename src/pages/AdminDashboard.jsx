@@ -239,7 +239,7 @@ export default function AdminDashboard() {
             <DialogTitle>Decide deletion request</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">Provide an optional reason. Approving will deactivate the user's account.</p>
+            <p className="text-sm text-slate-600">Provide an optional reason. Approving will deactivate the user&apos;s account.</p>
             <Textarea value={decisionReason} onChange={(e)=>setDecisionReason(e.target.value)} placeholder="Decision reason (optional)" />
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={()=>setDecisionOpen(false)}>Cancel</Button>

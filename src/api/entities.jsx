@@ -240,7 +240,7 @@ export const User = {
         // Use a hard navigation to ensure app state (auth + DB context) is fully reloaded
         window.location.href = target;
       }
-    } catch (e) {
+    } catch {
       // no-op; fallback to returning normally
     }
     return result;

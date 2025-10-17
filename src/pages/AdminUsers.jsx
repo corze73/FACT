@@ -226,7 +226,7 @@ export default function AdminUsers() {
                             <Trash2 className="w-4 h-4 mr-2" /> Remove
                           </Button>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={async (e) => { e.stopPropagation(); try { await User.restore(u.id); setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: true, deactivated_at: null, deactivation_reason: null } : x)); } catch (err) { alert('Failed to restore user'); } }} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
+                          <Button variant="outline" size="sm" onClick={async (e) => { e.stopPropagation(); try { await User.restore(u.id); setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: true, deactivated_at: null, deactivation_reason: null } : x)); } catch { alert('Failed to restore user'); } }} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
                             Restore
                           </Button>
                         )}
@@ -248,7 +248,7 @@ export default function AdminUsers() {
             <DialogTitle>Remove user</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">You're removing {selectedUser?.full_name || 'this user'}. This is a soft deactivation—they won't be able to log in. Please provide a reason (visible to admins only).</p>
+            <p className="text-sm text-slate-600">You&apos;re removing {selectedUser?.full_name || 'this user'}. This is a soft deactivation—they won&apos;t be able to log in. Please provide a reason (visible to admins only).</p>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for removal (optional)" />
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>

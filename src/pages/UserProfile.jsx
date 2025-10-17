@@ -20,11 +20,9 @@ export default function UserProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
-  // eslint-disable-next-line no-unused-vars
   const [currentUser, setCurrentUser] = useState(null);
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [, setUploadingImage] = useState(false); // value not read; only setter used
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
   const [deletionOpen, setDeletionOpen] = useState(false);
@@ -98,7 +96,7 @@ export default function UserProfile() {
       try {
         const requests = await User.listDeletionRequests({ user_id: userToLoad.id, status: 'pending' });
         setPendingDeletion(requests?.[0] || null);
-      } catch (e) {
+      } catch {
         // non-fatal
       }
     } catch (error) {
@@ -115,8 +113,8 @@ export default function UserProfile() {
       setDeletionOpen(false);
       setDeletionReason("");
       alert('Deletion request submitted. An admin will review it shortly.');
-    } catch (e) {
-      alert(e.message || 'Failed to submit deletion request');
+    } catch {
+      alert('Failed to submit deletion request');
     }
   };
 

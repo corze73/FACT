@@ -287,9 +287,9 @@ export async function handler(event) {
           headers,
           body: JSON.stringify(updatedUser)
         };
-      }
+    }
 
-      case 'DELETE':
+    case 'DELETE': {
         // Admin user removal: default to soft-deactivate with reason
         if (!userId) {
           return {
@@ -300,7 +300,7 @@ export async function handler(event) {
         }
 
         let payload = {};
-        try { payload = body ? JSON.parse(body) : {}; } catch {}
+  try { payload = body ? JSON.parse(body) : {}; } catch { /* ignore parse error */ }
         const reason = payload.reason || null;
         const hard = payload.hard === true;
 
@@ -326,6 +326,7 @@ export async function handler(event) {
         }
 
         return { statusCode: 200, headers, body: JSON.stringify(deactivated) };
+      }
 
       default:
         return {
@@ -334,6 +335,7 @@ export async function handler(event) {
           body: JSON.stringify({ error: 'Method not allowed' })
         };
     }
+    
   } catch (error) {
     console.error('Error in users function:', {
       error: error.message,
