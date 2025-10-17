@@ -281,10 +281,15 @@ jobs:
         run: |
           echo "Checking for exposed secrets in code..."
           
-          # Check for hardcoded secrets/passwords
-          SECRETS=$(grep -r -i -E "(password|secret|api_key|private_key).*=.*['\"]" src/ --include="*.js" --include="*.jsx" || true)
+          # Check for hardcoded secrets/passwords assigned to string literals
+          # Use word boundaries to avoid matching identifiers like 'showPassword'
+          # Exclude common UI patterns that can include '=' and quotes on the same line
+          SECRETS=$(grep -r -n -I -i -E "\b(api_key|token|secret|password|private_key|webhook_secret|database_url)\b\s*[:=]\s*['\"][^'\"]+['\"]" src/ \
+            --include="*.js" --include="*.jsx" \
+            | grep -v -E "showPassword|passwordVisible|<Eye|<EyeOff|type=\"password\"" \
+            || true)
           
-          if [ ! -z "$SECRETS" ]; then
+          if [ -n "$SECRETS" ]; then
             echo "⚠️ Potential hardcoded secrets found:"
             echo "$SECRETS"
             exit 1
