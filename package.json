@@ -291,7 +291,6 @@
     "pg-types": "^2.2.0",
     "pgpass": "^1.0.5",
     "picocolors": "^1.1.1",
-    "picomatch": "^2.3.1",
     "pify": "^2.3.0",
     "pirates": "^4.0.7",
     "possible-typed-array-names": "^1.1.0",
