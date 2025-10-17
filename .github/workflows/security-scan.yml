@@ -284,7 +284,7 @@ jobs:
           # Check for hardcoded secrets/passwords assigned to string literals
           # Use word boundaries to avoid matching identifiers like 'showPassword'
           # Exclude common UI patterns that can include '=' and quotes on the same line
-          SECRETS=$(grep -r -n -I -i -E "\b(api_key|token|secret|password|private_key|webhook_secret|database_url)\b\s*[:=]\s*['\"][^'\"]+['\"]" src/ \
+          SECRETS=$(grep -r -n -I -i -E "(^|[^A-Za-z0-9_])(api_key|token|secret|password|private_key|webhook_secret|database_url)([^A-Za-z0-9_])\s*[:=]\s*['\"][^'\"]+['\"]" src/ \
             --include="*.js" --include="*.jsx" \
             | grep -v -E "showPassword|passwordVisible|<Eye|<EyeOff|type=\"password\"" \
             || true)
