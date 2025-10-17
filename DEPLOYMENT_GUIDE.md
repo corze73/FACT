@@ -29,7 +29,7 @@ git push origin main
    - Go to Site Settings → Environment Variables
    - Add these variables:
      ```
-     DATABASE_URL = REDACTED_NEON_URL
+   DATABASE_URL = postgresql://USERNAME:PASSWORD@HOST/DBNAME?sslmode=require
      
      JWT_SECRET = [Generate with: openssl rand -base64 32]
      ```
@@ -161,7 +161,7 @@ Make sure these are set in Netlify:
 
 ```env
 # Production (in Netlify Dashboard)
-DATABASE_URL=REDACTED_NEON_URL
+DATABASE_URL=postgresql://USERNAME:PASSWORD@HOST/DBNAME?sslmode=require
 
 JWT_SECRET=[Run: openssl rand -base64 32]
 

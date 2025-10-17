@@ -1,0 +1,11 @@
+# Exclude documentation examples and historical scripts that previously contained example URLs
+DEPLOYMENT_GUIDE.md
+fix-bookings-schema.js
+
+# Exclude built artifacts and vendor content
+node_modules/
+dist/
+
+# Exclude environment files
+.env
+.env.*

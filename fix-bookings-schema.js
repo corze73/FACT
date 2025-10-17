@@ -1,6 +1,13 @@
 import { neon } from '@neondatabase/serverless';
+import dotenv from 'dotenv';
 
-const databaseUrl = 'REDACTED_NEON_URL';
+dotenv.config();
+
+const databaseUrl = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL;
+if (!databaseUrl) {
+  console.error('❌ Missing DATABASE_URL environment variable');
+  process.exit(1);
+}
 
 const sql = neon(databaseUrl);
 
