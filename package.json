@@ -446,5 +446,9 @@
   "homepage": "https://github.com/corze73/FACT#readme",
   "devDependencies": {
     "netlify-cli": "^23.9.1"
+  },
+  "overrides": {
+    "fast-redact": "^3.5.1",
+    "pino": "^9.12.0"
   }
 }
