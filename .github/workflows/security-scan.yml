@@ -124,22 +124,18 @@ jobs:
           fetch-depth: 0
       
       # Use proper base/head depending on event type to avoid BASE==HEAD errors
-      - name: TruffleHog OSS (pull_request)
+      - name: TruffleHog OSS (pull_request - filesystem scan)
         if: github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: ${{ github.event.pull_request.base.sha }}
-          head: ${{ github.event.pull_request.head.sha }}
           extra_args: --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
 
-      - name: TruffleHog OSS (push)
+      - name: TruffleHog OSS (push - filesystem scan)
         if: github.event_name == 'push'
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: ${{ github.event.before }}
-          head: ${{ github.sha }}
           extra_args: --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
 
       # For scheduled/manual runs, scan the filesystem snapshot (no base/head)
