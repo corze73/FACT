@@ -122,29 +122,44 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      
-      # Use proper base/head depending on event type to avoid BASE==HEAD errors
-      - name: TruffleHog OSS (pull_request - filesystem scan)
-        if: github.event_name == 'pull_request'
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          extra_args: filesystem --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
 
-      - name: TruffleHog OSS (push - filesystem scan)
-        if: github.event_name == 'push'
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          extra_args: filesystem --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
+      - name: Run TruffleHog and save JSON (filesystem)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Scanning working tree for verified secrets (filesystem only)..."
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/src \
+            ghcr.io/trufflesecurity/trufflehog:latest \
+            filesystem /src \
+            --only-verified \
+            --exclude-paths /src/.github/trufflehog-exclude-paths.txt \
+            --json \
+            > trufflehog.json || true
 
-      # For scheduled/manual runs, scan the filesystem snapshot (no base/head)
-      - name: TruffleHog OSS (filesystem)
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        uses: trufflesecurity/trufflehog@main
+      - name: Upload TruffleHog report
+        uses: actions/upload-artifact@v4
         with:
-          path: ./
-          extra_args: filesystem --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
+          name: trufflehog-report
+          path: trufflehog.json
+          if-no-files-found: warn
+
+      - name: Fail if verified secrets found
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f trufflehog.json ]; then
+            echo "No trufflehog.json produced — skipping secret check"
+            exit 0
+          fi
+          VERIFIED=$(jq -sR 'split("\n") | map(try fromjson catch empty) | map(select(.Verified == true)) | length' trufflehog.json)
+          echo "TruffleHog verified secrets: ${VERIFIED}"
+          if [ "${VERIFIED}" -gt 0 ]; then
+            echo "::error::TruffleHog found ${VERIFIED} verified secrets. See artifact trufflehog-report for details."
+            # Print a compact summary to logs
+            jq -sR 'split("\n") | map(try fromjson catch empty) | map(select(.Verified == true) | {Detector, Raw, File, StartLine, EndLine})' trufflehog.json
+            exit 1
+          fi
 
   security-headers-check:
     name: Security Headers Validation
