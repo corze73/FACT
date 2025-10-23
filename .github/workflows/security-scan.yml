@@ -121,7 +121,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       
       # Use proper base/head depending on event type to avoid BASE==HEAD errors
       - name: TruffleHog OSS (pull_request - filesystem scan)
