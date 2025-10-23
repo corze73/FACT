@@ -129,14 +129,14 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          extra_args: --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
+          extra_args: filesystem --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
 
       - name: TruffleHog OSS (push - filesystem scan)
         if: github.event_name == 'push'
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          extra_args: --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
+          extra_args: filesystem --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
 
       # For scheduled/manual runs, scan the filesystem snapshot (no base/head)
       - name: TruffleHog OSS (filesystem)
@@ -144,7 +144,7 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          extra_args: --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
+          extra_args: filesystem --debug --only-verified --exclude-paths .github/trufflehog-exclude-paths.txt
 
   security-headers-check:
     name: Security Headers Validation
