@@ -123,43 +123,45 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Run TruffleHog and save JSON (filesystem)
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run TruffleHog and save JSON
         shell: bash
         run: |
           set -euo pipefail
-          echo "Scanning working tree for verified secrets (filesystem only)..."
+          echo "Running TruffleHog (filesystem, verified only)..."
           docker run --rm \
-            -v "$GITHUB_WORKSPACE":/src \
+            -v "$PWD":/src \
             ghcr.io/trufflesecurity/trufflehog:latest \
             filesystem /src \
-            --only-verified \
+            --debug --only-verified \
             --exclude-paths /src/.github/trufflehog-exclude-paths.txt \
-            --json \
-            > trufflehog.json || true
+            --json > trufflehog.json || true
 
       - name: Upload TruffleHog report
         uses: actions/upload-artifact@v4
         with:
           name: trufflehog-report
           path: trufflehog.json
-          if-no-files-found: warn
 
       - name: Fail if verified secrets found
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f trufflehog.json ]; then
-            echo "No trufflehog.json produced — skipping secret check"
+          if [ ! -s trufflehog.json ]; then
+            echo "No TruffleHog JSON output produced; skipping failure."
             exit 0
           fi
-          VERIFIED=$(jq -sR 'split("\n") | map(try fromjson catch empty) | map(select(.Verified == true)) | length' trufflehog.json)
+          VERIFIED=$(jq -s 'map(select(.Verified == true)) | length' trufflehog.json 2>/dev/null || echo 0)
           echo "TruffleHog verified secrets: ${VERIFIED}"
           if [ "${VERIFIED}" -gt 0 ]; then
-            echo "::error::TruffleHog found ${VERIFIED} verified secrets. See artifact trufflehog-report for details."
-            # Print a compact summary to logs
-            jq -sR 'split("\n") | map(try fromjson catch empty) | map(select(.Verified == true) | {Detector, Raw, File, StartLine, EndLine})' trufflehog.json
+            echo "::error::TruffleHog found ${VERIFIED} verified secrets. See artifact 'trufflehog-report' for details."
+            # Print a small summary to logs (first 5 findings)
+            jq -s '.[0:5]' trufflehog.json || true
             exit 1
           fi
+          echo "No verified secrets detected by TruffleHog."
 
   security-headers-check:
     name: Security Headers Validation
