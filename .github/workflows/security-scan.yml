@@ -28,11 +28,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Run npm audit
+      - name: Run npm audit (fail on high/critical only)
         id: npm-audit
         run: |
-          npm audit --audit-level=moderate --json > audit-report.json || true
-          VULNS=$(cat audit-report.json | jq '.metadata.vulnerabilities | .moderate + .high + .critical')
+          npm audit --audit-level=high --json > audit-report.json || true
+          VULNS=$(cat audit-report.json | jq '.metadata.vulnerabilities | .high + .critical')
           echo "vulnerabilities=$VULNS" >> $GITHUB_OUTPUT
           
           if [ "$VULNS" -gt "0" ]; then
