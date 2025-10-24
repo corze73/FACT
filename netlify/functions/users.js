@@ -1,5 +1,6 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
+import crypto from 'crypto';
 import { Buffer } from 'buffer';
 
 // CORS headers for all responses
@@ -49,13 +50,20 @@ export async function handler(event) {
     
     console.log('🎯 Extracted userId:', userId);
 
+    // Helper to prefix a query with a transaction-local user context without shifting placeholders
+    const withUserCtx = (query, ctxId) => {
+      // Basic UUID allowlist to avoid injection if misused
+      const safe = (ctxId || '').match(/^[0-9a-fA-F-]{36}$/) ? ctxId : '';
+      return `WITH __ctx AS (SELECT set_config('app.current_user_id', '${safe}', true)) ${query}`;
+    };
+
     switch (httpMethod) {
       case 'GET':
         if (userId && userId !== 'users') {
           console.log('📖 Fetching single user:', userId);
           // Get single user by ID
           const user = await executeQueryOne(
-            `SELECT * FROM profiles WHERE id = $1`,
+            withUserCtx(`SELECT * FROM profiles WHERE id = $1`, userId),
             [userId]
           );
           
@@ -102,7 +110,7 @@ export async function handler(event) {
           };
         }
 
-      case 'POST': {
+  case 'POST': {
         // Login: Check if user exists, create if not (idempotent)
         if (!body) {
           console.error('❌ No request body provided');
@@ -138,22 +146,29 @@ export async function handler(event) {
         const email = String(userData.email).trim().toLowerCase();
         console.log('🔐 Login attempt for:', email);
 
+        // Generate a deterministic new user id for first-time signup and set it as session context
+        // This satisfies RLS: id must equal current_setting('app.current_user_id') for INSERT/SELECT
+        const newUserId = crypto.randomUUID();
+
         // Upsert profile to avoid duplicate key race conditions
         // If a row exists for this email, update selected fields; otherwise insert new
         let upsertedUser = await executeQueryOne(
-          `INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW(), NOW())
-           ON CONFLICT (email) DO UPDATE
-             SET full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
-                 avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
-                 updated_at = NOW()
-           RETURNING *`,
+          withUserCtx(`
+            INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+            ON CONFLICT (email) DO UPDATE
+              SET full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+                  avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+                  updated_at = NOW()
+            RETURNING *
+          `, newUserId),
           [
-            email,
-            userData.full_name || '',
-            'user',
-            'user',
-            userData.avatar_url || null
+            newUserId,              // $1 id
+            email,                  // $2 email
+            userData.full_name || '', // $3 full_name
+            'user',                 // $4 user_type
+            'user',                 // $5 role
+            userData.avatar_url || null // $6 avatar_url
           ]
         );
 
@@ -161,7 +176,7 @@ export async function handler(event) {
         if (!upsertedUser || !upsertedUser.id) {
           console.warn('⚠️ Upsert returned no id; selecting by email fallback');
           upsertedUser = await executeQueryOne(
-            `SELECT * FROM profiles WHERE email = $1 LIMIT 1`,
+            withUserCtx(`SELECT * FROM profiles WHERE email = $1 LIMIT 1`, newUserId),
             [email]
           );
         }
@@ -174,7 +189,7 @@ export async function handler(event) {
         };
       }
 
-      case 'PUT': {
+  case 'PUT': {
         // Update user
         if (!userId) {
           return {
@@ -235,7 +250,7 @@ export async function handler(event) {
 
         // When restoring (is_active === true), clear deactivation fields
         const updatedUser = await executeQueryOne(
-          `UPDATE profiles 
+          withUserCtx(`UPDATE profiles 
            SET full_name = COALESCE($1, full_name),
                phone = COALESCE($2, phone),
                location = COALESCE($3, location),
@@ -250,7 +265,7 @@ export async function handler(event) {
                deactivation_reason = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivation_reason END,
                updated_at = NOW()
            WHERE id = $7
-           RETURNING *`,
+           RETURNING *`, userId),
           [
             updateData.full_name,
             updateData.phone,
@@ -289,7 +304,7 @@ export async function handler(event) {
         };
     }
 
-    case 'DELETE': {
+  case 'DELETE': {
         // Admin user removal: default to soft-deactivate with reason
         if (!userId) {
           return {
@@ -306,18 +321,18 @@ export async function handler(event) {
 
         if (hard) {
           // Hard delete requested (use sparingly)
-          await executeQuery('DELETE FROM profiles WHERE id = $1', [userId]);
+          await executeQuery(withUserCtx('DELETE FROM profiles WHERE id = $1', userId), [userId]);
           return { statusCode: 204, headers, body: '' };
         }
 
         const deactivated = await executeQueryOne(
-          `UPDATE profiles
+          withUserCtx(`UPDATE profiles
            SET is_active = false,
                deactivated_at = NOW(),
                deactivation_reason = COALESCE($1, deactivation_reason),
                updated_at = NOW()
            WHERE id = $2
-           RETURNING *`,
+           RETURNING *`, userId),
           [reason, userId]
         );
 
