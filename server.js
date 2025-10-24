@@ -41,7 +41,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    stripe_configured: !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY)
+    stripe_configured: !!(process.env.STRIPE_SECRET_KEY && (process.env.VITE_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY))
   });
 });
 
@@ -50,7 +50,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`💳 Stripe webhook: http://localhost:${PORT}/stripe/webhook`);
-  console.log(`🔑 Stripe configured: ${!!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY)}`);
+  console.log(`🔑 Stripe configured: ${!!(process.env.STRIPE_SECRET_KEY && (process.env.VITE_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY))}`);
 });
 
 export default app;

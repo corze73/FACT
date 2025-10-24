@@ -16,6 +16,12 @@
   to = "/.netlify/functions/:splat"
   status = 200
 
+# Stripe endpoints to Netlify function
+[[redirects]]
+  from = "/stripe/*"
+  to = "/.netlify/functions/stripe/:splat"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -10,7 +10,15 @@ export default defineConfig({
     securityHeaders()
   ],
   server: {
-    allowedHosts: true
+    allowedHosts: true,
+    proxy: {
+      // Forward API calls to local Express server during dev
+      '/stripe': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
   resolve: {
     alias: {

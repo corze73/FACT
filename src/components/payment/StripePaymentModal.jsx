@@ -35,7 +35,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
 
     try {
       // Create payment intent on your backend
-      const response = await fetch('/api/create-payment-intent', {
+  const response = await fetch('/stripe/create-payment-intent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,16 +78,15 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
   };
 
   const updateBookingPaymentStatus = async (bookingId, paymentIntentId) => {
-    // Update booking status to confirmed and create payment record
-    await fetch('/api/bookings/update-payment', {
+    // Notify backend to confirm payment and update booking status
+    await fetch('/stripe/confirm-payment', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         booking_id: bookingId,
-        payment_intent_id: paymentIntentId,
-        status: 'confirmed'
+        payment_intent_id: paymentIntentId
       }),
     });
   };
