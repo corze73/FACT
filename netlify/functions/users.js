@@ -150,34 +150,47 @@ export async function handler(event) {
         // This satisfies RLS: id must equal current_setting('app.current_user_id') for INSERT/SELECT
         const newUserId = crypto.randomUUID();
 
-        // Upsert profile to avoid duplicate key race conditions
-        // If a row exists for this email, update selected fields; otherwise insert new
-        let upsertedUser = await executeQueryOne(
-          withUserCtx(`
-            INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
-            ON CONFLICT (email) DO UPDATE
-              SET full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
-                  avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
-                  updated_at = NOW()
-            RETURNING *
-          `, newUserId),
-          [
-            newUserId,              // $1 id
-            email,                  // $2 email
-            userData.full_name || '', // $3 full_name
-            'user',                 // $4 user_type
-            'user',                 // $5 role
-            userData.avatar_url || null // $6 avatar_url
-          ]
+        // Step 1: Try find existing user by email WITHOUT user context (avoids RLS id match on first lookup)
+        let existing = await executeQueryOne(
+          `SELECT id FROM profiles WHERE email = $1 LIMIT 1`,
+          [email]
         );
 
-        // Safety net: if the UPSERT didn't return a row (some drivers may)
-        if (!upsertedUser || !upsertedUser.id) {
-          console.warn('⚠️ Upsert returned no id; selecting by email fallback');
+        let upsertedUser;
+        if (existing && existing.id) {
+          // Step 2a: Update existing user with the correct RLS context set to their id
+          const targetId = existing.id;
           upsertedUser = await executeQueryOne(
-            withUserCtx(`SELECT * FROM profiles WHERE email = $1 LIMIT 1`, newUserId),
-            [email]
+            withUserCtx(`
+              UPDATE profiles 
+              SET full_name = COALESCE($2, full_name),
+                  avatar_url = COALESCE($3, avatar_url),
+                  updated_at = NOW()
+              WHERE id = $1
+              RETURNING *
+            `, targetId),
+            [
+              targetId,                    // $1 id
+              userData.full_name || '',    // $2 full_name
+              userData.avatar_url || null  // $3 avatar_url
+            ]
+          );
+        } else {
+          // Step 2b: Insert new user with context set to the new id (satisfies RLS insert policy)
+          upsertedUser = await executeQueryOne(
+            withUserCtx(`
+              INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
+              VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+              RETURNING *
+            `, newUserId),
+            [
+              newUserId,                   // $1 id
+              email,                       // $2 email
+              userData.full_name || '',    // $3 full_name
+              'user',                      // $4 user_type
+              'user',                      // $5 role
+              userData.avatar_url || null  // $6 avatar_url
+            ]
           );
         }
 
