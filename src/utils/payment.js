@@ -17,15 +17,21 @@ export const getAdminFee = () => {
  * @returns {object} Payment breakdown with all amounts
  */
 export const calculatePaymentBreakdown = (servicePrice) => {
-  const adminFee = getAdminFee(); // £3.00
-  const coachAmount = servicePrice;
-  const totalAmount = servicePrice + adminFee;
+  // Coerce to a safe number to avoid "toFixed is not a function" on strings/null
+  const parsedService = Number(servicePrice);
+  const safeService = Number.isFinite(parsedService) ? parsedService : 0;
+
+  const adminFeeRaw = Number(getAdminFee());
+  const adminFee = Number.isFinite(adminFeeRaw) ? adminFeeRaw : 0;
+
+  const coachAmount = safeService;
+  const totalAmount = safeService + adminFee;
 
   return {
-    servicePrice: parseFloat(servicePrice.toFixed(2)),
-    adminFee: parseFloat(adminFee.toFixed(2)),
-    coachAmount: parseFloat(coachAmount.toFixed(2)),
-    totalAmount: parseFloat(totalAmount.toFixed(2))
+    servicePrice: Number(coachAmount.toFixed(2)),
+    adminFee: Number(adminFee.toFixed(2)),
+    coachAmount: Number(coachAmount.toFixed(2)),
+    totalAmount: Number(totalAmount.toFixed(2))
   };
 };
 
@@ -47,7 +53,9 @@ export const formatCurrency = (amount) => {
  * @returns {number} Amount in pence
  */
 export const poundsToPence = (pounds) => {
-  return Math.round(pounds * 100);
+  const n = Number(pounds);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100);
 };
 
 /**
