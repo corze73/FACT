@@ -4,11 +4,12 @@ import { User } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, CreditCard } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { format, isValid } from "date-fns";
 import { BookingReference, BookingReferenceSearch } from "../components/booking/BookingReference";
+import StripePaymentModal from "@/components/payment/StripePaymentModal.jsx";
 
 // Utility function to safely parse dates
 const safeParseDate = (dateValue) => {
@@ -31,9 +32,12 @@ export default function AdminBookings() {
   const [loading, setLoading] = useState(true);
   const [highlightedBookingId, setHighlightedBookingId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [paymentBooking, setPaymentBooking] = useState(null);
 
   const urlParams = new URLSearchParams(window.location.search);
   const statusParam = (urlParams.get("status") || "all").toLowerCase();
+  const highlightParam = urlParams.get("highlight");
 
   useEffect(() => {
     const load = async () => {
@@ -59,15 +63,16 @@ export default function AdminBookings() {
 
   // Handle navigation from sidebar search
   useEffect(() => {
-    if (location.state?.selectedBookingId) {
-      setHighlightedBookingId(location.state.selectedBookingId);
+    const targetId = location.state?.selectedBookingId || highlightParam;
+    if (targetId) {
+      setHighlightedBookingId(targetId);
       // Clear the highlight after 3 seconds
       const timer = setTimeout(() => {
         setHighlightedBookingId(null);
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [location.state]);
+  }, [location.state, highlightParam]);
 
   const filtered = useMemo(() => {
     return bookings.filter(b => statusParam === "all" ? true : b.status === statusParam);
@@ -81,6 +86,32 @@ export default function AdminBookings() {
       completed: "bg-blue-100 text-blue-800"
     };
     return map[status] || "bg-slate-100 text-slate-800";
+  };
+
+  const openPayment = (booking, client, coach) => {
+    // Enrich booking with names/emails expected by StripePaymentModal
+    const enriched = {
+      ...booking,
+      client_name: client?.full_name || 'Client',
+      client_email: client?.email || undefined,
+      coach_name: coach?.full_name || 'Coach',
+      duration: booking.duration || 1,
+    };
+    setPaymentBooking(enriched);
+    setIsPaymentOpen(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    // Update local state for the paid booking
+    if (paymentBooking) {
+      setBookings(prev => prev.map(b => (
+        b.id === paymentBooking.id
+          ? { ...b, status: 'confirmed', payment_status: 'authorized' }
+          : b
+      )));
+    }
+    setIsPaymentOpen(false);
+    setPaymentBooking(null);
   };
 
   if (loading) return <div className="p-8">Loading bookings...</div>;
@@ -135,6 +166,13 @@ export default function AdminBookings() {
                       <Button variant="outline" size="sm" onClick={() => navigate(createPageUrl(`Conversation?booking_id=${b.id}`))}>
                         <MessageCircle className="w-4 h-4 mr-2" /> Open Chat
                       </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => openPayment(b, client, coach)}
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" /> Take Payment
+                      </Button>
                     </div>
                   </div>
                 );
@@ -142,6 +180,15 @@ export default function AdminBookings() {
             )}
           </CardContent>
         </Card>
+        {/* Stripe Payment Modal */}
+        {isPaymentOpen && paymentBooking && (
+          <StripePaymentModal
+            booking={paymentBooking}
+            isOpen={isPaymentOpen}
+            onClose={() => { setIsPaymentOpen(false); setPaymentBooking(null); }}
+            onPaymentSuccess={handlePaymentSuccess}
+          />
+        )}
       </div>
     </div>
   );
