@@ -12,8 +12,9 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { CreditCard, Shield, Clock } from 'lucide-react';
 import { calculatePaymentBreakdown, formatCurrency, poundsToPence } from '../../utils/payment';
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// Initialize Stripe with guard for missing key
+const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
 const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
@@ -24,9 +25,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
   const handleSubmit = async (event) => {
     event.preventDefault();
     
-    if (!stripe || !elements) {
-      return;
-    }
+    if (!stripe || !elements) return;
 
     setIsProcessing(true);
     setPaymentError(null);
@@ -47,6 +46,11 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
           admin_fee: poundsToPence(paymentBreakdown.adminFee) // £3 admin fee in pence
         }),
       });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `Create payment intent failed (${response.status})`);
+      }
 
       const { client_secret, payment_intent_id } = await response.json();
 
@@ -171,6 +175,16 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
         </CardHeader>
         <CardContent>
           {paymentStep === 'payment' && (
+            !stripePromise ? (
+              <div className="space-y-4">
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Stripe publishable key is not configured. Set VITE_STRIPE_PUBLISHABLE_KEY in your environment and redeploy.
+                  </AlertDescription>
+                </Alert>
+                <Button variant="outline" onClick={onClose} className="w-full">Close</Button>
+              </div>
+            ) : (
             <Elements stripe={stripePromise}>
               <div className="space-y-4">
                 {/* Booking Summary */}
@@ -230,6 +244,7 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
                 </Button>
               </div>
             </Elements>
+            )
           )}
 
           {paymentStep === 'success' && (
