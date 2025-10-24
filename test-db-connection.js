@@ -7,11 +7,11 @@ dotenv.config();
 console.log('Testing FACT database connection...');
 
 // Test environment variables
-const dbUrl = process.env.VITE_DATABASE_URL;
+const dbUrl = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL;
 console.log('Database URL configured:', !!dbUrl);
 
 if (!dbUrl) {
-  console.error('❌ VITE_DATABASE_URL not configured');
+  console.error('❌ DATABASE_URL (or VITE_DATABASE_URL) not configured');
   process.exit(1);
 }
 

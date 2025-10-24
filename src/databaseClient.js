@@ -1,13 +1,14 @@
 import { neon } from '@neondatabase/serverless';
 
 // Get database URL from environment variables
-// In Node.js server context, use process.env; in browser, use import.meta.env
-const databaseUrl = (typeof window === 'undefined') 
-  ? process.env.VITE_DATABASE_URL 
+// Server (Node/Netlify Functions): prefer DATABASE_URL; fallback to VITE_DATABASE_URL for local scripts
+// Browser (Vite client): uses VITE_DATABASE_URL at build/runtime, but we avoid exposing DB URL in production
+const databaseUrl = (typeof window === 'undefined')
+  ? (process.env.DATABASE_URL || process.env.VITE_DATABASE_URL)
   : import.meta.env.VITE_DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error('VITE_DATABASE_URL environment variable is not set');
+  throw new Error('DATABASE_URL (server) or VITE_DATABASE_URL (client/local) is not set');
 }
 
 const sql = neon(databaseUrl);
