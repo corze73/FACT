@@ -1,0 +1,4 @@
+# git-filter-repo replace-text mappings to scrub leaked Neon Postgres URL
+# Format: each line 'old==>new'. Lines starting with '#' are comments.
+# Use a carefully-scoped regex to match the specific leaked host with any password, optional port/path/query.
+regex:postgresql://neondb_owner:[^@]+@ep-nameless-lab-ab6nue7e-pooler\.eu-west-2\.aws\.neon\.tech(?::5432)?(?:/[\w\-]+)?(?:\?[^'"\s]*)?==>REDACTED_NEON_URL
