@@ -7,3 +7,25 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   # CSP tuned for Google OAuth (GIS), GA, Stripe. No inline scripts allowed.
   Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com https://apis.google.com https://www.googletagmanager.com https://www.gstatic.com https://js.stripe.com; script-src-elem 'self' https://accounts.google.com https://apis.google.com https://www.googletagmanager.com https://www.gstatic.com https://js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://*.neon.tech https://accounts.google.com https://www.googleapis.com https://region1.google-analytics.com https://www.google-analytics.com https://api.stripe.com https://*.netlify.app https://*.netlify.com wss://*.neon.tech; frame-src 'self' https://accounts.google.com https://js.stripe.com https://www.youtube-nocookie.com https://www.youtube.com https://youtube.com https://youtu.be https://vimeo.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  # Relaxed CSP to restore Google OAuth + GA. TODO: tighten with nonces/hashes after login is stable.
+  Content-Security-Policy: 
+    default-src 'self'; 
+    script-src 'self' 'unsafe-inline' https://accounts.google.com https://www.googletagmanager.com https://www.gstatic.com https://apis.google.com https://js.stripe.com; 
+    script-src-elem 'self' 'unsafe-inline' https://accounts.google.com https://www.googletagmanager.com https://www.gstatic.com https://apis.google.com https://js.stripe.com; 
+    style-src 'self' 'unsafe-inline'; 
+    img-src 'self' data: https: blob:; 
+    font-src 'self' data: https://fonts.gstatic.com; 
+    connect-src 'self' https://*.neon.tech https://accounts.google.com https://www.googleapis.com https://region1.google-analytics.com https://www.googletagmanager.com https://api.stripe.com https://*.netlify.app https://*.netlify.com wss://*.neon.tech; 
+    frame-src 'self' https://accounts.google.com https://js.stripe.com; 
+    worker-src 'self' blob:; 
+    object-src 'none'; 
+    base-uri 'self'; 
+    form-action 'self'; 
+    frame-ancestors 'none'; 
+    upgrade-insecure-requests

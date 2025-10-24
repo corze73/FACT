@@ -34,13 +34,15 @@ export const User = {
         ...profile
       };
     } catch (apiError) {
-      // Fallback: If API fails or user doesn't exist in DB yet
-      console.warn('API fetch failed, creating profile:', apiError);
+      // If API fails, clear invalid cached user and surface a clean state in production
+  console.warn('API fetch failed for cached user; clearing session:', apiError?.message || apiError);
+  try { await auth.setCurrentUser(null); } catch { /* no-op */ }
 
       if (!dbAvailable) {
         throw apiError;
       }
 
+      // DEV-ONLY fallback below
       // Get from database directly (dev-only fallback)
       const profiles = await db.select('profiles', { where: { id: user.id } });
       let profile = profiles[0];
@@ -195,7 +197,9 @@ export const User = {
               });
 
               if (!profile || !profile.id) {
-                throw new Error('Profile creation/login did not return a user id');
+                // If user already exists (409), try to fetch by email is not possible due to RLS.
+                // Ask user to refresh; subsequent app boot may have id in cache or API will allow GET with known id.
+                throw new Error(profile?.error || 'Profile creation/login did not return a user id');
               }
 
               // Set as current user with full profile data

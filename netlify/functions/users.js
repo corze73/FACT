@@ -44,11 +44,14 @@ export async function handler(event) {
       console.log('🔐 Decoded base64 body');
     }
     
-    // Extract user ID from path (e.g., /api/users/123 -> 123)
+  // Extract user ID from path (e.g., /.netlify/functions/users/123 -> 123)
     const pathParts = path.split('/').filter(Boolean);
     const userId = pathParts.length > 2 ? pathParts[pathParts.length - 1] : null;
     
-    console.log('🎯 Extracted userId:', userId);
+  console.log('🎯 Extracted userId:', userId);
+    
+  // Basic UUID validation (36-char with dashes)
+  const isUuid = (v) => typeof v === 'string' && /^[0-9a-fA-F-]{36}$/.test(v);
 
     // Helper to prefix a query with a transaction-local user context without shifting placeholders
     const withUserCtx = (query, ctxId) => {
@@ -60,6 +63,9 @@ export async function handler(event) {
     switch (httpMethod) {
       case 'GET':
         if (userId && userId !== 'users') {
+          if (!isUuid(userId)) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid user id format' }) };
+          }
           console.log('📖 Fetching single user:', userId);
           // Get single user by ID
           const user = await executeQueryOne(
@@ -146,19 +152,47 @@ export async function handler(event) {
         const email = String(userData.email).trim().toLowerCase();
         console.log('🔐 Login attempt for:', email);
 
-        // Generate a deterministic new user id for first-time signup and set it as session context
-        // This satisfies RLS: id must equal current_setting('app.current_user_id') for INSERT/SELECT
+        // Generate a new user id for first-time signup and set it as session context
         const newUserId = crypto.randomUUID();
 
-        // Step 1: Try find existing user by email WITHOUT user context (avoids RLS id match on first lookup)
-        let existing = await executeQueryOne(
-          `SELECT id FROM profiles WHERE email = $1 LIMIT 1`,
-          [email]
-        );
+        // Try a safe EXISTS check; if RLS blocks, treat as unknown and fall back to insert
+        let existing = null;
+        try {
+          existing = await executeQueryOne(`SELECT id FROM profiles WHERE email = $1 LIMIT 1`, [email]);
+        } catch {
+          console.warn('⚠️ Email lookup blocked by RLS, proceeding with insert-only flow');
+        }
 
         let upsertedUser;
-        if (existing && existing.id) {
-          // Step 2a: Update existing user with the correct RLS context set to their id
+        if (!existing) {
+          // Insert new user with context set to the new id (satisfies RLS insert policy)
+          upsertedUser = await executeQueryOne(
+            withUserCtx(`
+              INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
+              VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+              ON CONFLICT (email) DO NOTHING
+              RETURNING *
+            `, newUserId),
+            [
+              newUserId,
+              email,
+              userData.full_name || '',
+              'user',
+              'user',
+              userData.avatar_url || null
+            ]
+          );
+
+          if (!upsertedUser) {
+            // Another session created the user; ask client to fetch by id if known
+            return {
+              statusCode: 409,
+              headers,
+              body: JSON.stringify({ error: 'User already exists', email })
+            };
+          }
+        } else {
+          // Existing user: update a couple of fields with proper context
           const targetId = existing.id;
           upsertedUser = await executeQueryOne(
             withUserCtx(`
@@ -169,28 +203,7 @@ export async function handler(event) {
               WHERE id = $1
               RETURNING *
             `, targetId),
-            [
-              targetId,                    // $1 id
-              userData.full_name || '',    // $2 full_name
-              userData.avatar_url || null  // $3 avatar_url
-            ]
-          );
-        } else {
-          // Step 2b: Insert new user with context set to the new id (satisfies RLS insert policy)
-          upsertedUser = await executeQueryOne(
-            withUserCtx(`
-              INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
-              VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
-              RETURNING *
-            `, newUserId),
-            [
-              newUserId,                   // $1 id
-              email,                       // $2 email
-              userData.full_name || '',    // $3 full_name
-              'user',                      // $4 user_type
-              'user',                      // $5 role
-              userData.avatar_url || null  // $6 avatar_url
-            ]
+            [targetId, userData.full_name || '', userData.avatar_url || null]
           );
         }
 

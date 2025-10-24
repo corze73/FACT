@@ -28,10 +28,21 @@ class APIClient {
         return null;
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        // Non-JSON response
+        data = { error: `API error: ${response.status}` };
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || `API error: ${response.status}`);
+        // Propagate underlying error details when available for easier debugging
+        const message = data.message || data.error || `API error: ${response.status}`;
+        const err = new Error(message);
+        err.status = response.status;
+        err.details = data;
+        throw err;
       }
 
       return data;
