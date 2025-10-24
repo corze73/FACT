@@ -1,16 +1,46 @@
 /* eslint-env node */
 import { neon } from '@neondatabase/serverless';
 
+// Normalize DATABASE_URL values that may have been copied with CLI prefixes
+// Accepts formats like:
+//   - postgresql://user:pass@host/db?sslmode=require
+//   - psql 'postgresql://user:pass@host/db?sslmode=require'
+//   - "postgresql://user:pass@host/db?sslmode=require"
+const normalizeDatabaseUrl = (raw) => {
+  if (!raw || typeof raw !== 'string') return '';
+  let s = raw.trim();
+  // Strip leading psql prefix if present
+  if (s.toLowerCase().startsWith('psql ')) {
+    s = s.slice(5).trim();
+  }
+  // Strip surrounding quotes
+  if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+};
+
 // Server-side database connection - credentials never sent to client
 const getDatabaseConnection = () => {
   const databaseUrl = process.env.DATABASE_URL;
-  
+
   if (!databaseUrl) {
     throw new Error('DATABASE_URL environment variable is not set');
   }
-  
+
+  const cleanUrl = normalizeDatabaseUrl(databaseUrl);
+  try {
+    // Validate URL format early to provide actionable error messages
+    // eslint-disable-next-line no-new
+    new URL(cleanUrl);
+  } catch (e) {
+    throw new Error(
+      `Invalid DATABASE_URL format. Expected a plain Postgres URL (e.g., postgresql://...). Received: ${databaseUrl.slice(0, 32)}...`
+    );
+  }
+
   // Create Neon SQL query function
-  return neon(databaseUrl);
+  return neon(cleanUrl);
 };
 
 /**
