@@ -24,6 +24,8 @@ export async function handler(event) {
   const method = event.httpMethod
   const path = (event.path || '').replace(/^.*\/stripe/, '') || '/'
 
+  console.log('[Stripe Function] Invoked:', { method, path, rawPath: event.path })
+
   try {
     if (method === 'POST' && path.startsWith('/webhook')) {
       const sig = event.headers['stripe-signature']
@@ -49,6 +51,7 @@ export async function handler(event) {
     }
 
     if (method === 'POST' && path.startsWith('/create-payment-intent')) {
+      console.log('[Stripe] create-payment-intent invoked');
       const payload = JSON.parse(event.body || '{}')
       const { booking_id, amount, currency, admin_fee } = payload
       if (!booking_id || !amount) return json(400, { error: 'Missing required fields' })
@@ -85,9 +88,9 @@ export async function handler(event) {
       return json(200, result)
     }
 
-    return json(404, { error: 'Not found', path })
+    return json(404, { error: 'Not found', path, method, hint: 'Valid routes: /webhook, /create-payment-intent, /confirm-payment, /capture-payment, /refund-payment, /process-no-show' })
   } catch (err) {
     console.error('Unhandled Stripe function error:', err)
-    return json(500, { error: 'Internal Server Error' })
+    return json(500, { error: 'Internal Server Error', message: err.message })
   }
 }
