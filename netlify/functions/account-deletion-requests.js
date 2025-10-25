@@ -73,6 +73,12 @@ export async function handler(event) {
 
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   } catch (e) {
+    // Gracefully handle missing table by returning empty list for GET
+    const msg = String(e?.message || '');
+    if (event?.httpMethod === 'GET' && /relation\s+"?account_deletion_requests"?\s+does not exist/i.test(msg)) {
+      console.warn('account_deletion_requests table missing; returning empty list');
+      return { statusCode: 200, headers, body: JSON.stringify([]) };
+    }
     console.error('account-deletion-requests error:', e);
     return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
   }

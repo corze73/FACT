@@ -22,6 +22,59 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
 
+  const createIntent = async (payload) => {
+    // Try pretty route first, then fall back to direct functions path if 404
+    const endpoints = [
+      '/stripe/create-payment-intent',
+      '/.netlify/functions/stripe/create-payment-intent'
+    ];
+    let lastErr;
+    for (const url of endpoints) {
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (resp.status === 404) { lastErr = new Error('Create intent 404'); continue; }
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || `Create payment intent failed (${resp.status})`);
+        }
+        return resp.json();
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('Create payment intent failed');
+  };
+
+  const confirmBackend = async (bookingId, intentId) => {
+    const endpoints = [
+      '/stripe/confirm-payment',
+      '/.netlify/functions/stripe/confirm-payment'
+    ];
+    let lastErr;
+    for (const url of endpoints) {
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ booking_id: bookingId, payment_intent_id: intentId })
+        });
+        if (resp.status === 404) { lastErr = new Error('Confirm 404'); continue; }
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || `Confirm payment failed (${resp.status})`);
+        }
+        return resp.json();
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('Confirm payment failed');
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     
@@ -33,26 +86,13 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
     const cardElement = elements.getElement(CardElement);
 
     try {
-      // Create payment intent on your backend
-  const response = await fetch('/stripe/create-payment-intent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          booking_id: booking.id,
-          amount: poundsToPence(paymentBreakdown.totalAmount), // Total including £3 admin fee
-          currency: 'gbp',
-          admin_fee: poundsToPence(paymentBreakdown.adminFee) // £3 admin fee in pence
-        }),
+      // Create payment intent on your backend (with fallback)
+      const { client_secret, payment_intent_id } = await createIntent({
+        booking_id: booking.id,
+        amount: poundsToPence(paymentBreakdown.totalAmount), // total including admin fee
+        currency: 'gbp',
+        admin_fee: poundsToPence(paymentBreakdown.adminFee)
       });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `Create payment intent failed (${response.status})`);
-      }
-
-      const { client_secret, payment_intent_id } = await response.json();
 
       // Confirm payment with Stripe
       const result = await stripe.confirmCardPayment(client_secret, {
@@ -70,7 +110,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
         onPaymentError(result.error);
       } else {
         // Payment succeeded
-        await updateBookingPaymentStatus(booking.id, payment_intent_id);
+        await confirmBackend(booking.id, payment_intent_id);
         onPaymentSuccess(result.paymentIntent);
       }
     } catch (error) {
@@ -81,19 +121,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
     }
   };
 
-  const updateBookingPaymentStatus = async (bookingId, paymentIntentId) => {
-    // Notify backend to confirm payment and update booking status
-    await fetch('/stripe/confirm-payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        booking_id: bookingId,
-        payment_intent_id: paymentIntentId
-      }),
-    });
-  };
+  // legacy helper removed in favor of confirmBackend with fallback
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
