@@ -37,12 +37,7 @@ const bios =[
 ];
 
 const avatars =[
-  'https://randomuser.me/api/portraits/men/11.jpg',
-  'https://randomuser.me/api/portraits/women/12.jpg',
-  'https://randomuser.me/api/portraits/men/13.jpg',
-  'https://randomuser.me/api/portraits/women/14.jpg',
-  'https://randomuser.me/api/portraits/men/15.jpg',
-  'https://randomuser.me/api/portraits/women/16.jpg'
+  '/avatars/coach-head.svg'
 ];
 
 const firstNames =['Alex','Jamie','Taylor','Jordan','Morgan','Casey','Riley','Avery','Sam','Chris','Cameron','Jesse'];
