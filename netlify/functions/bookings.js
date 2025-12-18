@@ -1,21 +1,30 @@
-/* eslint-env node */
+//* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Content-Type': 'application/json'
 };
 
 /**
- * Netlify Function: Booking Operations
+ * Netlify Function: Booking Operations + Admin Archiving
+ *
  * Endpoints:
- * - GET /api/bookings - Get all bookings (with filters)
- * - GET /api/bookings/:id - Get single booking
- * - POST /api/bookings - Create booking
- * - PUT /api/bookings/:id - Update booking
- * - DELETE /api/bookings/:id - Delete booking
+ * - GET    /api/bookings               -> list bookings (filters supported)
+ * - GET    /api/bookings/:id           -> single booking
+ * - POST   /api/bookings               -> create booking
+ * - PUT    /api/bookings/:id           -> update booking
+ * - PATCH  /api/bookings/:id/archive   -> archive booking (admin)
+ * - PATCH  /api/bookings/:id/restore   -> restore booking (admin)
+ * - GET    /api/bookings?stats=1       -> booking stats (admin dashboard tiles)
+ * - DELETE /api/bookings/:id           -> hard delete (not recommended)
+ *
+ * Notes:
+ * - By default, list endpoints return ONLY non-archived bookings.
+ * - Pass ?archived=1 to return ONLY archived bookings.
+ * - Pass ?include_archived=1 to return both.
  */
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -23,14 +32,71 @@ export async function handler(event) {
   }
 
   try {
-    const { body, path, queryStringParameters } = event;
-    const pathParts = path.split('/').filter(Boolean);
-    const bookingId = pathParts.length > 2 ? pathParts[pathParts.length - 1] : null;
+    const { body, path, queryStringParameters, httpMethod } = event;
 
-    switch (event.httpMethod) {
+    const pathParts = path.split('/').filter(Boolean);
+    const last = pathParts[pathParts.length - 1] || null;
+
+    // Netlify will typically call this function at /.netlify/functions/bookings or /api/bookings
+    // We treat anything after "bookings" as subpath, e.g. /bookings/:id/archive
+    const bookingsIndex = pathParts.lastIndexOf('bookings');
+    const afterBookings = bookingsIndex >= 0 ? pathParts.slice(bookingsIndex + 1) : [];
+    const bookingId = afterBookings.length >= 1 ? afterBookings[0] : null;
+    const action = afterBookings.length >= 2 ? afterBookings[1] : null;
+
+    // Helper: parse truthy query flags
+    const isTruthy = (v) => v === '1' || v === 'true' || v === 'yes';
+
+    // Helper: extract admin id passed by frontend (simple + explicit)
+    // Your admin UI should send: x-admin-id: <profile_id> (your Cory admin profile id)
+    // If you already send a JWT and validate elsewhere, we can tighten this later.
+    const adminIdHeader = event.headers?.['x-admin-id'] || event.headers?.['X-Admin-Id'];
+
+    switch (httpMethod) {
       case 'GET': {
-        if (bookingId && bookingId !== 'bookings') {
-          // Get single booking
+        // Admin dashboard stats for tiles (Total/Pending/Confirmed/Completed/Cancelled)
+        if (isTruthy(queryStringParameters?.stats)) {
+          // Default: stats for active (non-archived)
+          // You can pass ?archived=1 for archived stats, or ?include_archived=1 for everything
+          const archivedOnly = isTruthy(queryStringParameters?.archived);
+          const includeArchived = isTruthy(queryStringParameters?.include_archived);
+
+          const where = [];
+          const params = [];
+
+          if (!includeArchived) {
+            if (archivedOnly) {
+              where.push(`b.is_archived = true`);
+            } else {
+              where.push(`b.is_archived = false`);
+            }
+          }
+
+          const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+          const stats = await executeQueryOne(
+            `
+            SELECT
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE b.status = 'pending')::int AS pending,
+              COUNT(*) FILTER (WHERE b.status = 'confirmed')::int AS confirmed,
+              COUNT(*) FILTER (WHERE b.status = 'completed')::int AS completed,
+              COUNT(*) FILTER (WHERE b.status = 'cancelled')::int AS cancelled
+            FROM bookings b
+            ${whereSql}
+            `,
+            params
+          );
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(stats || { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 })
+          };
+        }
+
+        // Single booking
+        if (bookingId && bookingId !== 'bookings' && bookingId !== 'stats') {
           const booking = await executeQueryOne(
             `SELECT b.*,
                     c.full_name as coach_name, c.avatar_url as coach_avatar,
@@ -43,182 +109,136 @@ export async function handler(event) {
           );
 
           if (!booking) {
-            return {
-              statusCode: 404,
-              headers,
-              body: JSON.stringify({ error: 'Booking not found' })
-            };
+            return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
           }
 
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(booking)
-          };
-        } else {
-          // Get all bookings with filters
-          let query = `SELECT b.*,
-                              c.full_name as coach_name, c.avatar_url as coach_avatar,
-                              cl.full_name as client_name, cl.avatar_url as client_avatar
-                       FROM bookings b
-                       LEFT JOIN profiles c ON b.coach_id = c.id
-                       LEFT JOIN profiles cl ON b.client_id = cl.id`;
-          
-          const conditions = [];
-          const params = [];
-
-          // Apply filters from query parameters
-          if (queryStringParameters?.coach_id) {
-            conditions.push(`b.coach_id = $${params.length + 1}`);
-            params.push(queryStringParameters.coach_id);
-          }
-
-          if (queryStringParameters?.client_id) {
-            conditions.push(`b.client_id = $${params.length + 1}`);
-            params.push(queryStringParameters.client_id);
-          }
-
-          if (queryStringParameters?.status) {
-            conditions.push(`b.status = $${params.length + 1}`);
-            params.push(queryStringParameters.status);
-          }
-
-          if (conditions.length > 0) {
-            query += ' WHERE ' + conditions.join(' AND ');
-          }
-
-          // Use correct timestamp column from schema
-          query += ' ORDER BY b.created_at DESC';
-
-          const bookings = await executeQuery(query, params);
-
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(bookings)
-          };
+          return { statusCode: 200, headers, body: JSON.stringify(booking) };
         }
+
+        // List bookings with filters
+        let query = `SELECT b.*,
+                            c.full_name as coach_name, c.avatar_url as coach_avatar,
+                            cl.full_name as client_name, cl.avatar_url as client_avatar
+                     FROM bookings b
+                     LEFT JOIN profiles c ON b.coach_id = c.id
+                     LEFT JOIN profiles cl ON b.client_id = cl.id`;
+
+        const conditions = [];
+        const params = [];
+
+        // Archive filters (default: active only)
+        const archivedOnly = isTruthy(queryStringParameters?.archived);
+        const includeArchived = isTruthy(queryStringParameters?.include_archived);
+
+        if (!includeArchived) {
+          conditions.push(`b.is_archived = $${params.length + 1}`);
+          params.push(archivedOnly ? true : false);
+        }
+
+        if (queryStringParameters?.coach_id) {
+          conditions.push(`b.coach_id = $${params.length + 1}`);
+          params.push(queryStringParameters.coach_id);
+        }
+
+        if (queryStringParameters?.client_id) {
+          conditions.push(`b.client_id = $${params.length + 1}`);
+          params.push(queryStringParameters.client_id);
+        }
+
+        if (queryStringParameters?.status) {
+          conditions.push(`b.status = $${params.length + 1}`);
+          params.push(queryStringParameters.status);
+        }
+
+        if (conditions.length > 0) {
+          query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY b.created_at DESC';
+
+        // Optional limit for "recent bookings" widget
+        if (queryStringParameters?.limit) {
+          const limit = Number(queryStringParameters.limit);
+          if (Number.isFinite(limit) && limit > 0 && limit <= 200) {
+            query += ` LIMIT ${limit}`;
+          }
+        }
+
+        const bookings = await executeQuery(query, params);
+
+        return { statusCode: 200, headers, body: JSON.stringify(bookings) };
       }
 
       case 'POST': {
-        // Create new booking
-        const bookingData = JSON.parse(body);
+        const bookingData = JSON.parse(body || '{}');
 
-        // Validate required fields
+        // Validate required fields (your schema uses booking_date, not session_date/session_time)
         if (!bookingData.coach_id || !bookingData.client_id) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'coach_id and client_id are required' })
-          };
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'coach_id and client_id are required' }) };
         }
 
-        if (!bookingData.session_date || !bookingData.session_time) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'session_date and session_time are required' })
-          };
+        if (!bookingData.booking_date) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'booking_date is required (timestamptz)' }) };
         }
 
         const newBooking = await executeQueryOne(
           `INSERT INTO bookings (
-            coach_id, client_id, service_type, session_date, session_time,
-            duration, location_type, location_address, client_notes,
+            coach_id, client_id, service_type, booking_date,
+            duration, location_type, location_address, location_notes, client_notes,
             price, admin_fee, total_price, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
           RETURNING *`,
           [
             bookingData.coach_id,
             bookingData.client_id,
-            bookingData.service_type || 'personal_training',
-            bookingData.session_date,
-            bookingData.session_time,
+            bookingData.service_type || 'football_session',
+            bookingData.booking_date,
             bookingData.duration || 60,
             bookingData.location_type || 'online',
             bookingData.location_address || null,
+            bookingData.location_notes || null,
             bookingData.client_notes || null,
             bookingData.price || 0,
-            bookingData.admin_fee || 3,
-            bookingData.total_price || (bookingData.price + 3),
+            bookingData.admin_fee ?? 3,
+            bookingData.total_price ?? ((bookingData.price || 0) + 3),
             bookingData.status || 'pending'
           ]
         );
 
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify(newBooking)
-        };
+        return { statusCode: 201, headers, body: JSON.stringify(newBooking) };
       }
 
       case 'PUT': {
-        // Update booking
         if (!bookingId) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Booking ID is required' })
-          };
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID is required' }) };
         }
 
-        const updateData = JSON.parse(body);
+        const updateData = JSON.parse(body || '{}');
 
-        // Build dynamic update query
         const updateFields = [];
         const updateParams = [];
         let paramCount = 1;
 
-        if (updateData.status !== undefined) {
-          updateFields.push(`status = $${paramCount++}`);
-          updateParams.push(updateData.status);
-        }
+        const setField = (col, val) => {
+          updateFields.push(`${col} = $${paramCount++}`);
+          updateParams.push(val);
+        };
 
-        if (updateData.session_date !== undefined) {
-          updateFields.push(`session_date = $${paramCount++}`);
-          updateParams.push(updateData.session_date);
-        }
-
-        if (updateData.session_time !== undefined) {
-          updateFields.push(`session_time = $${paramCount++}`);
-          updateParams.push(updateData.session_time);
-        }
-
-        if (updateData.duration !== undefined) {
-          updateFields.push(`duration = $${paramCount++}`);
-          updateParams.push(updateData.duration);
-        }
-
-        if (updateData.location_type !== undefined) {
-          updateFields.push(`location_type = $${paramCount++}`);
-          updateParams.push(updateData.location_type);
-        }
-
-        if (updateData.location_address !== undefined) {
-          updateFields.push(`location_address = $${paramCount++}`);
-          updateParams.push(updateData.location_address);
-        }
-
-        if (updateData.client_notes !== undefined) {
-          updateFields.push(`client_notes = $${paramCount++}`);
-          updateParams.push(updateData.client_notes);
-        }
-
-        if (updateData.coach_notes !== undefined) {
-          updateFields.push(`coach_notes = $${paramCount++}`);
-          updateParams.push(updateData.coach_notes);
-        }
+        if (updateData.status !== undefined) setField('status', updateData.status);
+        if (updateData.booking_date !== undefined) setField('booking_date', updateData.booking_date);
+        if (updateData.duration !== undefined) setField('duration', updateData.duration);
+        if (updateData.location_type !== undefined) setField('location_type', updateData.location_type);
+        if (updateData.location_address !== undefined) setField('location_address', updateData.location_address);
+        if (updateData.location_notes !== undefined) setField('location_notes', updateData.location_notes);
+        if (updateData.client_notes !== undefined) setField('client_notes', updateData.client_notes);
+        if (updateData.notes !== undefined) setField('notes', updateData.notes);
+        if (updateData.service_type !== undefined) setField('service_type', updateData.service_type);
 
         if (updateFields.length === 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'No fields to update' })
-          };
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'No fields to update' }) };
         }
 
-  // Align with schema column name
-  updateFields.push(`updated_at = NOW()`);
+        updateFields.push(`updated_at = NOW()`);
         updateParams.push(bookingId);
 
         const updatedBooking = await executeQueryOne(
@@ -227,52 +247,96 @@ export async function handler(event) {
         );
 
         if (!updatedBooking) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Booking not found' })
-          };
+          return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
         }
 
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(updatedBooking)
-        };
+        return { statusCode: 200, headers, body: JSON.stringify(updatedBooking) };
       }
 
-      case 'DELETE':
+      case 'PATCH': {
+        // PATCH /bookings/:id/archive OR /bookings/:id/restore
         if (!bookingId) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Booking ID is required' })
-          };
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID is required' }) };
+        }
+
+        if (action !== 'archive' && action !== 'restore') {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid PATCH action. Use /archive or /restore.' }) };
+        }
+
+        // Basic admin check (we can harden this later using JWT validation)
+        if (!adminIdHeader) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Missing x-admin-id header' }) };
+        }
+
+        const adminProfile = await executeQueryOne(
+          `SELECT id, role FROM profiles WHERE id = $1 LIMIT 1`,
+          [adminIdHeader]
+        );
+
+        if (!adminProfile || adminProfile.role !== 'admin') {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
+        }
+
+        if (action === 'archive') {
+          const updated = await executeQueryOne(
+            `UPDATE bookings
+             SET is_archived = true,
+                 archived_at = NOW(),
+                 archived_by = $2,
+                 updated_at = NOW()
+             WHERE id = $1
+             RETURNING *`,
+            [bookingId, adminIdHeader]
+          );
+
+          if (!updated) {
+            return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+          }
+
+          return { statusCode: 200, headers, body: JSON.stringify(updated) };
+        }
+
+        // restore
+        const restored = await executeQueryOne(
+          `UPDATE bookings
+           SET is_archived = false,
+               archived_at = NULL,
+               archived_by = NULL,
+               updated_at = NOW()
+           WHERE id = $1
+           RETURNING *`,
+          [bookingId]
+        );
+
+        if (!restored) {
+          return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+        }
+
+        return { statusCode: 200, headers, body: JSON.stringify(restored) };
+      }
+
+      case 'DELETE': {
+        // Hard delete (not recommended)
+        if (!bookingId) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID is required' }) };
         }
 
         await executeQuery('DELETE FROM bookings WHERE id = $1', [bookingId]);
 
-        return {
-          statusCode: 204,
-          headers,
-          body: ''
-        };
+        return { statusCode: 204, headers, body: '' };
+      }
 
       default:
-        return {
-          statusCode: 405,
-          headers,
-          body: JSON.stringify({ error: 'Method not allowed' })
-        };
+        return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
     }
   } catch (error) {
     console.error('Error in bookings function:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
-        message: error.message 
+        message: error.message
       })
     };
   }
