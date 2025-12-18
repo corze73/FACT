@@ -81,7 +81,7 @@ async function main() {
         created_at, updated_at
       )
       VALUES (
-        ${randomUUID()}, ${email}, ${name}, 'coach', 'coach',
+        ${randomUUID()}, ${email}, ${name}, 'coach', 'user',
         ${pick(avatars)}, ${pick(bios)},
         ${isUk ? `${city}, UK` : city},
         ARRAY['Football'],
