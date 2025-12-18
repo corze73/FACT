@@ -1,111 +1,163 @@
 #!/usr/bin/env node
-/* eslint-env node */
-import { config } from 'dotenv';
+// FACT Demo Coach Seeder
+// Usage: node scripts/seed-demo.js
+// Requires VITE_DATABASE_URL in .env (dev only)
+
 import { neon } from '@neondatabase/serverless';
+import { randomUUID } from 'crypto';
 
-config();
-
-const databaseUrl = process.env.VITE_DATABASE_URL || process.env.DATABASE_URL;
+const databaseUrl = process.env.VITE_DATABASE_URL;
 if (!databaseUrl) {
-  console.error('Missing VITE_DATABASE_URL or DATABASE_URL. Please export it before running.');
+  console.error('❌ VITE_DATABASE_URL not set in environment');
   process.exit(1);
 }
-
 const sql = neon(databaseUrl);
-const SEED_TAG = 'seed-demo';
 
-async function upsertUser(email, full_name, user_type = 'user', role = 'user') {
-  const rows = await sql`
-    INSERT INTO profiles (id, email, full_name, user_type, role, is_active, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${email}, ${full_name}, ${user_type}, ${role}, true, NOW(), NOW())
-    ON CONFLICT (email) DO UPDATE
-      SET full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
-          user_type = COALESCE(EXCLUDED.user_type, profiles.user_type),
-          role = COALESCE(EXCLUDED.role, profiles.role),
-          updated_at = NOW()
-    RETURNING *
-  `;
-  return rows[0];
+// Helper: random element
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+// UK cities (100+ coaches)
+const ukCities = [
+  'London', 'Manchester', 'Birmingham', 'Leeds', 'Glasgow', 'Liverpool', 'Bristol', 'Sheffield',
+  'Edinburgh', 'Cardiff', 'Belfast', 'Nottingham', 'Leicester', 'Newcastle', 'Southampton',
+  'Portsmouth', 'Brighton', 'Cambridge', 'Oxford', 'Aberdeen', 'Dundee', 'York', 'Bath', 'Exeter',
+  'Reading', 'Milton Keynes', 'Coventry', 'Swansea', 'Plymouth', 'Derby', 'Stoke-on-Trent',
+  'Wolverhampton', 'Norwich', 'Luton', 'Preston', 'Sunderland', 'Bradford', 'Kingston upon Hull',
+  'Middlesbrough', 'Peterborough', 'Slough', 'Woking', 'Chelmsford', 'Gloucester', 'Blackpool',
+  'Ipswich', 'Huddersfield', 'Warrington', 'Walsall', 'Bournemouth', 'Swindon', 'Oldham',
+  'Bolton', 'Stockport', 'Rochdale', 'Solihull', 'Gateshead', 'Birkenhead', 'Basildon',
+  'Eastbourne', 'Crawley', 'Grimsby', 'Hastings', 'Basingstoke', 'Maidstone', 'Harlow',
+  'Colchester', 'Stevenage', 'Chatham', 'Hemel Hempstead', 'Bedford', 'Guildford', 'Aylesbury',
+  'High Wycombe', 'Cheltenham', 'Lincoln', 'Shrewsbury', 'Stafford', 'Telford', 'Worcester',
+  'Hereford', 'Chester', 'Carlisle', 'Durham', 'Lancaster', 'Winchester', 'Salisbury', 'Ely',
+  'St Albans', 'Truro', 'Wells', 'Ripon', 'Lichfield', 'Stirling', 'Inverness', 'Perth', 'Dumfries'
+];
+
+// Global cities
+const worldCities = [
+  'New York', 'Los Angeles', 'Toronto', 'Sydney', 'Melbourne', 'Auckland', 'Cape Town', 'Paris',
+  'Berlin', 'Madrid', 'Rome', 'Dublin', 'Amsterdam', 'Brussels', 'Zurich', 'Vienna', 'Prague',
+  'Warsaw', 'Budapest', 'Copenhagen', 'Stockholm', 'Oslo', 'Helsinki', 'Lisbon', 'Barcelona',
+  'Milan', 'Munich', 'Frankfurt', 'Hamburg', 'Geneva', 'Lyon', 'Marseille', 'Nice', 'Athens',
+  'Istanbul', 'Moscow', 'St Petersburg', 'Dubai', 'Abu Dhabi', 'Doha', 'Singapore', 'Hong Kong',
+  'Tokyo', 'Osaka', 'Seoul', 'Beijing', 'Shanghai', 'Bangkok', 'Kuala Lumpur', 'Jakarta',
+  'Manila', 'Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Karachi', 'Lagos', 'Nairobi', 'Cairo',
+  'Johannesburg', 'Mexico City', 'Sao Paulo', 'Buenos Aires', 'Lima', 'Bogota', 'Santiago',
+  'Rio de Janeiro', 'Montreal', 'Vancouver', 'Calgary', 'Ottawa', 'Edmonton', 'Halifax',
+  'Quebec City', 'Winnipeg', 'Victoria', 'Brisbane', 'Perth', 'Adelaide', 'Gold Coast',
+  'Canberra', 'Hobart', 'Darwin', 'Wellington', 'Christchurch', 'Hamilton', 'Dunedin',
+  'Rotorua', 'Queenstown', 'Suva', 'Port Moresby', 'Apia', 'Nukuʻalofa', 'Pago Pago'
+];
+
+const sports = ['Football', 'Tennis', 'Basketball', 'Rugby', 'Cricket', 'Golf', 'Swimming', 'Cycling', 'Boxing', 'Martial Arts', 'Yoga', 'Pilates', 'Running', 'Triathlon', 'Rowing', 'Hockey', 'Netball', 'Badminton', 'Table Tennis', 'Squash'];
+const bios = [
+  'Passionate about helping athletes reach their potential.',
+  '10+ years of coaching experience.',
+  'Specialist in youth development.',
+  'Former professional athlete.',
+  'Focus on holistic training and mindset.',
+  'Certified coach with international experience.',
+  'Known for innovative training methods.',
+  'Results-driven and client-focused.',
+  'Expert in injury prevention and recovery.',
+  'Motivational and supportive approach.'
+];
+const avatars = [
+  'https://randomuser.me/api/portraits/men/1.jpg',
+  'https://randomuser.me/api/portraits/women/2.jpg',
+  'https://randomuser.me/api/portraits/men/3.jpg',
+  'https://randomuser.me/api/portraits/women/4.jpg',
+  'https://randomuser.me/api/portraits/men/5.jpg',
+  'https://randomuser.me/api/portraits/women/6.jpg',
+  'https://randomuser.me/api/portraits/men/7.jpg',
+  'https://randomuser.me/api/portraits/women/8.jpg',
+  'https://randomuser.me/api/portraits/men/9.jpg',
+  'https://randomuser.me/api/portraits/women/10.jpg'
+];
+
+const firstNames = ['Alex', 'Jamie', 'Taylor', 'Jordan', 'Morgan', 'Casey', 'Riley', 'Drew', 'Avery', 'Skyler', 'Sam', 'Chris', 'Pat', 'Lee', 'Robin', 'Cameron', 'Dana', 'Jesse', 'Kerry', 'Shawn'];
+const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Garcia', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin'];
+
+function randomPrice() {
+  // £15-£100, global currency GBP
+  return Math.floor(Math.random() * 86) + 15;
 }
 
-async function ensureBooking(coach_id, client_id, status, dateOffsetDays, service_type = 'personal_training') {
-  const existing = await sql`
-    SELECT id FROM bookings 
-    WHERE coach_id = ${coach_id} AND client_id = ${client_id} AND status = ${status} AND notes = ${SEED_TAG}
-    LIMIT 1
-  `;
-  if (existing.length) return existing[0];
-
-  const sessionDate = new Date();
-  sessionDate.setDate(sessionDate.getDate() + dateOffsetDays);
-  const isoDate = sessionDate.toISOString().slice(0, 10);
-
-  const rows = await sql`
-    INSERT INTO bookings (
-      coach_id, client_id, service_type, session_date, session_time,
-      duration, location_type, total_price, status, notes
-    ) VALUES (
-      ${coach_id}, ${client_id}, ${service_type}, ${isoDate}, ${'15:00'},
-      ${60}, ${'online'}, ${75.00}, ${status}, ${SEED_TAG}
-    ) RETURNING *
-  `;
-  return rows[0];
+function randomEmail(name, i) {
+  return `${name.toLowerCase().replace(/ /g, '.')}.${i}@demo.fact.com`;
 }
 
-async function seedMessages(booking, client_id, coach_id) {
-  const existing = await sql`SELECT id FROM messages WHERE booking_id = ${booking.id} LIMIT 1`;
-  if (existing.length) return;
-  await sql`
-    INSERT INTO messages (booking_id, sender_id, receiver_id, content)
-    VALUES (${booking.id}, ${client_id}, ${coach_id}, ${'Hi coach! Looking forward to our session.'})
-  `;
-  await sql`
-    INSERT INTO messages (booking_id, sender_id, receiver_id, content)
-    VALUES (${booking.id}, ${coach_id}, ${client_id}, ${'Great! See you then.'})
-  `;
-}
-
-async function create() {
-  console.log('🌱 Seeding demo data...');
-  const coach = await upsertUser('seed+coach@fact.test', 'Seed Coach', 'coach', 'user');
-  const client = await upsertUser('seed+client@fact.test', 'Seed Client', 'user', 'user');
-  const coach2 = await upsertUser('seed+coach2@fact.test', 'Seed Coach 2', 'coach', 'user');
-
-  const b1 = await ensureBooking(coach.id, client.id, 'pending', 7);
-  const b2 = await ensureBooking(coach.id, client.id, 'confirmed', 3);
-  const b3 = await ensureBooking(coach2.id, client.id, 'completed', -10, 'nutrition_guidance');
-
-  await seedMessages(b1, client.id, coach.id);
-  await seedMessages(b2, client.id, coach.id);
-  await seedMessages(b3, client.id, coach2.id);
-
-  console.log('✅ Done');
-  console.log({ users: [coach.id, client.id, coach2.id], bookings: [b1.id, b2.id, b3.id] });
-}
-
-async function clear() {
-  console.log('🧹 Clearing demo data...');
-  const users = await sql`SELECT id FROM profiles WHERE email IN (${ 'seed+coach@fact.test' }, ${ 'seed+client@fact.test' }, ${ 'seed+coach2@fact.test' })`;
-  const userIds = users.map(u => u.id);
-
-  if (userIds.length) {
-    await sql`DELETE FROM messages WHERE booking_id IN (SELECT id FROM bookings WHERE client_id = ANY(${userIds}) OR coach_id = ANY(${userIds}) OR notes = ${SEED_TAG})`;
-    await sql`DELETE FROM bookings WHERE client_id = ANY(${userIds}) OR coach_id = ANY(${userIds}) OR notes = ${SEED_TAG}`;
-    await sql`DELETE FROM profiles WHERE id = ANY(${userIds})`;
-  } else {
-    await sql`DELETE FROM messages WHERE booking_id IN (SELECT id FROM bookings WHERE notes = ${SEED_TAG})`;
-    await sql`DELETE FROM bookings WHERE notes = ${SEED_TAG}`;
-  }
-  console.log('✅ Cleared');
-}
-
-(async () => {
-  const action = process.argv[2] || 'create';
-  try {
-    if (action === 'clear') await clear();
-    else await create();
-  } catch (e) {
-    console.error('❌ Seed error:', e.message);
+async function main() {
+  // Set RLS context to admin (assume first admin in DB)
+  const admins = await sql`SELECT id FROM profiles WHERE role = 'admin' LIMIT 1`;
+  const adminId = admins[0]?.id;
+  if (!adminId) {
+    console.error('❌ No admin user found. Please create an admin first.');
     process.exit(1);
   }
-})();
+  await sql`SELECT set_config('app.current_user_id', $1, true)`([adminId]);
+
+  // Prepare 500+ coaches
+  const total = 500;
+  const ukCount = 100;
+  const coaches = [];
+
+  // UK coaches
+  for (let i = 0; i < ukCount; i++) {
+    const city = pick(ukCities);
+    const name = `${pick(firstNames)} ${pick(lastNames)}`;
+    coaches.push({
+      id: randomUUID(),
+      email: randomEmail(name, i),
+      full_name: name,
+      user_type: 'coach',
+      role: 'coach',
+      avatar_url: pick(avatars),
+      bio: pick(bios),
+      location: city + ', UK',
+      sport: pick(sports),
+      price: randomPrice(),
+      is_active: true
+    });
+  }
+  // Global coaches
+  for (let i = ukCount; i < total; i++) {
+    const city = pick(worldCities);
+    const name = `${pick(firstNames)} ${pick(lastNames)}`;
+    coaches.push({
+      id: randomUUID(),
+      email: randomEmail(name, i),
+      full_name: name,
+      user_type: 'coach',
+      role: 'coach',
+      avatar_url: pick(avatars),
+      bio: pick(bios),
+      location: city,
+      sport: pick(sports),
+      price: randomPrice(),
+      is_active: true
+    });
+  }
+
+  // Insert coaches
+  let inserted = 0;
+  for (const coach of coaches) {
+    try {
+      await sql`
+        INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, bio, location, sport, price, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+        ON CONFLICT (email) DO NOTHING
+      `([
+        coach.id, coach.email, coach.full_name, coach.user_type, coach.role, coach.avatar_url,
+        coach.bio, coach.location, coach.sport, coach.price, coach.is_active
+      ]);
+      inserted++;
+      if (inserted % 50 === 0) console.log(`Inserted ${inserted} coaches...`);
+    } catch (e) {
+      console.error('Insert error:', e.message);
+    }
+  }
+  console.log(`✅ Done! Inserted ${inserted} coaches.`);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });
