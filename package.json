@@ -426,7 +426,8 @@
     "lint": "eslint .",
     "preview": "netlify serve",
     "start": "node server.js",
-    "deploy": "netlify deploy --prod"
+    "deploy": "netlify deploy --prod",
+    "seed:football": "node scripts/seed-football-coaches.js"
   },
   "repository": {
     "type": "git",
