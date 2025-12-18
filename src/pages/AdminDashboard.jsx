@@ -1,55 +1,33 @@
-
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { User } from "@/api/entities.jsx";
+import { Booking } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, MessageCircle, Star, AlertTriangle, Trash2 } from "lucide-react";
+import { Users, Calendar, MessageCircle, Star, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, isValid } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const safeParseDate =(dateValue)=>{
+// Utility function to safely parse dates
+const safeParseDate = (dateValue) => {
   if (!dateValue) return null;
-  const d = new Date(dateValue);
-  return isValid(d) ? d : null;
+  const date = new Date(dateValue);
+  return isValid(date) ? date : null;
 };
 
-const formatSafeDate =(dateValue, formatStr = "PPP")=>{
-  const d = safeParseDate(dateValue);
-  return d ? format(d, formatStr) : "Date TBD";
-};
-
-const apiJson = async(path, options = {})=>{
-  const res = await fetch(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-
-  if (res.status === 204) return null;
-
-  const data = await res.json().catch(()=> null);
-
-  if (!res.ok) {
-    const msg = data?.error || data?.message || `Request failed (${res.status})`;
-    throw new Error(msg);
-  }
-
-  return data;
+// Utility function to format dates safely
+const formatSafeDate = (dateValue, formatStr = 'PPP') => {
+  const date = safeParseDate(dateValue);
+  return date ? format(date, formatStr) : 'Date TBD';
 };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState("");
-
   const [currentUser, setCurrentUser] = useState(null);
-
   const [stats, setStats] = useState({
     totalUsers: 0, // excludes admins
     totalAccounts: 0, // includes admins
@@ -62,27 +40,85 @@ export default function AdminDashboard() {
     cancelled: 0,
     completed: 0
   });
-
   const [recentBookings, setRecentBookings] = useState([]);
+  const [userMap, setUserMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [deletionRequests, setDeletionRequests] = useState([]);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
-  // delete modal
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const me = await User.me();
+        setCurrentUser(me);
+        if (me.role !== "admin") {
+          const home = me.user_type === "coach" ? "CoachDashboard" : "FindCoaches";
+          navigate(createPageUrl(home));
+          return;
+        }
 
-  const statusBadge =(status)=>{
-    const map = {
-      pending: "bg-yellow-100 text-yellow-800",
-      confirmed: "bg-green-100 text-green-800",
-      cancelled: "bg-red-100 text-red-800",
-      completed: "bg-blue-100 text-blue-800"
+  const allUsers = await User.list();
+
+  // Break down by type and role
+  const admins = allUsers.filter(u => u.role === "admin").length;
+  const totalCoaches = allUsers.filter(u => u.user_type === "coach" && u.role !== "admin").length;
+  const totalClients = allUsers.filter(u => (u.user_type === "client" || u.user_type === "user") && u.role !== "admin").length;
+  const totalUsers = totalCoaches + totalClients; // excludes admins
+  const totalAccounts = allUsers.length; // includes admins
+
+        const allBookings = await Booking.list('-created_at', 1000);
+        
+        const totalBookings = allBookings.length;
+        const pending = allBookings.filter(b => b.status === "pending").length;
+        const confirmed = allBookings.filter(b => b.status === "confirmed").length;
+        const cancelled = allBookings.filter(b => b.status === "cancelled").length;
+        const completed = allBookings.filter(b => b.status === "completed").length;
+        
+  const recent = allBookings.slice(0, 8);
+        const ids = Array.from(new Set(recent.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
+        const users = ids.length ? await User.filter({ id: { in: ids } }) : [];
+        const umap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+        
+  setStats({ totalUsers, totalAccounts, admins, totalCoaches, totalClients, totalBookings, pending, confirmed, cancelled, completed });
+        setRecentBookings(recent);
+  setUserMap(umap);
+
+  // Load pending account deletion requests
+  const pendingReqs = await User.listDeletionRequests({ status: 'pending' });
+  setDeletionRequests(pendingReqs || []);
+      } catch (error) {
+        console.error('Error loading admin dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-    return map[status] || "bg-slate-100 text-slate-800";
+    load();
+  }, [navigate]);
+
+  const openDecision = (req) => {
+    setSelectedRequest(req);
+    setDecisionReason("");
+    setDecisionOpen(true);
   };
 
-  const formatService =(s)=> s?.replace(/_/g, " ").replace(/\b\w/g, (l)=> l.toUpperCase());
+  const decideRequest = async (decision) => {
+    if (!selectedRequest) return;
+    try {
+      await User.decideDeletionRequest(selectedRequest.id, decision, decisionReason, currentUser?.id);
+      setDeletionRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
+      setDecisionOpen(false);
+      setDecisionReason("");
+    } catch (e) {
+      alert(e.message || 'Failed to process request');
+    }
+  };
 
-  const StatCard = ({ icon: Icon, label, value, color = "text-slate-700", onClick })=>(
+  if (loading) return <div className="p-8">Loading admin dashboard...</div>;
+  if (!currentUser || currentUser.role !== "admin") return null;
+
+  const StatCard = ({ icon: Icon, label, value, color = "text-slate-700", onClick }) => (
     <button onClick={onClick} className="text-left">
       <Card className="border-0 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
         <CardContent className="p-5">
@@ -100,110 +136,18 @@ export default function AdminDashboard() {
     </button>
   );
 
-  const computedCounts = useMemo(()=>{
-    const totalBookings = recentBookings?.__allCount ?? stats.totalBookings; // fallback
-    return { totalBookings };
-  }, [recentBookings, stats.totalBookings]);
-
-  useEffect(()=>{
-    const load = async()=>{
-      setLoading(true);
-      setErrorMsg("");
-
-      try {
-        // 1) Who am I? (Netlify function)
-        const me = await apiJson("/api/me");
-        setCurrentUser(me);
-
-        if (me?.role !== "admin") {
-          const home = me?.user_type === "coach" ? "CoachDashboard" : "FindCoaches";
-          navigate(createPageUrl(home));
-          return;
-        }
-
-        // 2) Users (profiles) + Bookings from Netlify functions
-        const allUsers = await apiJson("/api/users?type=all");
-        const allBookings = await apiJson("/api/bookings");
-
-        // users breakdown
-        const admins = allUsers.filter((u)=> u.role === "admin").length;
-        const totalCoaches = allUsers.filter((u)=> u.user_type === "coach" && u.role !== "admin").length;
-        const totalClients = allUsers.filter((u)=> (u.user_type === "client" || u.user_type === "user") && u.role !== "admin").length;
-        const totalUsers = totalCoaches + totalClients;
-        const totalAccounts = allUsers.length;
-
-        // booking breakdown
-        const totalBookings = allBookings.length;
-        const pending = allBookings.filter((b)=> b.status === "pending").length;
-        const confirmed = allBookings.filter((b)=> b.status === "confirmed").length;
-        const cancelled = allBookings.filter((b)=> b.status === "cancelled").length;
-        const completed = allBookings.filter((b)=> b.status === "completed").length;
-
-        // recent
-        const recent = allBookings.slice(0, 8);
-
-        setStats({
-          totalUsers,
-          totalAccounts,
-          admins,
-          totalCoaches,
-          totalClients,
-          totalBookings,
-          pending,
-          confirmed,
-          cancelled,
-          completed
-        });
-
-        // stash all count on the array (non-reactive helper, harmless)
-        recent.__allCount = totalBookings;
-        setRecentBookings(recent);
-
-      } catch (e) {
-        console.error("Admin dashboard load failed:", e);
-        setErrorMsg(e?.message || "Failed to load admin dashboard data");
-      } finally {
-        setLoading(false);
-      }
+  const statusBadge = (status) => {
+    const map = {
+      pending: "bg-yellow-100 text-yellow-800",
+      confirmed: "bg-green-100 text-green-800",
+      cancelled: "bg-red-100 text-red-800",
+      completed: "bg-blue-100 text-blue-800"
     };
-
-    load();
-  }, [navigate]);
-
-  const openDelete =(booking)=>{
-    setDeleteTarget(booking);
-    setDeleteOpen(true);
+    return map[status] || "bg-slate-100 text-slate-800";
   };
 
-  const confirmDelete = async()=>{
-    if (!deleteTarget?.id) return;
+  const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
-    setDeleting(true);
-    try {
-      await apiJson(`/api/bookings/${deleteTarget.id}`, { method: "DELETE" });
-
-      // refresh the list quickly without full reload
-      setRecentBookings((prev)=> prev.filter((b)=> b.id !== deleteTarget.id));
-      setStats((prev)=> ({
-        ...prev,
-        totalBookings: Math.max(0, prev.totalBookings - 1),
-        pending: deleteTarget.status === "pending" ? Math.max(0, prev.pending - 1) : prev.pending,
-        confirmed: deleteTarget.status === "confirmed" ? Math.max(0, prev.confirmed - 1) : prev.confirmed,
-        cancelled: deleteTarget.status === "cancelled" ? Math.max(0, prev.cancelled - 1) : prev.cancelled,
-        completed: deleteTarget.status === "completed" ? Math.max(0, prev.completed - 1) : prev.completed
-      }));
-
-      setDeleteOpen(false);
-      setDeleteTarget(null);
-    } catch (e) {
-      alert(e?.message || "Failed to delete booking");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  if (loading) return <div className="p-8">Loading admin dashboard...</div>;
-  if (!currentUser || currentUser.role !== "admin") return null;
 
   return (
     <div className="p-6 md:p-8">
@@ -211,27 +155,44 @@ export default function AdminDashboard() {
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Admin Dashboard</h1>
           <p className="text-slate-600">Overview of users, bookings, and platform activity.</p>
-
-          {errorMsg && (
-            <div className="mt-4 p-3 rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm">
-              {errorMsg}
-            </div>
-          )}
         </motion.div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Users} label="Total Accounts" value={stats.totalAccounts} color="text-slate-700" onClick={()=>navigate(createPageUrl("AdminUsers?type=all"))} />
-          <StatCard icon={Star} label="Coaches" value={stats.totalCoaches} color="text-amber-600" onClick={()=>navigate(createPageUrl("AdminUsers?type=coach"))} />
-          <StatCard icon={Users} label="Clients" value={stats.totalClients} color="text-blue-600" onClick={()=>navigate(createPageUrl("AdminUsers?type=client"))} />
-          <StatCard icon={Calendar} label="Total Bookings" value={stats.totalBookings} color="text-green-600" onClick={()=>navigate(createPageUrl("AdminBookings?status=all"))} />
+          <StatCard icon={Users} label="Total Accounts" value={stats.totalAccounts || stats.totalUsers} color="text-slate-700" onClick={() => navigate(createPageUrl("AdminUsers?type=all"))} />
+          <StatCard icon={Star} label="Coaches" value={stats.totalCoaches} color="text-amber-600" onClick={() => navigate(createPageUrl("AdminUsers?type=coach"))} />
+          <StatCard icon={Users} label="Clients" value={stats.totalClients} color="text-blue-600" onClick={() => navigate(createPageUrl("AdminUsers?type=client"))} />
+          <StatCard icon={Calendar} label="Total Bookings" value={stats.totalBookings} color="text-green-600" onClick={() => navigate(createPageUrl("AdminBookings?status=all"))} />
         </div>
 
         <div className="grid md:grid-cols-4 gap-4">
-          <StatCard icon={AlertTriangle} label="Pending" value={stats.pending} color="text-yellow-600" onClick={()=>navigate(createPageUrl("AdminBookings?status=pending"))} />
-          <StatCard icon={Calendar} label="Confirmed" value={stats.confirmed} color="text-green-600" onClick={()=>navigate(createPageUrl("AdminBookings?status=confirmed"))} />
-          <StatCard icon={Calendar} label="Completed" value={stats.completed} color="text-blue-600" onClick={()=>navigate(createPageUrl("AdminBookings?status=completed"))} />
-          <StatCard icon={Calendar} label="Cancelled" value={stats.cancelled} color="text-red-600" onClick={()=>navigate(createPageUrl("AdminBookings?status=cancelled"))} />
+          <StatCard icon={AlertTriangle} label="Pending" value={stats.pending} color="text-yellow-600" onClick={() => navigate(createPageUrl("AdminBookings?status=pending"))} />
+          <StatCard icon={Calendar} label="Confirmed" value={stats.confirmed} color="text-green-600" onClick={() => navigate(createPageUrl("AdminBookings?status=confirmed"))} />
+          <StatCard icon={Calendar} label="Completed" value={stats.completed} color="text-blue-600" onClick={() => navigate(createPageUrl("AdminBookings?status=completed"))} />
+          <StatCard icon={Calendar} label="Cancelled" value={stats.cancelled} color="text-red-600" onClick={() => navigate(createPageUrl("AdminBookings?status=cancelled"))} />
         </div>
+
+          {/* Account Deletion Requests */}
+          {deletionRequests.length > 0 && (
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Account Deletion Requests</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {deletionRequests.map((r) => (
+                  <div key={r.id} className="flex flex-col md:flex-row md:items-center md:justify-between p-3 rounded-lg border border-slate-200">
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">User ID: {r.user_id}</p>
+                      <p className="text-sm text-slate-600">Reason: {r.reason || '—'}</p>
+                      <p className="text-xs text-slate-500 mt-1">Requested {formatSafeDate(r.requested_at, 'Pp')}</p>
+                    </div>
+                    <div className="mt-2 md:mt-0 flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openDecision(r)}>Decide</Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
         <Card className="border-0 shadow-lg">
           <CardHeader>
@@ -242,51 +203,47 @@ export default function AdminDashboard() {
               <p className="text-slate-600">No bookings yet.</p>
             ) : (
               <div className="space-y-3">
-                {recentBookings.map((b)=>(
-                  <div key={b.id} className="flex flex-col md:flex-row md:items-center md:justify-between p-3 rounded-lg border border-slate-200">
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-900">{formatService(b.service_type)} Session</p>
-                      <p className="text-sm text-slate-600">
-                        {(b.client_name || "Client")} → {(b.coach_name || "Coach")}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {formatSafeDate(b.session_date || b.booking_date)} • {b.session_time || "—"} • £{b.total_price || b.price || 0}
-                      </p>
+                {recentBookings.map((b) => {
+                  const client = userMap[b.client_id];
+                  const coach = userMap[b.coach_id];
+                  return (
+                    <div key={b.id} className="flex flex-col md:flex-row md:items-center md:justify-between p-3 rounded-lg border border-slate-200">
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">{formatService(b.service_type)} Session</p>
+                        <p className="text-sm text-slate-600">
+                          {client?.full_name || "Client"} → {coach?.full_name || "Coach"}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {formatSafeDate(b.session_date)} • {b.session_time} • £{b.total_price || b.price}
+                        </p>
+                      </div>
+                      <div className="mt-2 md:mt-0 flex items-center gap-2">
+                        <Badge className={statusBadge(b.status)}>{b.status}</Badge>
+                        <Button variant="outline" size="sm" onClick={() => navigate(createPageUrl(`Conversation?booking_id=${b.id}`))}>
+                          <MessageCircle className="w-4 h-4 mr-2" /> View Chat
+                        </Button>
+                      </div>
                     </div>
-                    <div className="mt-2 md:mt-0 flex items-center gap-2">
-                      <Badge className={statusBadge(b.status)}>{b.status}</Badge>
-
-                      <Button variant="outline" size="sm" onClick={()=>navigate(createPageUrl(`Conversation?booking_id=${b.id}`))}>
-                        <MessageCircle className="w-4 h-4 mr-2" /> View Chat
-                      </Button>
-
-                      <Button variant="outline" size="sm" className="text-red-600" onClick={()=>openDelete(b)}>
-                        <Trash2 className="w-4 h-4 mr-2" /> Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={decisionOpen} onOpenChange={setDecisionOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove booking</DialogTitle>
+            <DialogTitle>Decide deletion request</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              This will permanently delete the booking record. If you’d rather “archive” it (recommended),
-              we can add an archive flag next.
-            </p>
+            <p className="text-sm text-slate-600">Provide an optional reason. Approving will deactivate the user&apos;s account.</p>
+            <Textarea value={decisionReason} onChange={(e)=>setDecisionReason(e.target.value)} placeholder="Decision reason (optional)" />
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={()=>setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-              <Button className="bg-red-600 hover:bg-red-700" onClick={confirmDelete} disabled={deleting}>
-                {deleting ? "Removing..." : "Remove"}
-              </Button>
+              <Button variant="outline" onClick={()=>setDecisionOpen(false)}>Cancel</Button>
+              <Button className="bg-red-600 hover:bg-red-700" onClick={()=>decideRequest('approved')}>Approve</Button>
+              <Button variant="secondary" onClick={()=>decideRequest('rejected')}>Reject</Button>
             </div>
           </div>
         </DialogContent>
