@@ -48,7 +48,6 @@ const avatars =[
 const firstNames =['Alex','Jamie','Taylor','Jordan','Morgan','Casey','Riley','Avery','Sam','Chris','Cameron','Jesse'];
 const lastNames =['Smith','Johnson','Williams','Brown','Jones','Miller','Davis','Wilson','Anderson','Taylor'];
 
-const randomPrice =()=> Math.floor(Math.random()*86)+15; // £15–£100
 const slugify =(s)=> s.toLowerCase().replace(/[^a-z0-9]+/g,'.').replace(/^\.+|\.+$/g,'');
 const demoEmail =(name,i)=> `${slugify(name)}.${i}@demo.fact.com`;
 
@@ -78,15 +77,14 @@ async function main() {
     const res = await sql`
       INSERT INTO profiles (
         id, email, full_name, user_type, role,
-        avatar_url, bio, location, sport, price, is_active,
+        avatar_url, bio, location, skills, is_active,
         created_at, updated_at
       )
       VALUES (
         ${randomUUID()}, ${email}, ${name}, 'coach', 'coach',
         ${pick(avatars)}, ${pick(bios)},
         ${isUk ? `${city}, UK` : city},
-        'Football',
-        ${randomPrice()},
+        ARRAY['Football'],
         true,
         NOW(), NOW()
       )
