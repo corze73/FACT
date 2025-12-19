@@ -175,12 +175,16 @@ export async function handler(event) {
           query += ' WHERE ' + conditions.join(' AND ');
         }
 
-        query += ' ORDER BY b.created_at DESC';
+        // Optional orderBy (e.g., '-created_at' for DESC, 'created_at' for ASC)
+        const orderBy = queryStringParameters?.orderBy || '-created_at';
+        const orderField = orderBy.startsWith('-') ? orderBy.slice(1) : orderBy;
+        const orderDirection = orderBy.startsWith('-') ? 'DESC' : 'ASC';
+        query += ` ORDER BY b.${orderField} ${orderDirection}`;
 
         // Optional limit for "recent bookings" widget
         if (queryStringParameters?.limit) {
           const limit = Number(queryStringParameters.limit);
-          if (Number.isFinite(limit) && limit > 0 && limit <= 200) {
+          if (Number.isFinite(limit) && limit > 0 && limit <= 1000) {
             query += ` LIMIT ${limit}`;
           }
         }
