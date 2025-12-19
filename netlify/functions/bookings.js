@@ -14,7 +14,7 @@ const getAllowedOrigin = (requestOrigin) => {
 
 const getHeaders = (event) => ({
   'Access-Control-Allow-Origin': getAllowedOrigin(event.headers?.origin),
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-id, x-user-id',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Credentials': 'true',
   'Content-Type': 'application/json'
@@ -46,7 +46,7 @@ export async function handler(event) {
   }
 
   try {
-    const { body, path, queryStringParameters, httpMethod } = event;
+    const { body, path, queryStringParameters, httpMethod, headers: requestHeaders } = event;
 
     const pathParts = path.split('/').filter(Boolean);
     const last = pathParts[pathParts.length - 1] || null;
@@ -61,10 +61,17 @@ export async function handler(event) {
     // Helper: parse truthy query flags
     const isTruthy = (v) => v === '1' || v === 'true' || v === 'yes';
 
-    // Helper: extract admin id passed by frontend (simple + explicit)
-    // Your admin UI should send: x-admin-id: <profile_id> (your Cory admin profile id)
-    // If you already send a JWT and validate elsewhere, we can tighten this later.
-    const adminIdHeader = event.headers?.['x-admin-id'] || event.headers?.['X-Admin-Id'];
+    // Helper: extract user id for RLS context
+    const currentUserId = requestHeaders?.['x-user-id'] || requestHeaders?.['x-admin-id'] || requestHeaders?.['X-Admin-Id'];
+    console.log('👤 Current user ID from headers:', currentUserId);
+    
+    // Helper to set RLS context
+    const withUserCtx = (query, ctxId) => {
+      const safe = (ctxId || '').match(/^[0-9a-fA-F-]{36}$/) ? ctxId : '';
+      return `WITH __ctx AS (SELECT set_config('app.current_user_id', '${safe}', true)) ${query}`;
+    };
+    
+    const adminIdHeader = requestHeaders?.['x-admin-id'] || requestHeaders?.['X-Admin-Id'];
 
     switch (httpMethod) {
       case 'GET': {
@@ -88,8 +95,7 @@ export async function handler(event) {
 
           const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-          const stats = await executeQueryOne(
-            `
+          const statsQuery = `
             SELECT
               COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE b.status = 'pending')::int AS pending,
@@ -98,9 +104,10 @@ export async function handler(event) {
               COUNT(*) FILTER (WHERE b.status = 'cancelled')::int AS cancelled
             FROM bookings b
             ${whereSql}
-            `,
-            params
-          );
+            `;
+          
+          const finalStatsQuery = currentUserId ? withUserCtx(statsQuery, currentUserId) : statsQuery;
+          const stats = await executeQueryOne(finalStatsQuery, params);
 
           return {
             statusCode: 200,
@@ -178,7 +185,8 @@ export async function handler(event) {
           }
         }
 
-        const bookings = await executeQuery(query, params);
+        const finalQuery = currentUserId ? withUserCtx(query, currentUserId) : query;
+        const bookings = await executeQuery(finalQuery, params);
 
         return { statusCode: 200, headers, body: JSON.stringify(bookings) };
       }

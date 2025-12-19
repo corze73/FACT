@@ -9,18 +9,43 @@ const API_BASE = import.meta.env.DEV
 
 class APIClient {
   /**
+   * Get current user ID from localStorage for RLS context
+   */
+  getCurrentUserId() {
+    try {
+      const storedUser = localStorage.getItem('currentUser');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        return user?.id;
+      }
+    } catch (error) {
+      console.error('Error reading current user:', error);
+    }
+    return null;
+  }
+
+  /**
    * Make an API request to Netlify function
    */
   async request(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
     
+    // Get current user ID for RLS context
+    const userId = this.getCurrentUserId();
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers
+    };
+    
+    // Add user ID header for RLS context if available
+    if (userId) {
+      headers['x-user-id'] = userId;
+    }
+    
     try {
       const response = await fetch(url, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
+        headers
       });
 
       // Handle empty responses (204 No Content)

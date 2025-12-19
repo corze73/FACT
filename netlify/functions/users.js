@@ -18,7 +18,7 @@ const getAllowedOrigin = (requestOrigin) => {
 
 const getHeaders = (event) => ({
   'Access-Control-Allow-Origin': getAllowedOrigin(event.headers?.origin),
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-id, x-user-id',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Credentials': 'true',
   'Content-Type': 'application/json'
@@ -49,9 +49,13 @@ export async function handler(event) {
   }
 
   try {
-    let { httpMethod, body, path } = event;
+    let { httpMethod, body, path, headers: requestHeaders } = event;
     
     console.log('📊 Processing request:', { httpMethod, path, hasBody: !!body });
+    
+    // Extract user ID from request headers for RLS context
+    const currentUserId = requestHeaders?.['x-user-id'] || requestHeaders?.['x-admin-id'];
+    console.log('👤 Current user ID from headers:', currentUserId);
     
     // Parse body if it exists and is base64 encoded
     if (body && event.isBase64Encoded) {
@@ -122,7 +126,9 @@ export async function handler(event) {
 
           query += ' ORDER BY created_at DESC';
 
-          const users = await executeQuery(query, params);
+          // Set RLS context if user is authenticated
+          const finalQuery = currentUserId ? withUserCtx(query, currentUserId) : query;
+          const users = await executeQuery(finalQuery, params);
 
           return {
             statusCode: 200,
