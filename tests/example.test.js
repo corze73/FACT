@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import userEvent from '@testing-library/user-event';
+// Uncomment these when you start writing component tests:
+// import { render, screen, waitFor } from '@testing-library/react';
+// import { BrowserRouter } from 'react-router-dom';
+// import userEvent from '@testing-library/user-event';
 
 // Example: Testing a simple component
 // Replace with your actual components
@@ -18,6 +19,10 @@ describe('Example Test Suite', () => {
 
   // Example component test (uncomment and adapt for real components)
   /*
+  import { render, screen } from '@testing-library/react';
+  import { BrowserRouter } from 'react-router-dom';
+  import userEvent from '@testing-library/user-event';
+  
   describe('Button Component', () => {
     it('renders with correct text', () => {
       render(
@@ -50,7 +55,7 @@ describe('Example Test Suite', () => {
 describe('API Client', () => {
   it('should mock fetch calls', async () => {
     // Mock global fetch
-    global.fetch = vi.fn(() =>
+    globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ success: true }),
