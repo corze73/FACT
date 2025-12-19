@@ -38,3 +38,6 @@ REGISTRATION-ISSUE-RESOLVED.md
 .env.*.local
 *.env
 .env.*
+
+# Local Netlify folder
+.netlify
