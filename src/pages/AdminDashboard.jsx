@@ -51,7 +51,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
+        // Check if user is logged in
+        const storedUser = localStorage.getItem('currentUser');
+        if (!storedUser) {
+          console.error('❌ Not logged in - redirecting to login');
+          navigate(createPageUrl('Login'));
+          return;
+        }
+        
         const me = await User.me();
+        console.log('👤 Current user:', me);
         setCurrentUser(me);
         if (me.role !== "admin") {
           const home = me.user_type === "coach" ? "CoachDashboard" : "FindCoaches";
@@ -59,7 +68,9 @@ export default function AdminDashboard() {
           return;
         }
 
+        console.log('📊 Fetching users list...');
   const allUsers = await User.list();
+        console.log('✅ Fetched', allUsers?.length || 0, 'users');
 
   // Break down by type and role
   const admins = allUsers.filter(u => u.role === "admin").length;
@@ -68,7 +79,9 @@ export default function AdminDashboard() {
   const totalUsers = totalCoaches + totalClients; // excludes admins
   const totalAccounts = allUsers.length; // includes admins
 
+        console.log('📅 Fetching bookings list...');
         const allBookings = await Booking.list('-created_at', 1000);
+        console.log('✅ Fetched', allBookings?.length || 0, 'bookings');
         
         const totalBookings = allBookings.length;
         const pending = allBookings.filter(b => b.status === "pending").length;
@@ -89,7 +102,16 @@ export default function AdminDashboard() {
   const pendingReqs = await User.listDeletionRequests({ status: 'pending' });
   setDeletionRequests(pendingReqs || []);
       } catch (error) {
-        console.error('Error loading admin dashboard data:', error);
+        console.error('❌ Error loading admin dashboard data:', error);
+        console.error('Error details:', {
+          message: error.message,
+          status: error.status,
+          details: error.details
+        });
+        // If unauthorized, redirect to login
+        if (error.status === 401 || error.message?.includes('Not authenticated')) {
+          navigate(createPageUrl('Login'));
+        }
       } finally {
         setLoading(false);
       }
