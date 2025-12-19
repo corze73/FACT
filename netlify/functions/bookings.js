@@ -77,24 +77,7 @@ export async function handler(event) {
       case 'GET': {
         // Admin dashboard stats for tiles (Total/Pending/Confirmed/Completed/Cancelled)
         if (isTruthy(queryStringParameters?.stats)) {
-          // Default: stats for active (non-archived)
-          // You can pass ?archived=1 for archived stats, or ?include_archived=1 for everything
-          const archivedOnly = isTruthy(queryStringParameters?.archived);
-          const includeArchived = isTruthy(queryStringParameters?.include_archived);
-
-          const where = [];
-          const params = [];
-
-          if (!includeArchived) {
-            if (archivedOnly) {
-              where.push(`b.is_archived = true`);
-            } else {
-              where.push(`b.is_archived = false`);
-            }
-          }
-
-          const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
+          // Note: is_archived column doesn't exist - showing all bookings
           const statsQuery = `
             SELECT
               COUNT(*)::int AS total,
@@ -103,11 +86,10 @@ export async function handler(event) {
               COUNT(*) FILTER (WHERE b.status = 'completed')::int AS completed,
               COUNT(*) FILTER (WHERE b.status = 'cancelled')::int AS cancelled
             FROM bookings b
-            ${whereSql}
             `;
           
           const finalStatsQuery = currentUserId ? withUserCtx(statsQuery, currentUserId) : statsQuery;
-          const stats = await executeQueryOne(finalStatsQuery, params);
+          const stats = await executeQueryOne(finalStatsQuery);
 
           return {
             statusCode: 200,
@@ -147,14 +129,8 @@ export async function handler(event) {
         const conditions = [];
         const params = [];
 
-        // Archive filters (default: active only)
-        const archivedOnly = isTruthy(queryStringParameters?.archived);
-        const includeArchived = isTruthy(queryStringParameters?.include_archived);
-
-        if (!includeArchived) {
-          conditions.push(`b.is_archived = $${params.length + 1}`);
-          params.push(archivedOnly ? true : false);
-        }
+        // Note: is_archived column doesn't exist - removed archive filtering
+        // If needed in future, add migration to create is_archived column
 
         if (queryStringParameters?.coach_id) {
           conditions.push(`b.coach_id = $${params.length + 1}`);
