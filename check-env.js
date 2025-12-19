@@ -1,5 +1,5 @@
-# Quick Setup Script - Run this to check your environment
-# Usage: node check-env.js
+// Quick Setup Script - Run this to check your environment
+// Usage: node check-env.js
 
 import fs from 'fs';
 import { fileURLToPath } from 'url';

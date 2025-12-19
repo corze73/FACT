@@ -309,6 +309,7 @@ export const Booking = {
     try {
       const filters = {};
       if (limit) filters.limit = limit;
+      if (orderBy) filters.orderBy = orderBy;
       // orderBy format: '-created_at' means DESC, 'created_at' means ASC
       return await apiClient.getBookings(filters);
     } catch (error) {
