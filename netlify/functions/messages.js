@@ -1,12 +1,24 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 
-const headers = {
-  'Access-Control-Allow-Origin': '*',
+const getAllowedOrigin = (requestOrigin) => {
+  const allowedOrigins = [
+    'https://findacoachtoday.com',
+    'https://www.findacoachtoday.com',
+    'http://localhost:5173',
+    'http://localhost:8888'
+  ];
+  if (process.env.NETLIFY_DEV === 'true') return requestOrigin || '*';
+  return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+};
+
+const getHeaders = (event) => ({
+  'Access-Control-Allow-Origin': getAllowedOrigin(event.headers?.origin),
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Credentials': 'true',
   'Content-Type': 'application/json'
-};
+});
 
 /**
  * Netlify Function: Message Operations
@@ -16,6 +28,8 @@ const headers = {
  * - PUT /api/messages/:id - Mark message as read
  */
 export async function handler(event) {
+  const headers = getHeaders(event);
+  
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }

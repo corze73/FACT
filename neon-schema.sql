@@ -1,28 +1,3 @@
--- Create the database -- Create bookings table
-CREATE TABLE IF NOT EXISTS bookings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id),
-    client_id UUID REFERENCES profiles(id),
-    coach_id UUID REFERENCES profiles(id),
-    status TEXT CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')) DEFAULT 'pending',
-    booking_date TIMESTAMPTZ NOT NULL,
-    duration INTEGER NOT NULL, -- in minutes
-    service_type TEXT, -- type of coaching service
-    location TEXT, -- legacy location field
-    location_type TEXT DEFAULT 'online', -- online/in-person
-    location_address TEXT, -- address for in-person sessions
-    location_notes TEXT, -- additional location info
-    notes TEXT, -- legacy notes field
-    client_notes TEXT, -- user's special requests
-    price DECIMAL(10,2),
-    admin_fee DECIMAL(10,2) DEFAULT 3.00,
-    total_price DECIMAL(10,2),
-    session_completed_by_user BOOLEAN DEFAULT false,
-    session_completed_by_coach BOOLEAN DEFAULT false,
-    cancellation_reason TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);app
 -- This recreates the Supabase structure in Neon
 
 -- Create profiles table
@@ -55,9 +30,18 @@ CREATE TABLE IF NOT EXISTS bookings (
     booking_date TIMESTAMPTZ NOT NULL,
     duration INTEGER NOT NULL, -- in minutes
     service_type TEXT, -- type of coaching service
-    location TEXT,
-    notes TEXT,
+    location TEXT, -- legacy location field
+    location_type TEXT DEFAULT 'online', -- online/in-person
+    location_address TEXT, -- address for in-person sessions
+    location_notes TEXT, -- additional location info
+    notes TEXT, -- legacy notes field
+    client_notes TEXT, -- user's special requests
     price DECIMAL(10,2),
+    admin_fee DECIMAL(10,2) DEFAULT 3.00,
+    total_price DECIMAL(10,2),
+    session_completed_by_user BOOLEAN DEFAULT false,
+    session_completed_by_coach BOOLEAN DEFAULT false,
+    cancellation_reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -305,13 +305,16 @@ User.restore = async function(id) {
 
 // ========== BOOKING ENTITY (Migrated to API) ==========
 export const Booking = {
-  async list() {
+  async list(orderBy = '-created_at', limit = null) {
     try {
-      return await apiClient.getBookings();
+      const filters = {};
+      if (limit) filters.limit = limit;
+      // orderBy format: '-created_at' means DESC, 'created_at' means ASC
+      return await apiClient.getBookings(filters);
     } catch (error) {
       console.error('API list failed, using fallback:', error);
       if (!dbAvailable) throw error;
-      const data = await db.select('bookings', { orderBy: { created_date: 'desc' } });
+      const data = await db.select('bookings', { orderBy: { created_date: 'desc' }, limit: limit || undefined });
       return data || [];
     }
   },

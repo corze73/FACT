@@ -4,12 +4,25 @@ import crypto from 'crypto';
 import { Buffer } from 'buffer';
 
 // CORS headers for all responses
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Content-Type': 'application/json'
+const getAllowedOrigin = (requestOrigin) => {
+  const allowedOrigins = [
+    'https://findacoachtoday.com',
+    'https://www.findacoachtoday.com',
+    'http://localhost:5173',
+    'http://localhost:8888'
+  ];
+  // In development (Netlify CLI), allow localhost
+  if (process.env.NETLIFY_DEV === 'true') return requestOrigin || '*';
+  return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
 };
+
+const getHeaders = (event) => ({
+  'Access-Control-Allow-Origin': getAllowedOrigin(event.headers?.origin),
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-id',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Credentials': 'true',
+  'Content-Type': 'application/json'
+});
 
 // Version: 2024-10-16-001
 /**
@@ -22,6 +35,8 @@ const headers = {
  * - DELETE /api/users/:id - Delete user
  */
 export async function handler(event) {
+  const headers = getHeaders(event);
+  
   console.log('🔍 Users function called:', {
     method: event.httpMethod,
     path: event.path,
