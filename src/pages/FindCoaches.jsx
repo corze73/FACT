@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Filter, Users, Plus } from "lucide-react";
+import { Search, MapPin, Filter, Users, Plus, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -17,7 +17,6 @@ import BookingModal from "../components/booking/BookingModal";
 export default function FindCoaches() {
   const navigate = useNavigate();
   const [coaches, setCoaches] = useState([]);
-  const [filteredCoaches, setFilteredCoaches] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCoach, setSelectedCoach] = useState(null);
@@ -75,13 +74,16 @@ export default function FindCoaches() {
     })();
   }, [navigate]);
 
-  const applyFilters = useCallback(() => {
+  // Compute filtered coaches efficiently with useMemo
+  const filteredCoaches = useMemo(() => {
+    if (!coaches || coaches.length === 0) return [];
     let filtered = [...coaches];
 
     if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
       filtered = filtered.filter(coach => 
-        coach.full_name?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-        coach.bio?.toLowerCase().includes(filters.searchTerm.toLowerCase())
+        coach.full_name?.toLowerCase().includes(searchLower) ||
+        coach.bio?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -107,20 +109,34 @@ export default function FindCoaches() {
     }
 
     if (filters.location) {
+      const locationLower = filters.location.toLowerCase();
       filtered = filtered.filter(coach => {
         const location = typeof coach.location === 'string' 
           ? coach.location 
           : coach.location?.address || '';
-        return location.toLowerCase().includes(filters.location.toLowerCase());
+        return location.toLowerCase().includes(locationLower);
       });
     }
 
-    setFilteredCoaches(filtered);
-  }, [coaches, filters]); // dependencies for useCallback
+    return filtered;
+  }, [coaches, filters]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]); // applyFilters is now a stable dependency
+  const clearFilters = () => {
+    setFilters({
+      searchTerm: '',
+      serviceType: 'all',
+      priceRange: 'all',
+      rating: 'all',
+      location: ''
+    });
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = filters.searchTerm || 
+    filters.serviceType !== 'all' || 
+    filters.priceRange !== 'all' || 
+    filters.rating !== 'all' || 
+    filters.location;
 
   const handleBookCoach = (coach) => {
     setSelectedCoach(coach);
@@ -293,6 +309,17 @@ export default function FindCoaches() {
                   />
                 </div>
               </div>
+
+              {hasActiveFilters && (
+                <Button 
+                  variant="outline" 
+                  onClick={clearFilters}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  Clear Filters
+                </Button>
+              )}
             </CardContent>
           </Card>
         </motion.div>
