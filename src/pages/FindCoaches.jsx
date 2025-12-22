@@ -47,7 +47,7 @@ export default function FindCoaches() {
       
       // Load all coaches (works for guests too)
       const allUsers = await User.list();
-      const coachUsers = allUsers.filter(u => u.user_type === 'coach' && u.coach_profile);
+      const coachUsers = allUsers.filter(u => u.user_type === 'coach');
       setCoaches(coachUsers);
     } catch (error) {
       console.error("Error loading data:", error);
