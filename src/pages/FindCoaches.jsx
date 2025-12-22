@@ -36,10 +36,16 @@ export default function FindCoaches() {
   // as the IIFE runs only once.
   const loadData = async () => {
     try {
-      const user = await User.me();
-      setCurrentUser(user);
+      // Try to get current user, but don't require it
+      try {
+        const user = await User.me();
+        setCurrentUser(user);
+      } catch (error) {
+        console.log("User not authenticated - browsing as guest");
+        setCurrentUser(null);
+      }
       
-      // Load all coaches
+      // Load all coaches (works for guests too)
       const allUsers = await User.list();
       const coachUsers = allUsers.filter(u => u.user_type === 'coach' && u.coach_profile);
       setCoaches(coachUsers);
@@ -51,23 +57,23 @@ export default function FindCoaches() {
   };
 
   useEffect(() => {
-    // Redirect admins to AdminDashboard
+    // Redirect admins to AdminDashboard, allow guests to browse
     (async () => {
       try {
         const me = await User.me();
         if (me.role === "admin") {
           navigate(createPageUrl("AdminDashboard"));
-          return; // Stop further execution if admin
+          return;
         }
-        // If not admin, proceed to load data for FindCoaches page
+        // Authenticated non-admin user - load data
         loadData();
       } catch (error) {
-        // User not authenticated or other error - redirect to landing
-        console.error("Error checking user role:", error);
-        navigate(createPageUrl("Landing"));
+        // User not authenticated - allow browsing as guest
+        console.log("Loading coaches for guest user");
+        loadData();
       }
     })();
-  }, [navigate]); // include navigate in dependencies
+  }, [navigate]);
 
   const applyFilters = useCallback(() => {
     let filtered = [...coaches];
@@ -178,6 +184,36 @@ export default function FindCoaches() {
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Guest User Banner */}
+        {!currentUser && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-900 mb-1">
+                      👋 Browsing as a guest
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Sign up to see coach names and book sessions
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={() => navigate(createPageUrl("Register"))}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Sign Up Free
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -292,6 +328,7 @@ export default function FindCoaches() {
                 <CoachCard
                   coach={coach}
                   onBook={() => handleBookCoach(coach)}
+                  isGuest={!currentUser}
                 />
               </motion.div>
             ))}

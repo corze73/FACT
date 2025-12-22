@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
-export default function CoachCard({ coach, onBook }) {
+export default function CoachCard({ coach, onBook, isGuest = false }) {
   const navigate = useNavigate();
   const getServiceStyle = (service) => {
     const styles = {
@@ -44,7 +44,7 @@ export default function CoachCard({ coach, onBook }) {
           <div className="relative">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:shadow-xl transition-shadow duration-300">
               <span className="text-2xl font-bold text-white">
-                {coach.full_name?.charAt(0) || 'C'}
+                {isGuest ? '?' : (coach.full_name?.charAt(0) || 'C')}
               </span>
             </div>
             {coach.coach_profile?.is_verified && (
@@ -55,7 +55,7 @@ export default function CoachCard({ coach, onBook }) {
           </div>
           
           <h3 className="text-xl font-bold text-slate-900 mb-1">
-            {coach.full_name}
+            {isGuest ? 'Professional Coach' : coach.full_name}
           </h3>
           
           <div className="flex items-center justify-center gap-1 mb-2">
@@ -113,7 +113,11 @@ export default function CoachCard({ coach, onBook }) {
                 <Button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`${createPageUrl("CoachProfile")}?userId=${coach.id}`);
+                    if (isGuest) {
+                      navigate(createPageUrl("Register"));
+                    } else {
+                      navigate(`${createPageUrl("CoachProfile")}?userId=${coach.id}`);
+                    }
                   }}
                   variant="outline"
                   size="sm"
@@ -124,12 +128,16 @@ export default function CoachCard({ coach, onBook }) {
                 <Button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    onBook(coach);
+                    if (isGuest) {
+                      navigate(createPageUrl("Register"));
+                    } else {
+                      onBook(coach);
+                    }
                   }}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
                 >
                   <Calendar className="w-4 h-4 mr-2" />
-                  Book
+                  {isGuest ? 'Sign Up to Book' : 'Book'}
                 </Button>
               </div>
             </div>
