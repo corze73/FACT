@@ -107,9 +107,12 @@ export default function FindCoaches() {
     }
 
     if (filters.location) {
-      filtered = filtered.filter(coach => 
-        coach.location?.address?.toLowerCase().includes(filters.location.toLowerCase())
-      );
+      filtered = filtered.filter(coach => {
+        const location = typeof coach.location === 'string' 
+          ? coach.location 
+          : coach.location?.address || '';
+        return location.toLowerCase().includes(filters.location.toLowerCase());
+      });
     }
 
     setFilteredCoaches(filtered);

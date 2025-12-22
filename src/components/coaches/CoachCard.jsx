@@ -65,10 +65,10 @@ export default function CoachCard({ coach, onBook, isGuest = false }) {
             </span>
           </div>
           
-          {coach.location?.address && (
+          {(coach.location || coach.location?.address) && (
             <div className="flex items-center justify-center gap-1 text-slate-500 text-sm">
               <MapPin className="w-3 h-3" />
-              <span>{coach.location.address}</span>
+              <span>{typeof coach.location === 'string' ? coach.location : coach.location?.address}</span>
             </div>
           )}
         </CardHeader>
