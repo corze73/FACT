@@ -16,8 +16,14 @@ export default function Landing() {
   // The useEffect hook that previously handled automatic redirection is removed.
 
   const handleRoleSelection = (userType) => {
-    const registrationType = userType === 'client' ? 'user' : userType;
-    navigate(createPageUrl(`Register?type=${registrationType}`));
+    if (userType === 'client') {
+      // Allow guests to browse coaches without registering
+      navigate(createPageUrl('FindCoaches'));
+    } else {
+      // Coaches need to register first
+      const registrationType = userType === 'client' ? 'user' : userType;
+      navigate(createPageUrl(`Register?type=${registrationType}`));
+    }
   };
   
   const handleLogin = async () => {
