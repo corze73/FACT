@@ -286,6 +286,7 @@ export default function Register() {
                             placeholder="your@email.com"
                             value={formData.email}
                             onChange={(e) => handleInputChange('email', e.target.value)}
+                            autoComplete="off"
                             required
                             className="pl-10"
                           />
@@ -301,6 +302,7 @@ export default function Register() {
                             placeholder="Min. 6 characters"
                             value={formData.password}
                             onChange={(e) => handleInputChange('password', e.target.value)}
+                            autoComplete="new-password"
                             required
                             minLength={6}
                             className="pl-10 pr-10"

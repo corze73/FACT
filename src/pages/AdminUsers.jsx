@@ -7,10 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { ExternalLink, Trash2, Check, X } from "lucide-react";
+import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+
+const USERS_PER_PAGE = 20;
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -18,6 +20,7 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [reason, setReason] = useState("");
@@ -92,6 +95,20 @@ export default function AdminUsers() {
       });
   }, [users, typeParam, search]);
 
+  // Pagination
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * USERS_PER_PAGE;
+    const endIndex = startIndex + USERS_PER_PAGE;
+    return filtered.slice(startIndex, endIndex);
+  }, [filtered, currentPage]);
+
+  const totalPages = Math.ceil(filtered.length / USERS_PER_PAGE);
+
+  // Reset to page 1 when search or type changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, typeParam]);
+
   if (loading) return <div className="p-8">Loading users...</div>;
   if (!currentUser || currentUser.role !== "admin") return null;
 
@@ -163,7 +180,7 @@ export default function AdminUsers() {
               <Input placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((u, idx) => (
+              {paginatedUsers.map((u, idx) => (
                 <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }}>
                   <Card 
                     className="border border-slate-200 cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all duration-200 group"
@@ -236,6 +253,63 @@ export default function AdminUsers() {
                 </motion.div>
               ))}
             </div>
+            
+            {/* Pagination Controls */}
+            {filtered.length > USERS_PER_PAGE && (
+              <div className="mt-6 flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      return page === 1 || 
+                             page === totalPages || 
+                             Math.abs(page - currentPage) <= 1;
+                    })
+                    .map((page, idx, arr) => (
+                      <div key={page} className="flex items-center gap-2">
+                        {idx > 0 && arr[idx - 1] !== page - 1 && (
+                          <span className="text-slate-400">...</span>
+                        )}
+                        <Button
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className="w-10"
+                        >
+                          {page}
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            )}
+            
+            {/* Results counter */}
+            {filtered.length > 0 && (
+              <div className="mt-4 text-center text-sm text-slate-600">
+                Showing {((currentPage - 1) * USERS_PER_PAGE) + 1} - {Math.min(currentPage * USERS_PER_PAGE, filtered.length)} of {filtered.length} users
+              </div>
+            )}
+            
             {filtered.length === 0 && <p className="text-slate-500 mt-4">No users found.</p>}
           </CardContent>
         </Card>
