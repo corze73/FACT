@@ -86,6 +86,21 @@ class APIClient {
     return this.request(`/users/${id}`);
   }
 
+  /**
+   * Get all coaches (role='coach')
+   */
+  async getCoaches(filters = '') {
+    const query = filters ? `?${filters}` : '?role=coach';
+    return this.request(`/users${query}`);
+  }
+
+  /**
+   * Get single coach by ID
+   */
+  async getCoachById(id) {
+    return this.request(`/users/${id}`);
+  }
+
   // ========== ACCOUNT DELETION REQUESTS ==========
   async createDeletionRequest(userId, reason) {
     return this.request('/account-deletion-requests', {
@@ -156,11 +171,25 @@ class APIClient {
   }
 
   /**
+   * Alias for getBooking (for consistency with hooks)
+   */
+  async getBookingById(id) {
+    return this.getBooking(id);
+  }
+
+  /**
    * Get all bookings (with optional filters)
    */
   async getBookings(filters = {}) {
     const params = new URLSearchParams(filters);
     return this.request(`/bookings?${params}`);
+  }
+
+  /**
+   * Get booking statistics (admin dashboard)
+   */
+  async getBookingStats() {
+    return this.request('/bookings?stats=1');
   }
 
   /**

@@ -3,6 +3,7 @@
 
 import Stripe from 'stripe'
 import { executeQuery, executeQueryOne } from './lib/db.js'
+import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
@@ -25,6 +26,13 @@ export async function handler(event) {
   const path = (event.path || '').replace(/^.*\/stripe/, '') || '/'
 
   console.log('[Stripe Function] Invoked:', { method, path, rawPath: event.path })
+
+  // Apply rate limiting (skip for webhooks as they come from Stripe)
+  if (!path.startsWith('/webhook')) {
+    const headers = { 'Content-Type': 'application/json' };
+    const rateLimitResponse = rateLimitMiddleware(event, headers, RATE_LIMITS.mutation);
+    if (rateLimitResponse) return rateLimitResponse;
+  }
 
   try {
     if (method === 'POST' && path.startsWith('/webhook')) {

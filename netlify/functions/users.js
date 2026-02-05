@@ -1,5 +1,6 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
+import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
 
@@ -47,6 +48,11 @@ export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
+
+  // Apply rate limiting (stricter for POST/registration, normal for reads)
+  const limit = event.httpMethod === 'POST' ? RATE_LIMITS.auth : RATE_LIMITS.default;
+  const rateLimitResponse = rateLimitMiddleware(event, headers, limit);
+  if (rateLimitResponse) return rateLimitResponse;
 
   try {
     let { httpMethod, body, path, headers: requestHeaders } = event;

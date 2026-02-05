@@ -1,5 +1,6 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
+import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -33,6 +34,10 @@ export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
+
+  // Apply messaging rate limit
+  const rateLimitResponse = rateLimitMiddleware(event, headers, RATE_LIMITS.mutation);
+  if (rateLimitResponse) return rateLimitResponse;
 
   try {
     const { body, path, queryStringParameters } = event;

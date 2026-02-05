@@ -1,5 +1,6 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
+import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -12,6 +13,10 @@ export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
+
+  // Apply rate limiting (stricter for sensitive account operations)
+  const rateLimitResponse = rateLimitMiddleware(event, headers, RATE_LIMITS.auth);
+  if (rateLimitResponse) return rateLimitResponse;
 
   try {
     const { httpMethod } = event;

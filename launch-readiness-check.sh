@@ -192,6 +192,55 @@ else
     test_result 1 "Google Analytics not integrated"
 fi
 
+echo -e "\n${BLUE}9. Testing Phase 2 Infrastructure${NC}"
+echo "----------------------------------"
+
+# Check React Query setup
+if grep -q "QueryClientProvider" src/main.jsx; then
+    test_result 0 "React Query configured"
+else
+    test_result 1 "React Query not configured"
+fi
+
+if [ -f "src/lib/queryClient.js" ]; then
+    test_result 0 "Query client configuration exists"
+else
+    test_result 1 "Query client configuration missing"
+fi
+
+if [ -f "src/hooks/useQueries.js" ]; then
+    test_result 0 "Custom React Query hooks exist"
+else
+    test_result 1 "Custom React Query hooks missing"
+fi
+
+# Check rate limiting
+if [ -f "netlify/functions/lib/rateLimiter.js" ]; then
+    test_result 0 "Rate limiter utility exists"
+else
+    test_result 1 "Rate limiter utility missing"
+fi
+
+if grep -q "rateLimitMiddleware" netlify/functions/users.js; then
+    test_result 0 "Rate limiting applied to users endpoint"
+else
+    test_result 1 "Rate limiting not applied to users endpoint"
+fi
+
+# Check error handling
+if [ -f "netlify/functions/lib/errorHandler.js" ]; then
+    test_result 0 "Error handler utility exists"
+else
+    test_result 1 "Error handler utility missing"
+fi
+
+# Check if toast notifications are implemented
+if grep -q "showSuccess\|showError" src/utils/notifications.js 2>/dev/null; then
+    test_result 0 "Toast notification system implemented"
+else
+    test_result 1 "Toast notification system missing"
+fi
+
 echo -e "\n${BLUE}=== LAUNCH READINESS SUMMARY ===${NC}"
 echo "==============================="
 echo -e "✅ Tests Passed: ${GREEN}$PASSED${NC}"
