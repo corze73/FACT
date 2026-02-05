@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
@@ -7,12 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Filter, Users, Plus, X } from "lucide-react";
+import { Search, MapPin, Filter, Users, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { showSuccess, showError, devLog, devError } from "@/utils/notifications";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import CoachCard from "../components/coaches/CoachCard";
 import BookingModal from "../components/booking/BookingModal";
+
+const COACHES_PER_PAGE = 24;
 
 export default function FindCoaches() {
   const navigate = useNavigate();
@@ -21,13 +23,16 @@ export default function FindCoaches() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCoach, setSelectedCoach] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [filters, setFilters] = useState({
     searchTerm: '',
     serviceType: 'all',
     priceRange: 'all',
     rating: 'all',
-    location: ''
+    location: '',
+    country: '',
+    city: ''
   });
 
   // loadData needs to be stable or in dependency array if used by useEffect
@@ -40,7 +45,7 @@ export default function FindCoaches() {
         const user = await User.me();
         setCurrentUser(user);
       } catch (error) {
-        console.log("User not authenticated - browsing as guest");
+        devLog("User not authenticated - browsing as guest");
         setCurrentUser(null);
       }
       
@@ -49,7 +54,7 @@ export default function FindCoaches() {
       const coachUsers = allUsers.filter(u => u.user_type === 'coach');
       setCoaches(coachUsers);
     } catch (error) {
-      console.error("Error loading data:", error);
+      devError("Error loading data:", error);
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +73,7 @@ export default function FindCoaches() {
         loadData();
       } catch (error) {
         // User not authenticated - allow browsing as guest
-        console.log("Loading coaches for guest user");
+        devLog("Loading coaches for guest user");
         loadData();
       }
     })();
@@ -108,6 +113,20 @@ export default function FindCoaches() {
       );
     }
 
+    if (filters.country) {
+      const countryLower = filters.country.toLowerCase();
+      filtered = filtered.filter(coach => 
+        coach.country?.toLowerCase().includes(countryLower)
+      );
+    }
+
+    if (filters.city) {
+      const cityLower = filters.city.toLowerCase();
+      filtered = filtered.filter(coach => 
+        coach.city?.toLowerCase().includes(cityLower)
+      );
+    }
+
     if (filters.location) {
       const locationLower = filters.location.toLowerCase();
       filtered = filtered.filter(coach => {
@@ -121,14 +140,31 @@ export default function FindCoaches() {
     return filtered;
   }, [coaches, filters]);
 
+  // Paginate filtered results
+  const paginatedCoaches = useMemo(() => {
+    const startIndex = (currentPage - 1) * COACHES_PER_PAGE;
+    const endIndex = startIndex + COACHES_PER_PAGE;
+    return filteredCoaches.slice(startIndex, endIndex);
+  }, [filteredCoaches, currentPage]);
+
+  const totalPages = Math.ceil(filteredCoaches.length / COACHES_PER_PAGE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
   const clearFilters = () => {
     setFilters({
       searchTerm: '',
       serviceType: 'all',
       priceRange: 'all',
       rating: 'all',
-      location: ''
+      location: '',
+      country: '',
+      city: ''
     });
+    setCurrentPage(1);
   };
 
   // Check if any filters are active
@@ -136,7 +172,9 @@ export default function FindCoaches() {
     filters.serviceType !== 'all' || 
     filters.priceRange !== 'all' || 
     filters.rating !== 'all' || 
-    filters.location;
+    filters.location ||
+    filters.country ||
+    filters.city;
 
   const handleBookCoach = (coach) => {
     setSelectedCoach(coach);
@@ -145,7 +183,7 @@ export default function FindCoaches() {
 
   const handleBookingSubmit = async (bookingData) => {
     try {
-      console.log('Submitting booking with data:', {
+      devLog('Submitting booking with data:', {
         ...bookingData,
         user_id: currentUser.id,
         client_id: currentUser.id,
@@ -164,11 +202,10 @@ export default function FindCoaches() {
       setShowBookingModal(false);
       setSelectedCoach(null);
       
-      // Show success message or redirect
-      alert(`Booking request sent successfully to ${selectedCoach.full_name}!`);
+      showSuccess('Booking Requested', `Your booking request has been sent to ${selectedCoach.full_name}!`);
     } catch (error) {
-      console.error("Error creating booking:", error);
-      alert(`Error creating booking: ${error.message}. Please try again.`);
+      devError("Error creating booking:", error);
+      showError('Booking Failed', error.message || 'Unable to create booking. Please try again.');
     }
   };
 
@@ -347,7 +384,7 @@ export default function FindCoaches() {
         {/* Coaches Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
-            {filteredCoaches.map((coach, index) => (
+            {paginatedCoaches.map((coach, index) => (
               <motion.div
                 key={coach.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -364,6 +401,67 @@ export default function FindCoaches() {
             ))}
           </AnimatePresence>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredCoaches.length > COACHES_PER_PAGE && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-8 flex items-center justify-center gap-2"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Previous
+            </Button>
+            
+            <div className="flex items-center gap-2">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => {
+                  // Show first page, last page, current page, and pages around current
+                  return page === 1 || 
+                         page === totalPages || 
+                         Math.abs(page - currentPage) <= 1;
+                })
+                .map((page, idx, arr) => (
+                  <div key={page} className="flex items-center gap-2">
+                    {idx > 0 && arr[idx - 1] !== page - 1 && (
+                      <span className="text-slate-400">...</span>
+                    )}
+                    <Button
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-10"
+                    >
+                      {page}
+                    </Button>
+                  </div>
+                ))}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Results count */}
+        {filteredCoaches.length > 0 && (
+          <div className="mt-4 text-center text-sm text-slate-600">
+            Showing {((currentPage - 1) * COACHES_PER_PAGE) + 1} - {Math.min(currentPage * COACHES_PER_PAGE, filteredCoaches.length)} of {filteredCoaches.length} coaches
+          </div>
+        )}
 
         {filteredCoaches.length === 0 && !isLoading && (
           <motion.div

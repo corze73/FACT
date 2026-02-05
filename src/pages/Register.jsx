@@ -29,6 +29,8 @@ export default function Register() {
     phone: '',
     bio: '',
     location: { address: '' },
+    country: '',
+    city: '',
     preferred_coaching_types: [],
     preferred_session_times: [],
     user_type: userType,
@@ -46,12 +48,12 @@ export default function Register() {
     e.preventDefault();
     
     if (!formData.email || !formData.password || !formData.full_name) {
-      alert('Please fill in all required fields');
+      showError('Required Fields', 'Please fill in all required fields');
       return;
     }
     
     if (formData.password.length < 6) {
-      alert('Password must be at least 6 characters long');
+      showError('Invalid Password', 'Password must be at least 6 characters long');
       return;
     }
     
@@ -63,14 +65,14 @@ export default function Register() {
       // Sign up with email and password
       await User.signUpWithEmail(formData.email, formData.password, formData);
       
-      alert('Account created successfully! Please check your email to verify your account, then you can log in.');
+      showSuccess('Account Created', 'Please check your email to verify your account, then you can log in.');
       navigate(createPageUrl("Landing"));
     } catch (error) {
-      console.error("Registration error:", error);
-      if (error.message.includes('User already registered')) {
-        alert("An account with this email already exists. Please try logging in instead.");
+      devError("Registration error:", error);
+      if (error.message?.includes('already')) {
+        showError('Account Exists', 'An account with this email already exists. Please try logging in instead.');
       } else {
-        alert(`Registration failed: ${error.message}`);
+        showError('Registration Failed', error.message || 'An unexpected error occurred');
       }
     } finally {
       setIsLoading(false);
@@ -90,10 +92,10 @@ export default function Register() {
       const redirectUrl = window.location.origin + createPageUrl("Landing?next=dashboard");
       await User.loginWithRedirect(redirectUrl);
     } catch (error) {
-      console.error("Registration error:", error);
+      devError("Registration error:", error);
       // Clear stored data on error
       sessionStorage.removeItem('pendingProfileData');
-      alert("Registration failed. Please try again.");
+      showError('Registration Failed', 'Unable to register. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -383,15 +385,34 @@ export default function Register() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="location">Your Location</Label>
+                  <Label>Your Location</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Input
+                        id="country"
+                        placeholder="Country (e.g., United Kingdom)"
+                        value={formData.country}
+                        onChange={(e) => handleInputChange('country', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        id="city"
+                        placeholder="City (e.g., London)"
+                        value={formData.city}
+                        onChange={(e) => handleInputChange('city', e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                     <Input
                       id="location"
-                      placeholder="Enter city, postcode, or area"
+                      placeholder="Full address or area (optional)"
                       value={formData.location.address}
                       onChange={(e) => handleInputChange('location.address', e.target.value)}
-                      required
                       className="pl-10"
                     />
                   </div>

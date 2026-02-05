@@ -64,7 +64,9 @@ export default function CoachProfile() {
         id: userToLoad.id,
         full_name: userToLoad.full_name || '',
         phone: userToLoad.phone || '',
-        location: { address: userToLoad.location?.address || '' },
+        location: { address: userToLoad.location?.address || userToLoad.location || '' },
+        country: userToLoad.country || '',
+        city: userToLoad.city || '',
         bio: userToLoad.bio || '',
         avatar_url: userToLoad.avatar_url || '',
         video_clip_1: userToLoad.video_clip_1 || '',
@@ -367,8 +369,34 @@ export default function CoachProfile() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="location">Your Location</Label>
-                    <Input id="location" value={formData.location.address} onChange={(e) => handleInputChange('location.address', e.target.value)} disabled={isViewingAsAdmin} />
+                    <Label>Your Location</Label>
+                    <div className="grid grid-cols-2 gap-4 mb-2">
+                      <div>
+                        <Input 
+                          id="country"
+                          placeholder="Country"
+                          value={formData.country} 
+                          onChange={(e) => handleInputChange('country', e.target.value)} 
+                          disabled={isViewingAsAdmin}
+                        />
+                      </div>
+                      <div>
+                        <Input 
+                          id="city"
+                          placeholder="City"
+                          value={formData.city} 
+                          onChange={(e) => handleInputChange('city', e.target.value)} 
+                          disabled={isViewingAsAdmin}
+                        />
+                      </div>
+                    </div>
+                    <Input 
+                      id="location"
+                      placeholder="Full address (optional)"
+                      value={formData.location.address} 
+                      onChange={(e) => handleInputChange('location.address', e.target.value)} 
+                      disabled={isViewingAsAdmin}
+                    />
                   </div>
                   
                   <div className="space-y-2">
