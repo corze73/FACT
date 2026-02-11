@@ -27,8 +27,9 @@ export const RATE_LIMITS = {
   // Default: 100 requests per 15 minutes
   default: { max: 100, windowMs: 15 * 60 * 1000 },
   
-  // Authentication endpoints: 5 attempts per 15 minutes
-  auth: { max: 5, windowMs: 15 * 60 * 1000 },
+  // Authentication endpoints: allow more generous attempts per 15 minutes
+  // (still protects against brute-force, but avoids blocking normal usage)
+  auth: { max: 30, windowMs: 15 * 60 * 1000 },
   
   // Mutations (POST/PUT/DELETE): 30 per minute
   mutation: { max: 30, windowMs: 60 * 1000 },
