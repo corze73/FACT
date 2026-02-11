@@ -189,13 +189,17 @@ export async function handler(event) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'booking_date is required (timestamptz)' }) };
         }
 
-        const newBooking = await executeQueryOne(
-          `INSERT INTO bookings (
+        const insertQuery = `INSERT INTO bookings (
             coach_id, client_id, service_type, booking_date,
             duration, location_type, location_address, location_notes, client_notes,
             price, admin_fee, total_price, status
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-          RETURNING *`,
+          RETURNING *`;
+
+        const finalInsertQuery = currentUserId ? withUserCtx(insertQuery, currentUserId) : insertQuery;
+
+        const newBooking = await executeQueryOne(
+          finalInsertQuery,
           [
             bookingData.coach_id,
             bookingData.client_id,
@@ -232,6 +236,18 @@ export async function handler(event) {
           updateParams.push(val);
         };
 
+        // High-level flags from UI
+        if (updateData.accept === true) {
+          setField('status', 'confirmed');
+        }
+
+        if (updateData.cancel === true) {
+          setField('status', 'cancelled');
+          if (updateData.cancellation_reason !== undefined) {
+            setField('cancellation_reason', updateData.cancellation_reason);
+          }
+        }
+
         if (updateData.status !== undefined) setField('status', updateData.status);
         if (updateData.booking_date !== undefined) setField('booking_date', updateData.booking_date);
         if (updateData.duration !== undefined) setField('duration', updateData.duration);
@@ -241,6 +257,10 @@ export async function handler(event) {
         if (updateData.client_notes !== undefined) setField('client_notes', updateData.client_notes);
         if (updateData.notes !== undefined) setField('notes', updateData.notes);
         if (updateData.service_type !== undefined) setField('service_type', updateData.service_type);
+        if (updateData.cancellation_reason !== undefined && !updateData.cancel) {
+          // Allow direct reason update even if cancel flag wasn't set in this payload
+          setField('cancellation_reason', updateData.cancellation_reason);
+        }
 
         if (updateFields.length === 0) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'No fields to update' }) };
@@ -249,8 +269,11 @@ export async function handler(event) {
         updateFields.push(`updated_at = NOW()`);
         updateParams.push(bookingId);
 
+        const baseUpdateQuery = `UPDATE bookings SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+        const finalUpdateQuery = currentUserId ? withUserCtx(baseUpdateQuery, currentUserId) : baseUpdateQuery;
+
         const updatedBooking = await executeQueryOne(
-          `UPDATE bookings SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+          finalUpdateQuery,
           updateParams
         );
 

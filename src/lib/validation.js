@@ -57,32 +57,36 @@ export const coachProfileSchema = z.object({
     .max(10, 'Too many age groups selected'),
 });
 
-// Booking validation
+// Booking validation (aligned with Netlify bookings function + BookingModal)
 export const bookingSchema = z.object({
   coach_id: uuidSchema,
-  service_type: z.enum([
-    'Striker & Finishing',
-    'General & Sparring',
-    'Skill/Passing',
-    'Tactical Analysis'
-  ], {
-    errorMap: () => ({ message: 'Invalid service type' })
-  }),
+  service_type: z.string()
+    .min(1, 'Please select a service type')
+    .max(100, 'Service type is too long'),
   booking_date: z.string()
-    .datetime('Invalid date format')
+    .datetime('Invalid date/time')
     .refine((date) => new Date(date) > new Date(), {
       message: 'Booking date must be in the future'
     }),
-  duration_minutes: z.number()
+  duration: z.number()
     .int()
     .min(30, 'Minimum session duration is 30 minutes')
     .max(240, 'Maximum session duration is 4 hours'),
-  total_amount: z.number()
-    .min(0, 'Amount cannot be negative')
-    .positive(),
-  notes: z.string()
+  location_type: z.string()
+    .min(2, 'Location type is required')
+    .max(50, 'Location type too long'),
+  location_address: z.string()
+    .max(200, 'Location address too long')
+    .optional(),
+  client_notes: z.string()
     .max(500, 'Notes too long')
     .optional(),
+  price: z.number()
+    .min(0, 'Price cannot be negative'),
+  admin_fee: z.number()
+    .min(0, 'Admin fee cannot be negative'),
+  total_price: z.number()
+    .min(0, 'Total price cannot be negative'),
 });
 
 // Message validation

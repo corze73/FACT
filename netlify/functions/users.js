@@ -316,6 +316,10 @@ export async function handler(event) {
                video_clip_3 = CASE WHEN $14::boolean THEN (CASE WHEN $15::boolean THEN NULL ELSE $16 END) ELSE video_clip_3 END,
                deactivated_at = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivated_at END,
                deactivation_reason = CASE WHEN $6 IS TRUE THEN NULL ELSE deactivation_reason END,
+               country = COALESCE($17, country),
+               city = COALESCE($18, city),
+               postcode = COALESCE($19, postcode),
+               coach_profile = COALESCE($20::jsonb, coach_profile),
                updated_at = NOW()
            WHERE id = $7
            RETURNING *`, userId),
@@ -338,7 +342,12 @@ export async function handler(event) {
             // clip 3 controls
             clip3Provided,
             clip3Clear,
-            clip3Url
+            clip3Url,
+            // structured location + coach profile
+            updateData.country,
+            updateData.city,
+            updateData.postcode,
+            updateData.coach_profile || null
           ]
         );
 

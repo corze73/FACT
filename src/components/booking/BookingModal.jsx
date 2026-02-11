@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format, addDays, isToday, isBefore } from "date-fns";
 import { CalendarIcon, Clock, CreditCard } from "lucide-react";
 import { calculatePaymentBreakdown } from "../../utils/payment";
-import { validateAndSanitize, bookingSchema, formatValidationErrors } from "@/lib/validation";
+import { bookingSchema, formatValidationErrors, safeValidate } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
@@ -46,12 +46,24 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       return;
     }
 
+    if (!bookingData.session_date || !bookingData.session_time) {
+      setValidationErrors({
+        session_date: ['Please select a date'],
+        session_time: ['Please select a time']
+      });
+      alert('Please select a session date and time');
+      return;
+    }
+
+    // Combine date + time into a single booking_date (ISO string)
+    const datePart = format(bookingData.session_date, 'yyyy-MM-dd');
+    const bookingDateIso = new Date(`${datePart}T${bookingData.session_time}:00`).toISOString();
+
     // Prepare data for validation
     const dataToValidate = {
       coach_id: coach?.id,
       service_type: bookingData.service_type,
-      session_date: bookingData.session_date ? format(bookingData.session_date, 'yyyy-MM-dd') : '',
-      session_time: bookingData.session_time,
+      booking_date: bookingDateIso,
       duration: bookingData.duration,
       location_type: bookingData.location.type,
       location_address: bookingData.location.address || '',
@@ -61,11 +73,11 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       total_price: bookingData.total_price
     };
 
-    // Validate booking data
-    const validation = validateAndSanitize(dataToValidate, bookingSchema);
-    
+    // Validate booking data using safeValidate
+    const validation = safeValidate(bookingSchema, dataToValidate);
+
     if (!validation.success) {
-      const errors = formatValidationErrors(validation.error);
+      const errors = formatValidationErrors(validation.errors || validation.error);
       setValidationErrors(errors);
       
       // Show first error to user
