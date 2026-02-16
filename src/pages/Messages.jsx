@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User } from '@/api/entities.jsx';
 import { Message } from '@/api/entities.jsx';
 import { Booking } from '@/api/entities.jsx';
+import { apiClient } from '@/api/apiClient.js';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion } from 'framer-motion';
@@ -17,10 +18,16 @@ export default function Messages() {
                 const currentUser = await User.me();
                 console.log('Messages: Loading for user:', currentUser.id, currentUser.full_name);
 
-                // Admin: see conversations across all bookings (platform-wide)
+                // Admin: see conversations across all bookings (platform-wide) + direct threads
                 if (currentUser.role === 'admin') {
-                    const allBookings = await Booking.list('-updated_date', 200);
+                    const [allBookings, directThreads] = await Promise.all([
+                        Booking.list('-updated_date', 200),
+                        apiClient.getDirectThreads()
+                    ]);
+
                     console.log('Admin: All bookings loaded:', allBookings.length);
+                    console.log('Admin: Direct threads loaded:', directThreads.length);
+
                     const bookingIds = allBookings.map(b => b.id);
                     const messages = bookingIds.length
                         ? await Message.filter({ booking_id: { in: bookingIds }}, '-created_date')
@@ -33,16 +40,21 @@ export default function Messages() {
                         }
                     });
 
-                    const ids = Array.from(new Set(allBookings.flatMap(b => [b.client_id, b.coach_id])));
+                    const ids = Array.from(new Set([
+                        ...allBookings.flatMap(b => [b.client_id, b.coach_id]),
+                        ...directThreads.map(t => t.other_user_id)
+                    ]));
                     const users = ids.length ? await User.filter({ id: { in: ids }}) : [];
                     const userMap = users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {});
 
-                    const convos = allBookings.map(b => {
+                    const bookingConvos = allBookings.map(b => {
                         const client = userMap[b.client_id];
                         const coach = userMap[b.coach_id];
                         const last = lastMessages[b.id];
                         return {
+                            type: 'booking',
                             booking_id: b.id,
+                            direct_user_id: null,
                             other_user_name: `${client?.full_name || 'Client'} ↔ ${coach?.full_name || 'Coach'}`,
                             last_message: last?.content || 'No messages yet',
                             last_message_date: last?.created_date || b.created_date,
@@ -50,8 +62,24 @@ export default function Messages() {
                         };
                     });
 
-                    // Sort by last message date desc
-                    setConversations(convos.sort((a, b) => new Date(b.last_message_date) - new Date(a.last_message_date)));
+                    const directConvos = directThreads.map(t => {
+                        const other = userMap[t.other_user_id];
+                        return {
+                            type: 'direct',
+                            booking_id: null,
+                            direct_user_id: t.other_user_id,
+                            other_user_name: other?.full_name || 'User',
+                            last_message: t.content,
+                            last_message_date: t.created_date,
+                            is_read: t.is_read
+                        };
+                    });
+
+                    const allConvos = [...directConvos, ...bookingConvos].sort(
+                        (a, b) => new Date(b.last_message_date) - new Date(a.last_message_date)
+                    );
+
+                    setConversations(allConvos);
                     setIsLoading(false);
                     return;
                 }
@@ -120,10 +148,41 @@ export default function Messages() {
                     };
                 }); // Show all conversations, even without messages
 
-                console.log('Final conversations:', convos);
+                console.log('Final conversations (booking-based):', convos.length);
 
-                console.log('Final conversations:', convos.length);
-                setConversations(convos);
+                // Also include any direct admin ↔ user threads (no booking)
+                let allConvos = convos;
+                try {
+                    const directThreads = await apiClient.getDirectThreads();
+                    console.log('Non-admin: Direct threads loaded:', directThreads.length);
+                    if (directThreads.length) {
+                        const otherIds = Array.from(new Set(directThreads.map(t => t.other_user_id)));
+                        const directUsers = otherIds.length ? await User.filter({ id: { in: otherIds }}) : [];
+                        const directUserMap = directUsers.reduce((acc, u) => ({ ...acc, [u.id]: u }), {});
+
+                        const directConvos = directThreads.map(t => {
+                            const other = directUserMap[t.other_user_id];
+                            return {
+                                type: 'direct',
+                                booking_id: null,
+                                direct_user_id: t.other_user_id,
+                                other_user_name: other?.full_name || 'User',
+                                other_user_avatar: other?.profile_picture,
+                                last_message: t.content,
+                                last_message_date: t.created_date,
+                                is_read: t.is_read
+                            };
+                        });
+
+                        allConvos = [...directConvos, ...convos].sort(
+                            (a, b) => new Date(b.last_message_date) - new Date(a.last_message_date)
+                        );
+                    }
+                } catch (err) {
+                    console.warn('Failed to load direct threads for user', err);
+                }
+
+                setConversations(allConvos);
             } catch (error) {
                 console.error("Failed to fetch conversations", error);
             } finally {
@@ -149,12 +208,17 @@ export default function Messages() {
                         <ul className="divide-y divide-slate-200">
                             {conversations.map((convo, index) => (
                                 <motion.li 
-                                    key={convo.booking_id}
+                                    key={convo.booking_id || convo.direct_user_id}
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: index * 0.05 }}
                                 >
-                                    <Link to={createPageUrl(`Conversation?booking_id=${convo.booking_id}`)} className="block hover:bg-slate-50 p-4">
+                                    <Link
+                                        to={convo.type === 'direct'
+                                            ? createPageUrl(`Conversation?direct_user_id=${convo.direct_user_id}`)
+                                            : createPageUrl(`Conversation?booking_id=${convo.booking_id}`)}
+                                        className="block hover:bg-slate-50 p-4"
+                                    >
                                         <div className="flex items-center space-x-4">
                                             <div className="relative">
                                                 <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center">

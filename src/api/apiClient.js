@@ -238,6 +238,13 @@ class APIClient {
   }
 
   /**
+   * Get list of direct-message threads (no booking) for current user
+   */
+  async getDirectThreads() {
+    return this.request('/messages?direct_threads=1');
+  }
+
+  /**
    * Send a message
    */
   async sendMessage(messageData) {

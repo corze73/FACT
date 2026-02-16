@@ -110,6 +110,47 @@ export async function handler(event) {
           };
         }
 
+        // 3) List direct-message threads for current user (no booking)
+        if (queryStringParameters?.direct_threads === '1') {
+          if (!currentUserId) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'Current user context is required for direct threads' })
+            };
+          }
+
+          const baseQuery = `
+            WITH base AS (
+              SELECT m.*,
+                     CASE WHEN m.sender_id = $1 THEN m.receiver_id ELSE m.sender_id END AS other_user_id
+              FROM messages m
+              WHERE m.booking_id IS NULL
+                AND (m.sender_id = $1 OR m.receiver_id = $1)
+            )
+            SELECT DISTINCT ON (other_user_id)
+              id,
+              booking_id,
+              sender_id,
+              receiver_id,
+              content,
+              created_date,
+              updated_at,
+              is_read,
+              other_user_id
+            FROM base
+            ORDER BY other_user_id, created_date DESC`;
+
+          const finalQuery = withUserCtx(baseQuery, currentUserId);
+          const threads = await executeQuery(finalQuery, [currentUserId]);
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(threads)
+          };
+        }
+
         return {
           statusCode: 400,
           headers,
