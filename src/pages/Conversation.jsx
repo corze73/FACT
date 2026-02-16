@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@/api/entities.jsx';
 import { Message } from '@/api/entities.jsx';
 import { Booking } from '@/api/entities.jsx';
+import { apiClient } from '@/api/apiClient.js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Send } from 'lucide-react';
@@ -22,6 +23,9 @@ export default function Conversation() {
     const [recipientForAdmin, setRecipientForAdmin] = useState('client');
     const [booking, setBooking] = useState(null);
     const [bookingId, setBookingId] = useState(null);
+    const [mode, setMode] = useState('booking'); // 'booking' | 'direct'
+    const [directUserId, setDirectUserId] = useState(null);
+    const [directUser, setDirectUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [validationError, setValidationError] = useState('');
     const messagesEndRef = useRef(null);
@@ -30,46 +34,68 @@ export default function Conversation() {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('booking_id');
-        setBookingId(id);
+        const directId = params.get('direct_user_id');
+
+        if (id) {
+            setBookingId(id);
+            setMode('booking');
+        } else if (directId) {
+            setDirectUserId(directId);
+            setMode('direct');
+        }
     }, []);
 
     const loadConversation = useCallback(async () => {
-        if (!bookingId) return;
+        if (mode === 'booking' && !bookingId) return;
+        if (mode === 'direct' && !directUserId) return;
 
         try {
             setIsLoading(true);
             const user = await User.me();
             setCurrentUser(user);
+            let conversationMessages = [];
 
-            const currentBooking = await Booking.get(bookingId);
-            setBooking(currentBooking);
+            if (mode === 'booking') {
+                const currentBooking = await Booking.get(bookingId);
+                setBooking(currentBooking);
 
-            // Admin: load both client and coach as participants; Non-admin: load the other user only
-            if (user.role === 'admin') {
-                const clientData = await User.get(currentBooking.client_id);
-                const coachData = await User.get(currentBooking.coach_id);
-                setParticipants({ client: clientData, coach: coachData });
+                // Admin: load both client and coach as participants; Non-admin: load the other user only
+                if (user.role === 'admin') {
+                    const clientData = await User.get(currentBooking.client_id);
+                    const coachData = await User.get(currentBooking.coach_id);
+                    setParticipants({ client: clientData, coach: coachData });
+                    setOtherUser(null);
+                } else {
+                    const otherUserId = currentBooking.client_id === user.id ? currentBooking.coach_id : currentBooking.client_id;
+                    const otherUserData = await User.get(otherUserId);
+                    setOtherUser(otherUserData);
+                }
+
+                const allMessages = await Message.filter({ booking_id: bookingId }, 'created_date');
+
+                // Filter messages based on user role
+                if (user.role === 'admin') {
+                    // Admin sees all messages for this booking
+                    conversationMessages = allMessages;
+                } else {
+                    // Non-admin users only see messages where they are sender or receiver
+                    conversationMessages = allMessages.filter(msg =>
+                        msg.sender_id === user.id || msg.receiver_id === user.id
+                    );
+                }
+            } else {
+                // Direct admin ↔ user conversation (no booking)
+                const targetUser = await User.get(directUserId);
+                setDirectUser(targetUser);
+                setBooking(null);
+                setParticipants(null);
                 setOtherUser(null);
-            } else {
-                const otherUserId = currentBooking.client_id === user.id ? currentBooking.coach_id : currentBooking.client_id;
-                const otherUserData = await User.get(otherUserId);
-                setOtherUser(otherUserData);
+
+                const allMessages = await apiClient.getDirectMessages(directUserId);
+                // RLS already scopes messages to the current user; just use them as-is
+                conversationMessages = allMessages;
             }
 
-            const allMessages = await Message.filter({ booking_id: bookingId }, 'created_date');
-            
-            // Filter messages based on user role
-            let conversationMessages;
-            if (user.role === 'admin') {
-                // Admin sees all messages for this booking
-                conversationMessages = allMessages;
-            } else {
-                // Non-admin users only see messages where they are sender or receiver
-                conversationMessages = allMessages.filter(msg => 
-                    msg.sender_id === user.id || msg.receiver_id === user.id
-                );
-            }
-            
             setMessages(conversationMessages);
             
             const unreadMessages = conversationMessages.filter(m => m.receiver_id === user.id && !m.is_read);
@@ -82,7 +108,7 @@ export default function Conversation() {
         } finally {
             setIsLoading(false);
         }
-    }, [bookingId]);
+    }, [bookingId, directUserId, mode]);
 
     useEffect(() => {
         loadConversation();
@@ -98,7 +124,9 @@ export default function Conversation() {
         e.preventDefault();
         setValidationError('');
 
-        if (!newMessage.trim() || !currentUser || !booking) return;
+        if (!newMessage.trim() || !currentUser) return;
+        if (mode === 'booking' && !booking) return;
+        if (mode === 'direct' && !directUser) return;
 
         // Check rate limit
         const rateLimitCheck = checkRateLimit('messages');
@@ -107,15 +135,17 @@ export default function Conversation() {
             return;
         }
 
-        const receiverId = currentUser.role === 'admin'
-            ? (recipientForAdmin === 'coach' ? booking.coach_id : booking.client_id)
-            : otherUser?.id;
+        const receiverId = mode === 'direct'
+            ? directUser?.id
+            : currentUser.role === 'admin'
+                ? (recipientForAdmin === 'coach' ? booking.coach_id : booking.client_id)
+                : otherUser?.id;
 
         if (!receiverId) return;
 
         // Prepare message data for validation
         const messageData = {
-            booking_id: booking.id,
+            booking_id: mode === 'booking' ? booking.id : null,
             sender_id: currentUser.id,
             receiver_id: receiverId,
             content: newMessage
@@ -134,6 +164,7 @@ export default function Conversation() {
         try {
             // Use validated and sanitized data
             const sanitizedMessageData = {
+                ...messageData,
                 ...validation.data,
                 is_read: false
             };
@@ -148,7 +179,7 @@ export default function Conversation() {
     };
 
     if (isLoading) return <div className="h-screen flex items-center justify-center">Loading conversation...</div>;
-    if (!booking || !currentUser) return <div className="h-screen flex items-center justify-center">Conversation not found.</div>;
+    if (!currentUser) return <div className="h-screen flex items-center justify-center">Conversation not found.</div>;
 
     return (
         <div className="flex flex-col h-screen bg-slate-50">
@@ -161,21 +192,27 @@ export default function Conversation() {
                 {/* Avatar */}
                 <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
                     <span className="text-lg font-bold text-slate-600">
-                        {currentUser.role === 'admin'
-                          ? (recipientForAdmin === 'coach'
-                              ? participants?.coach?.full_name?.charAt(0)
-                              : participants?.client?.full_name?.charAt(0))
-                          : otherUser?.full_name?.charAt(0)}
+                        {mode === 'direct'
+                          ? directUser?.full_name?.charAt(0)
+                          : currentUser.role === 'admin'
+                            ? (recipientForAdmin === 'coach'
+                                ? participants?.coach?.full_name?.charAt(0)
+                                : participants?.client?.full_name?.charAt(0))
+                            : otherUser?.full_name?.charAt(0)}
                     </span>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <h2 className="font-semibold text-slate-900">
-                        {currentUser.role === 'admin'
-                          ? `Chat for ${booking.service_type.replace(/_/g, ' ')}`
-                          : otherUser?.full_name}
+                        {mode === 'direct'
+                          ? (currentUser.role === 'admin'
+                              ? `Message ${directUser?.full_name || 'User'}`
+                              : directUser?.full_name || 'Conversation')
+                          : currentUser.role === 'admin'
+                            ? `Chat for ${booking.service_type.replace(/_/g, ' ')}`
+                            : otherUser?.full_name}
                     </h2>
-                    {currentUser.role === 'admin' && participants && (
+                    {currentUser.role === 'admin' && participants && mode === 'booking' && (
                         <Select value={recipientForAdmin} onValueChange={setRecipientForAdmin}>
                             <SelectTrigger className="w-44 h-8">
                                 <SelectValue placeholder="Send to" />
@@ -186,7 +223,7 @@ export default function Conversation() {
                             </SelectContent>
                         </Select>
                     )}
-                    {currentUser.role !== 'admin' && (
+                    {currentUser.role !== 'admin' && mode === 'booking' && (
                         <p className="text-xs text-slate-500">
                             Re: {booking.service_type.replace(/_/g, ' ')} Session
                         </p>

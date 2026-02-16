@@ -44,33 +44,76 @@ export async function handler(event) {
     const pathParts = path.split('/').filter(Boolean);
     const messageId = pathParts.length > 2 ? pathParts[pathParts.length - 1] : null;
 
+    const requestHeaders = event.headers || {};
+    const currentUserId = requestHeaders['x-user-id'] || requestHeaders['x-admin-id'] || requestHeaders['X-Admin-Id'];
+
+    const withUserCtx = (query, ctxId) => {
+      const safe = (ctxId || '').match(/^[0-9a-fA-F-]{36}$/) ? ctxId : '';
+      return `WITH __ctx AS (SELECT set_config('app.current_user_id', '${safe}', true)) ${query}`;
+    };
+
     switch (event.httpMethod) {
       case 'GET': {
-        // Get messages for a booking
-        if (!queryStringParameters?.booking_id) {
+        // 1) Conversation for a specific booking
+        if (queryStringParameters?.booking_id) {
+          const baseQuery = `
+            SELECT m.*,
+                   s.full_name as sender_name, s.avatar_url as sender_avatar,
+                   r.full_name as receiver_name, r.avatar_url as receiver_avatar
+            FROM messages m
+            LEFT JOIN profiles s ON m.sender_id = s.id
+            LEFT JOIN profiles r ON m.receiver_id = r.id
+            WHERE m.booking_id = $1
+            ORDER BY m.created_date ASC`;
+
+          const finalQuery = currentUserId ? withUserCtx(baseQuery, currentUserId) : baseQuery;
+          const messages = await executeQuery(finalQuery, [queryStringParameters.booking_id]);
+
           return {
-            statusCode: 400,
+            statusCode: 200,
             headers,
-            body: JSON.stringify({ error: 'booking_id is required' })
+            body: JSON.stringify(messages)
           };
         }
 
-        const messages = await executeQuery(
-          `SELECT m.*,
-                  s.full_name as sender_name, s.avatar_url as sender_avatar,
-                  r.full_name as receiver_name, r.avatar_url as receiver_avatar
-           FROM messages m
-           LEFT JOIN profiles s ON m.sender_id = s.id
-           LEFT JOIN profiles r ON m.receiver_id = r.id
-           WHERE m.booking_id = $1
-           ORDER BY m.created_date ASC`,
-          [queryStringParameters.booking_id]
-        );
+        // 2) Direct admin ↔ user conversation (no booking)
+        if (queryStringParameters?.direct_user_id) {
+          if (!currentUserId) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'Current user context is required for direct messages' })
+            };
+          }
+
+          const baseQuery = `
+            SELECT m.*,
+                   s.full_name as sender_name, s.avatar_url as sender_avatar,
+                   r.full_name as receiver_name, r.avatar_url as receiver_avatar
+            FROM messages m
+            LEFT JOIN profiles s ON m.sender_id = s.id
+            LEFT JOIN profiles r ON m.receiver_id = r.id
+            WHERE m.booking_id IS NULL
+              AND (
+                (m.sender_id = $1 AND m.receiver_id = $2) OR
+                (m.sender_id = $2 AND m.receiver_id = $1)
+              )
+            ORDER BY m.created_date ASC`;
+
+          const finalQuery = withUserCtx(baseQuery, currentUserId);
+          const messages = await executeQuery(finalQuery, [currentUserId, queryStringParameters.direct_user_id]);
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(messages)
+          };
+        }
 
         return {
-          statusCode: 200,
+          statusCode: 400,
           headers,
-          body: JSON.stringify(messages)
+          body: JSON.stringify({ error: 'Either booking_id or direct_user_id is required' })
         };
       }
 
@@ -79,12 +122,12 @@ export async function handler(event) {
         const messageData = JSON.parse(body);
 
         // Validate required fields
-        if (!messageData.booking_id || !messageData.sender_id || !messageData.receiver_id) {
+        if (!messageData.sender_id || !messageData.receiver_id) {
           return {
             statusCode: 400,
             headers,
             body: JSON.stringify({ 
-              error: 'booking_id, sender_id, and receiver_id are required' 
+              error: 'sender_id and receiver_id are required' 
             })
           };
         }
@@ -106,18 +149,23 @@ export async function handler(event) {
           };
         }
 
-        const newMessage = await executeQueryOne(
-          `INSERT INTO messages (booking_id, sender_id, receiver_id, content, is_read)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING *`,
-          [
-            messageData.booking_id,
-            messageData.sender_id,
-            messageData.receiver_id,
-            messageData.content.trim(),
-            messageData.is_read || false
-          ]
-        );
+          const baseInsert = `
+            INSERT INTO messages (booking_id, sender_id, receiver_id, content, is_read)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *`;
+
+          const finalInsert = currentUserId ? withUserCtx(baseInsert, currentUserId) : baseInsert;
+
+          const newMessage = await executeQueryOne(
+            finalInsert,
+            [
+              messageData.booking_id || null,
+              messageData.sender_id,
+              messageData.receiver_id,
+              messageData.content.trim(),
+              messageData.is_read || false
+            ]
+          );
 
         return {
           statusCode: 201,
@@ -138,12 +186,17 @@ export async function handler(event) {
 
         const updateData = JSON.parse(body);
 
+        const baseUpdate = `
+          UPDATE messages
+          SET is_read = COALESCE($1, is_read),
+              updated_date = NOW()
+          WHERE id = $2
+          RETURNING *`;
+
+        const finalUpdate = currentUserId ? withUserCtx(baseUpdate, currentUserId) : baseUpdate;
+
         const updatedMessage = await executeQueryOne(
-          `UPDATE messages
-           SET is_read = COALESCE($1, is_read),
-               updated_date = NOW()
-           WHERE id = $2
-           RETURNING *`,
+          finalUpdate,
           [updateData.is_read, messageId]
         );
 

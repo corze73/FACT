@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -237,13 +237,51 @@ export default function AdminUsers() {
                       </div>
                     </CardContent>
                     {currentUser?.role === 'admin' && u.role !== 'admin' && (
-                      <div className="flex justify-end pb-3 pr-3">
+                      <div className="flex justify-end pb-3 pr-3 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(createPageUrl(`Conversation?direct_user_id=${u.id}`));
+                          }}
+                          className="text-slate-700 hover:text-slate-900 hover:bg-slate-50"
+                        >
+                          <MessageCircle className="w-4 h-4 mr-2" /> Message
+                        </Button>
                         {u.is_active !== false ? (
-                          <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); openRemove(u); }} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRemove(u);
+                            }}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
                             <Trash2 className="w-4 h-4 mr-2" /> Remove
                           </Button>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={async (e) => { e.stopPropagation(); try { await User.restore(u.id); setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: true, deactivated_at: null, deactivation_reason: null } : x)); } catch { alert('Failed to restore user'); } }} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await User.restore(u.id);
+                                setUsers((prev) =>
+                                  prev.map((x) =>
+                                    x.id === u.id
+                                      ? { ...x, is_active: true, deactivated_at: null, deactivation_reason: null }
+                                      : x
+                                  )
+                                );
+                              } catch {
+                                alert('Failed to restore user');
+                              }
+                            }}
+                            className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                          >
                             Restore
                           </Button>
                         )}

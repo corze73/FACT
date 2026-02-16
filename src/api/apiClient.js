@@ -231,6 +231,13 @@ class APIClient {
   }
 
   /**
+   * Get direct messages between the current user and another user (no booking)
+   */
+  async getDirectMessages(userId) {
+    return this.request(`/messages?direct_user_id=${userId}`);
+  }
+
+  /**
    * Send a message
    */
   async sendMessage(messageData) {
