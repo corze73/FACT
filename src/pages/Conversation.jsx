@@ -151,21 +151,14 @@ export default function Conversation() {
             content: newMessage
         };
 
-        // Validate and sanitize message content
-        const validation = validateAndSanitize(messageData, messageSchema);
-        
-        if (!validation.success) {
-            const errors = formatValidationErrors(validation.error);
-            const firstError = Object.values(errors)[0];
-            setValidationError(firstError || 'Invalid message content');
-            return;
-        }
-
         try {
+            // Validate and sanitize message content
+            const validatedData = validateAndSanitize(messageSchema, messageData);
+
             // Use validated and sanitized data
             const sanitizedMessageData = {
                 ...messageData,
-                ...validation.data,
+                ...validatedData,
                 is_read: false
             };
 
@@ -173,8 +166,14 @@ export default function Conversation() {
             const sentMessage = await Message.create(sanitizedMessageData);
             setMessages(prev => [...prev, sentMessage]);
         } catch (error) {
-            console.error('Failed to send message:', error);
-            setValidationError('Failed to send message. Please try again.');
+            if (error && error.errors) {
+                const errors = formatValidationErrors(error);
+                const firstError = Object.values(errors)[0];
+                setValidationError(firstError || 'Invalid message content');
+            } else {
+                console.error('Failed to send message:', error);
+                setValidationError('Failed to send message. Please try again.');
+            }
         }
     };
 
