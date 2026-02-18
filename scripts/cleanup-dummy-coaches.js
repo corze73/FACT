@@ -16,6 +16,7 @@ import readline from 'readline';
 dotenv.config();
 
 const sql = neon(process.env.DATABASE_URL);
+const FORCE_DELETE = process.env.FACT_CLEANUP_FORCE === '1';
 
 // Configure what constitutes a "dummy" coach
 const DUMMY_INDICATORS = [
@@ -113,22 +114,26 @@ async function cleanupDummyCoaches() {
     console.log('⚠️  WARNING: This will permanently delete these accounts!');
     console.log('This action cannot be undone.');
     console.log();
-    
-    const confirm1 = await question('Type "DELETE" to proceed: ');
-    
-    if (confirm1.trim() !== 'DELETE') {
-      console.log('\n❌ Cleanup cancelled.');
-      rl.close();
-      return;
-    }
-    
-    console.log();
-    const confirm2 = await question(`Are you absolutely sure? Type the number of coaches to delete (${dummyCoaches.length}): `);
-    
-    if (confirm2.trim() !== dummyCoaches.length.toString()) {
-      console.log('\n❌ Cleanup cancelled - number mismatch.');
-      rl.close();
-      return;
+
+    if (!FORCE_DELETE) {
+      const confirm1 = await question('Type "DELETE" to proceed: ');
+      
+      if (confirm1.trim() !== 'DELETE') {
+        console.log('\n❌ Cleanup cancelled.');
+        rl.close();
+        return;
+      }
+      
+      console.log();
+      const confirm2 = await question(`Are you absolutely sure? Type the number of coaches to delete (${dummyCoaches.length}): `);
+      
+      if (confirm2.trim() !== dummyCoaches.length.toString()) {
+        console.log('\n❌ Cleanup cancelled - number mismatch.');
+        rl.close();
+        return;
+      }
+    } else {
+      console.log('⚠️  FORCE DELETE enabled via FACT_CLEANUP_FORCE=1.');
     }
     
     console.log('\n🗑️  Deleting dummy coaches...');
