@@ -1,6 +1,7 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
+import { getAuthContext } from './lib/auth.js';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -44,8 +45,13 @@ export async function handler(event) {
     const pathParts = path.split('/').filter(Boolean);
     const messageId = pathParts.length > 2 ? pathParts[pathParts.length - 1] : null;
 
-    const requestHeaders = event.headers || {};
-    const currentUserId = requestHeaders['x-user-id'] || requestHeaders['x-admin-id'] || requestHeaders['X-Admin-Id'];
+    const auth = await getAuthContext(event);
+    const currentUserId = auth.userId;
+    const isAdmin = auth.role === 'admin';
+
+    if (!currentUserId) {
+      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+    }
 
     const withUserCtx = (query, ctxId) => {
       const safe = (ctxId || '').match(/^[0-9a-fA-F-]{36}$/) ? ctxId : '';
@@ -170,6 +176,14 @@ export async function handler(event) {
             body: JSON.stringify({ 
               error: 'sender_id and receiver_id are required' 
             })
+          };
+        }
+
+        if (!isAdmin && messageData.sender_id !== currentUserId) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Cannot send messages as another user' })
           };
         }
 

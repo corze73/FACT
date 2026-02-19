@@ -30,10 +30,6 @@ export default function AdminUsers() {
   const [decidingId, setDecidingId] = useState(null);
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-  const isTestUser = (u) => {
-    const flag = u?.metadata?.is_test;
-    return flag === true || flag === 'true' || flag === 1 || flag === '1';
-  };
 
   const urlParams = new URLSearchParams(window.location.search);
   const typeParam = urlParams.get("type") || "all";
@@ -211,9 +207,6 @@ export default function AdminUsers() {
                           <div className="flex gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="capitalize">{u.user_type || "member"}</Badge>
                             <Badge className={u.role === "admin" ? "bg-yellow-100 text-yellow-800" : "bg-slate-100 text-slate-700"}>{u.role || "user"}</Badge>
-                            {isTestUser(u) && (
-                              <Badge className="bg-rose-50 text-rose-700 border border-rose-100">test</Badge>
-                            )}
                             {u.is_active === false && (
                               <Badge className="bg-red-100 text-red-700">deactivated</Badge>
                             )}
@@ -381,13 +374,9 @@ export default function AdminUsers() {
                 className="mt-1"
                 checked={hardDelete}
                 onChange={(e) => setHardDelete(e.target.checked)}
-                disabled={!isTestUser(selectedUser)}
               />
               <span>
-                Hard delete (test users only). This permanently removes the user and related records.
-                {!isTestUser(selectedUser) && (
-                  <span className="block text-xs text-slate-500">Requires metadata.is_test = true.</span>
-                )}
+                Hard delete. This permanently removes the user and related records.
               </span>
             </label>
             <div className="flex justify-end gap-2 pt-2">

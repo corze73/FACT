@@ -161,12 +161,18 @@ export const auth = {
     this.currentUser = user;
     // Persist to localStorage
     if (user) {
-      localStorage.setItem('currentUser', JSON.stringify(user));
+      const token = user?.token || localStorage.getItem('authToken');
+      const { token: _token, ...safeUser } = user;
+      localStorage.setItem('currentUser', JSON.stringify(safeUser));
+      if (token) {
+        localStorage.setItem('authToken', token);
+      }
       if (sql) {
         await db.setUserContext(user.id);
       }
     } else {
       localStorage.removeItem('currentUser');
+      localStorage.removeItem('authToken');
       if (sql) {
         await db.setUserContext(null);
       }

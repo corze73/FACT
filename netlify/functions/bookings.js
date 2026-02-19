@@ -1,6 +1,7 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, getLimitByMethod } from './lib/rateLimiter.js';
+import { getAuthContext } from './lib/auth.js';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -15,7 +16,7 @@ const getAllowedOrigin = (requestOrigin) => {
 
 const getHeaders = (event) => ({
   'Access-Control-Allow-Origin': getAllowedOrigin(event.headers?.origin),
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-id, x-user-id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Credentials': 'true',
   'Content-Type': 'application/json'
@@ -52,7 +53,7 @@ export async function handler(event) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const { body, path, queryStringParameters, httpMethod, headers: requestHeaders } = event;
+    const { body, path, queryStringParameters, httpMethod } = event;
 
     const pathParts = path.split('/').filter(Boolean);
     const last = pathParts[pathParts.length - 1] || null;
@@ -67,9 +68,10 @@ export async function handler(event) {
     // Helper: parse truthy query flags
     const isTruthy = (v) => v === '1' || v === 'true' || v === 'yes';
 
-    // Helper: extract user id for RLS context
-    const currentUserId = requestHeaders?.['x-user-id'] || requestHeaders?.['x-admin-id'] || requestHeaders?.['X-Admin-Id'];
-    console.log('👤 Current user ID from headers:', currentUserId);
+    const auth = await getAuthContext(event);
+    const currentUserId = auth.userId;
+    const isAdmin = auth.role === 'admin';
+    console.log('👤 Auth user ID:', currentUserId);
     
     // Helper to set RLS context
     const withUserCtx = (query, ctxId) => {
@@ -77,12 +79,16 @@ export async function handler(event) {
       return `WITH __ctx AS (SELECT set_config('app.current_user_id', '${safe}', true)) ${query}`;
     };
     
-    const adminIdHeader = requestHeaders?.['x-admin-id'] || requestHeaders?.['X-Admin-Id'];
-
     switch (httpMethod) {
       case 'GET': {
+        if (!currentUserId) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
         // Admin dashboard stats for tiles (Total/Pending/Confirmed/Completed/Cancelled)
         if (isTruthy(queryStringParameters?.stats)) {
+          if (!isAdmin) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
+          }
           // Note: is_archived column doesn't exist - showing all bookings
           const statsQuery = `
             SELECT
@@ -106,16 +112,15 @@ export async function handler(event) {
 
         // Single booking
         if (bookingId && bookingId !== 'bookings' && bookingId !== 'stats') {
-          const booking = await executeQueryOne(
-            `SELECT b.*,
+          const baseQuery = `SELECT b.*,
                     c.full_name as coach_name, c.avatar_url as coach_avatar,
                     cl.full_name as client_name, cl.avatar_url as client_avatar
              FROM bookings b
              LEFT JOIN profiles c ON b.coach_id = c.id
              LEFT JOIN profiles cl ON b.client_id = cl.id
-             WHERE b.id = $1`,
-            [bookingId]
-          );
+             WHERE b.id = $1`;
+          const finalQuery = withUserCtx(baseQuery, currentUserId);
+          const booking = await executeQueryOne(finalQuery, [bookingId]);
 
           if (!booking) {
             return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
@@ -178,6 +183,9 @@ export async function handler(event) {
       }
 
       case 'POST': {
+        if (!currentUserId) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
         const bookingData = JSON.parse(body || '{}');
 
         // Validate required fields (your schema uses booking_date, not session_date/session_time)
@@ -221,6 +229,9 @@ export async function handler(event) {
       }
 
       case 'PUT': {
+        if (!currentUserId) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
         if (!bookingId) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID is required' }) };
         }
@@ -285,6 +296,9 @@ export async function handler(event) {
       }
 
       case 'PATCH': {
+        if (!currentUserId) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
         // PATCH /bookings/:id/archive OR /bookings/:id/restore
         if (!bookingId) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID is required' }) };
@@ -294,17 +308,7 @@ export async function handler(event) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid PATCH action. Use /archive or /restore.' }) };
         }
 
-        // Basic admin check (we can harden this later using JWT validation)
-        if (!adminIdHeader) {
-          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Missing x-admin-id header' }) };
-        }
-
-        const adminProfile = await executeQueryOne(
-          `SELECT id, role FROM profiles WHERE id = $1 LIMIT 1`,
-          [adminIdHeader]
-        );
-
-        if (!adminProfile || adminProfile.role !== 'admin') {
+        if (!isAdmin) {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
         }
 
@@ -317,7 +321,7 @@ export async function handler(event) {
                  updated_at = NOW()
              WHERE id = $1
              RETURNING *`,
-            [bookingId, adminIdHeader]
+            [bookingId, currentUserId]
           );
 
           if (!updated) {
@@ -347,6 +351,9 @@ export async function handler(event) {
       }
 
       case 'DELETE': {
+        if (!currentUserId) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
         // Hard delete (not recommended)
         if (!bookingId) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Booking ID is required' }) };

@@ -388,14 +388,15 @@ export const User = {
                 throw new Error(profile?.error || 'Profile creation/login did not return a user id');
               }
 
-              // Set as current user with full profile data
+              // Set as current user with full profile data + auth token
               await auth.setCurrentUser({
                 id: profile.id,
                 email: profile.email,
                 full_name: profile.full_name,
                 avatar_url: profile.avatar_url,
                 role: profile.role,
-                user_type: profile.user_type
+                user_type: profile.user_type,
+                token: profile.token
               });
               resolve({ user: auth.currentUser });
             } catch (apiError) {

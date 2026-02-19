@@ -1,6 +1,7 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
+import { getAuthContext, signSupabaseToken } from './lib/auth.js';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
 
@@ -19,7 +20,7 @@ const getAllowedOrigin = (requestOrigin) => {
 
 const getHeaders = (event) => ({
   'Access-Control-Allow-Origin': getAllowedOrigin(event.headers?.origin),
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-id, x-user-id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Credentials': 'true',
   'Content-Type': 'application/json'
@@ -59,9 +60,10 @@ export async function handler(event) {
     
     console.log('📊 Processing request:', { httpMethod, path, hasBody: !!body });
     
-    // Extract user ID from request headers for RLS context
-    const currentUserId = requestHeaders?.['x-user-id'] || requestHeaders?.['x-admin-id'];
-    console.log('👤 Current user ID from headers:', currentUserId);
+    const auth = await getAuthContext(event);
+    const currentUserId = auth.userId;
+    const isAdmin = auth.role === 'admin';
+    console.log('👤 Auth user ID:', currentUserId);
     
     // Parse body if it exists and is base64 encoded
     if (body && event.isBase64Encoded) {
@@ -88,6 +90,9 @@ export async function handler(event) {
     switch (httpMethod) {
       case 'GET':
         if (userId && userId !== 'users') {
+          if (!currentUserId) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+          }
           if (!isUuid(userId)) {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid user id format' }) };
           }
@@ -117,7 +122,13 @@ export async function handler(event) {
         } else {
           // Get all users (with query filters if provided)
           const queryParams = event.queryStringParameters || {};
-          let query = `SELECT * FROM profiles`;
+          const isPublicCoachList = !isAdmin && queryParams.role === 'coach';
+          if (!isAdmin && !isPublicCoachList) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
+          }
+
+          const publicFields = `id, full_name, avatar_url, user_type, bio, country, city, coach_profile`;
+          let query = `SELECT ${isPublicCoachList ? publicFields : '*'} FROM profiles`;
           const conditions = [];
           const params = [];
 
@@ -131,6 +142,12 @@ export async function handler(event) {
           }
 
           query += ' ORDER BY created_at DESC';
+
+          if (isPublicCoachList) {
+            const limit = Math.min(Number(queryParams.limit) || 40, 100);
+            const offset = Math.max(Number(queryParams.offset) || 0, 0);
+            query += ` LIMIT ${limit} OFFSET ${offset}`;
+          }
 
           // Set RLS context if user is authenticated
           const finalQuery = currentUserId ? withUserCtx(query, currentUserId) : query;
@@ -234,11 +251,12 @@ export async function handler(event) {
           );
         }
 
+        const token = signSupabaseToken({ sub: upsertedUser.id, email: upsertedUser.email, role: upsertedUser.role });
         console.log('✅ User upserted/loaded:', email, 'id:', upsertedUser?.id);
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify(upsertedUser)
+          body: JSON.stringify({ ...upsertedUser, token })
         };
       }
 
@@ -250,6 +268,10 @@ export async function handler(event) {
             headers,
             body: JSON.stringify({ error: 'User ID is required' })
           };
+        }
+
+        if (!currentUserId) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
         }
 
         const updateData = JSON.parse(body);
@@ -381,23 +403,21 @@ export async function handler(event) {
         const reason = payload.reason || null;
         const hard = payload.hard === true;
 
+        if (!currentUserId) {
+          return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
+
+        if (hard && !isAdmin) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required for hard delete' }) };
+        }
+
+        if (!hard && !isAdmin && currentUserId !== userId) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Cannot remove other users' }) };
+        }
+
         if (hard) {
-          if (!currentUserId) {
-            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
-          }
-
-          const actor = await executeQueryOne(
-            withUserCtx('SELECT role FROM profiles WHERE id = $1', currentUserId),
-            [currentUserId]
-          );
-
-          if (!actor || actor.role !== 'admin') {
-            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required for hard delete' }) };
-          }
-
           const target = await executeQueryOne(
-            withUserCtx(`SELECT id, role, (to_jsonb(p.*)->'metadata') AS metadata
-              FROM profiles p WHERE id = $1`, currentUserId),
+            withUserCtx('SELECT id, role FROM profiles WHERE id = $1', currentUserId),
             [userId]
           );
 
@@ -409,13 +429,7 @@ export async function handler(event) {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Cannot hard delete admin users' }) };
           }
 
-          const testFlag = target?.metadata?.is_test;
-          const isTestUser = testFlag === true || testFlag === 'true' || testFlag === 1 || testFlag === '1';
-          if (!isTestUser) {
-            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hard delete is allowed only for test users (metadata.is_test = true)' }) };
-          }
-
-          // Hard delete requested (test users only). Clean related records first.
+          // Hard delete requested. Clean related records first.
           await executeQuery(withUserCtx('DELETE FROM bookings WHERE user_id = $1 OR client_id = $1 OR coach_id = $1', currentUserId), [userId]);
           await executeQuery(withUserCtx('DELETE FROM messages WHERE sender_id = $1 OR receiver_id = $1', currentUserId), [userId]);
           await executeQuery(withUserCtx('DELETE FROM reviews WHERE reviewer_id = $1 OR reviewee_id = $1', currentUserId), [userId]);

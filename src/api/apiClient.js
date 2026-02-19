@@ -8,20 +8,13 @@ const API_BASE = import.meta.env.DEV
   : '/.netlify/functions';                       // Production
 
 class APIClient {
-  /**
-   * Get current user ID from localStorage for RLS context
-   */
-  getCurrentUserId() {
+  getAuthToken() {
     try {
-      const storedUser = localStorage.getItem('currentUser');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        return user?.id;
-      }
+      return localStorage.getItem('authToken');
     } catch (error) {
-      console.error('Error reading current user:', error);
+      console.error('Error reading auth token:', error);
+      return null;
     }
-    return null;
   }
 
   /**
@@ -30,16 +23,13 @@ class APIClient {
   async request(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
     
-    // Get current user ID for RLS context
-    const userId = this.getCurrentUserId();
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers
     };
-    
-    // Add user ID header for RLS context if available
-    if (userId) {
-      headers['x-user-id'] = userId;
+    const token = this.getAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
     
     try {

@@ -1,6 +1,7 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
+import { getAuthContext } from './lib/auth.js';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -20,27 +21,37 @@ export async function handler(event) {
 
   try {
     const { httpMethod } = event;
+    const auth = await getAuthContext(event);
+    const currentUserId = auth.userId;
+    const isAdmin = auth.role === 'admin';
 
     if (httpMethod === 'POST') {
+      if (!currentUserId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
       const payload = JSON.parse(event.body || '{}');
-      const { user_id, reason } = payload;
-      if (!user_id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'user_id required' }) };
+      const { reason } = payload;
 
       const req = await executeQueryOne(
         `INSERT INTO account_deletion_requests (user_id, reason)
          VALUES ($1, $2) RETURNING *`,
-        [user_id, reason || null]
+        [currentUserId, reason || null]
       );
       return { statusCode: 201, headers, body: JSON.stringify(req) };
     }
 
     if (httpMethod === 'GET') {
+      if (!currentUserId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
       const qs = event.queryStringParameters || {};
       let q = `SELECT * FROM account_deletion_requests`;
       const where = [];
       const params = [];
       if (qs.status) { where.push(`status = $${params.length + 1}`); params.push(qs.status); }
-      if (qs.user_id) { where.push(`user_id = $${params.length + 1}`); params.push(qs.user_id); }
+      if (!isAdmin) {
+        where.push(`user_id = $${params.length + 1}`);
+        params.push(currentUserId);
+      } else if (qs.user_id) {
+        where.push(`user_id = $${params.length + 1}`);
+        params.push(qs.user_id);
+      }
       if (where.length) q += ' WHERE ' + where.join(' AND ');
       q += ' ORDER BY requested_at DESC';
       const rows = await executeQuery(q, params);
@@ -48,8 +59,10 @@ export async function handler(event) {
     }
 
     if (httpMethod === 'PUT') {
+      if (!currentUserId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+      if (!isAdmin) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
       const payload = JSON.parse(event.body || '{}');
-      const { id, decision, decision_reason, admin_id } = payload;
+      const { id, decision, decision_reason } = payload;
       if (!id || !decision || !['approved','rejected'].includes(decision)) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'id and valid decision required' }) };
       }
@@ -62,7 +75,7 @@ export async function handler(event) {
              decision_reason = $3
          WHERE id = $4
          RETURNING *`,
-        [decision, admin_id || null, decision_reason || null, id]
+        [decision, currentUserId, decision_reason || null, id]
       );
 
       if (decision === 'approved' && updated?.user_id) {

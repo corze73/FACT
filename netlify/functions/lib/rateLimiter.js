@@ -74,9 +74,20 @@ export function checkRateLimit(identifier, limit = RATE_LIMITS.default) {
  * Get identifier from Netlify event (IP or user ID)
  */
 export function getIdentifier(event) {
-  // Prefer user ID if available (from headers or JWT)
-  const userId = event.headers?.['x-user-id'] || event.headers?.['X-User-Id'];
-  if (userId) return `user:${userId}`;
+  // Prefer user ID if available (from JWT)
+  const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
+  if (authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.slice('Bearer '.length).trim();
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8'));
+        if (payload?.sub) return `user:${payload.sub}`;
+      }
+    } catch {
+      // Ignore token parse errors and fall back to IP
+    }
+  }
   
   // Fallback to IP address
   const ip = 
