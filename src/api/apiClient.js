@@ -79,9 +79,13 @@ class APIClient {
   /**
    * Get all coaches (role='coach')
    */
-  async getCoaches(filters = '') {
-    const query = filters ? `?${filters}` : '?role=coach';
-    return this.request(`/users${query}`);
+  async getCoaches(filters = {}) {
+    if (typeof filters === 'string') {
+      const query = filters ? `?${filters}` : '?role=coach';
+      return this.request(`/users${query}`);
+    }
+    const params = new URLSearchParams({ role: 'coach', ...filters });
+    return this.request(`/users?${params}`);
   }
 
   /**
@@ -115,6 +119,10 @@ class APIClient {
    * Get all users (with optional filters)
    */
   async getUsers(filters = {}) {
+    if (typeof filters === 'string') {
+      const query = filters ? `?${filters}` : '';
+      return this.request(`/users${query}`);
+    }
     const params = new URLSearchParams(filters);
     return this.request(`/users?${params}`);
   }
@@ -171,6 +179,10 @@ class APIClient {
    * Get all bookings (with optional filters)
    */
   async getBookings(filters = {}) {
+    if (typeof filters === 'string') {
+      const query = filters ? `?${filters}` : '';
+      return this.request(`/bookings${query}`);
+    }
     const params = new URLSearchParams(filters);
     return this.request(`/bookings?${params}`);
   }

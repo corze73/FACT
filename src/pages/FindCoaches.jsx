@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { User } from "@/api/entities.jsx";
+import { apiClient } from "@/api/apiClient.js";
 import { Booking } from "@/api/entities.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ const COACHES_PER_PAGE = 24;
 export default function FindCoaches() {
   const navigate = useNavigate();
   const [coaches, setCoaches] = useState([]);
+  const [totalCoaches, setTotalCoaches] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCoach, setSelectedCoach] = useState(null);
@@ -35,30 +37,51 @@ export default function FindCoaches() {
     city: ''
   });
 
-  // loadData needs to be stable or in dependency array if used by useEffect
-  // For now, it's called inside an IIFE in useEffect, so it doesn't need to be memoized
-  // as the IIFE runs only once.
-  const loadData = async () => {
+  const buildCoachQuery = useCallback(() => {
+    const params = {
+      limit: COACHES_PER_PAGE,
+      offset: (currentPage - 1) * COACHES_PER_PAGE,
+      include_total: '1'
+    };
+
+    if (filters.searchTerm) params.search = filters.searchTerm;
+    if (filters.country) params.country = filters.country;
+    if (filters.city) params.city = filters.city;
+    if (filters.location) params.location = filters.location;
+    if (filters.serviceType !== 'all') params.service_type = filters.serviceType;
+
+    if (filters.priceRange !== 'all') {
+      const [min, max] = filters.priceRange.split('-').map(Number);
+      if (Number.isFinite(min)) params.min_rate = min;
+      if (Number.isFinite(max)) params.max_rate = max;
+    }
+
+    if (filters.rating !== 'all') {
+      const minRating = parseFloat(filters.rating);
+      if (Number.isFinite(minRating)) params.min_rating = minRating;
+    }
+
+    return params;
+  }, [filters, currentPage]);
+
+  const fetchCoaches = useCallback(async () => {
+    setIsLoading(true);
     try {
-      // Try to get current user, but don't require it
-      try {
-        const user = await User.me();
-        setCurrentUser(user);
-      } catch (error) {
-        devLog("User not authenticated - browsing as guest");
-        setCurrentUser(null);
+      const response = await apiClient.getCoaches(buildCoachQuery());
+      if (response && Array.isArray(response.data)) {
+        setCoaches(response.data);
+        setTotalCoaches(response.total || 0);
+      } else {
+        const list = Array.isArray(response) ? response : [];
+        setCoaches(list);
+        setTotalCoaches(list.length);
       }
-      
-      // Load all coaches (works for guests too)
-      const allUsers = await User.list();
-      const coachUsers = allUsers.filter(u => u.user_type === 'coach');
-      setCoaches(coachUsers);
     } catch (error) {
       devError("Error loading data:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [buildCoachQuery]);
 
   useEffect(() => {
     // Redirect admins to AdminDashboard, allow guests to browse
@@ -69,85 +92,19 @@ export default function FindCoaches() {
           navigate(createPageUrl("AdminDashboard"));
           return;
         }
-        // Authenticated non-admin user - load data
-        loadData();
+        // Authenticated non-admin user - allow browse
       } catch (error) {
         // User not authenticated - allow browsing as guest
         devLog("Loading coaches for guest user");
-        loadData();
       }
     })();
   }, [navigate]);
 
-  // Compute filtered coaches efficiently with useMemo
-  const filteredCoaches = useMemo(() => {
-    if (!coaches || coaches.length === 0) return [];
-    let filtered = [...coaches];
+  useEffect(() => {
+    fetchCoaches();
+  }, [fetchCoaches]);
 
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(coach => 
-        coach.full_name?.toLowerCase().includes(searchLower) ||
-        coach.bio?.toLowerCase().includes(searchLower)
-      );
-    }
-
-    if (filters.serviceType !== 'all') {
-      filtered = filtered.filter(coach => 
-        coach.coach_profile?.services_offered?.includes(filters.serviceType)
-      );
-    }
-
-    if (filters.priceRange !== 'all') {
-      const [min, max] = filters.priceRange.split('-').map(Number);
-      filtered = filtered.filter(coach => {
-        const rate = coach.coach_profile?.hourly_rate || 0;
-        return max ? (rate >= min && rate <= max) : rate >= min;
-      });
-    }
-
-    if (filters.rating !== 'all') {
-      const minRating = parseFloat(filters.rating);
-      filtered = filtered.filter(coach => 
-        (coach.coach_profile?.rating || 0) >= minRating
-      );
-    }
-
-    if (filters.country) {
-      const countryLower = filters.country.toLowerCase();
-      filtered = filtered.filter(coach => 
-        coach.country?.toLowerCase().includes(countryLower)
-      );
-    }
-
-    if (filters.city) {
-      const cityLower = filters.city.toLowerCase();
-      filtered = filtered.filter(coach => 
-        coach.city?.toLowerCase().includes(cityLower)
-      );
-    }
-
-    if (filters.location) {
-      const locationLower = filters.location.toLowerCase();
-      filtered = filtered.filter(coach => {
-        const location = typeof coach.location === 'string' 
-          ? coach.location 
-          : coach.location?.address || '';
-        return location.toLowerCase().includes(locationLower);
-      });
-    }
-
-    return filtered;
-  }, [coaches, filters]);
-
-  // Paginate filtered results
-  const paginatedCoaches = useMemo(() => {
-    const startIndex = (currentPage - 1) * COACHES_PER_PAGE;
-    const endIndex = startIndex + COACHES_PER_PAGE;
-    return filteredCoaches.slice(startIndex, endIndex);
-  }, [filteredCoaches, currentPage]);
-
-  const totalPages = Math.ceil(filteredCoaches.length / COACHES_PER_PAGE);
+  const totalPages = Math.ceil(totalCoaches / COACHES_PER_PAGE);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -370,7 +327,7 @@ export default function FindCoaches() {
         >
           <div className="flex justify-between items-center">
             <p className="text-slate-600">
-              Found {filteredCoaches.length} coach{filteredCoaches.length !== 1 ? 'es' : ''}
+              Found {totalCoaches} coach{totalCoaches !== 1 ? 'es' : ''}
             </p>
             <div className="flex gap-2">
               <Badge variant="outline" className="flex items-center gap-1">
@@ -384,7 +341,7 @@ export default function FindCoaches() {
         {/* Coaches Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
-            {paginatedCoaches.map((coach, index) => (
+            {coaches.map((coach, index) => (
               <motion.div
                 key={coach.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -403,7 +360,7 @@ export default function FindCoaches() {
         </div>
 
         {/* Pagination Controls */}
-        {filteredCoaches.length > COACHES_PER_PAGE && (
+        {totalCoaches > COACHES_PER_PAGE && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -457,13 +414,13 @@ export default function FindCoaches() {
         )}
 
         {/* Results count */}
-        {filteredCoaches.length > 0 && (
+        {totalCoaches > 0 && (
           <div className="mt-4 text-center text-sm text-slate-600">
-            Showing {((currentPage - 1) * COACHES_PER_PAGE) + 1} - {Math.min(currentPage * COACHES_PER_PAGE, filteredCoaches.length)} of {filteredCoaches.length} coaches
+            Showing {((currentPage - 1) * COACHES_PER_PAGE) + 1} - {Math.min(currentPage * COACHES_PER_PAGE, totalCoaches)} of {totalCoaches} coaches
           </div>
         )}
 
-        {filteredCoaches.length === 0 && !isLoading && (
+        {coaches.length === 0 && !isLoading && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

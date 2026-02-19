@@ -1,7 +1,8 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
+import { apiClient } from "@/api/apiClient.js";
 import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [reason, setReason] = useState("");
@@ -56,6 +58,7 @@ export default function AdminUsers() {
       await User.delete(selectedUser.id, { reason, hard: hardDelete });
       if (hardDelete) {
         setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+        setTotalUsers(prev => Math.max(0, prev - 1));
       } else {
         setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: reason } : u));
       }
@@ -70,8 +73,26 @@ export default function AdminUsers() {
       const me = await User.me();
       setCurrentUser(me);
       if (me.role !== "admin") return;
-      const all = await User.list();
-      setUsers(all);
+
+      setLoading(true);
+      const params = {
+        type: typeParam,
+        limit: USERS_PER_PAGE,
+        offset: (currentPage - 1) * USERS_PER_PAGE,
+        include_total: '1'
+      };
+      if (search) params.search = search;
+
+      const response = await apiClient.getUsers(params);
+      if (response && Array.isArray(response.data)) {
+        setUsers(response.data);
+        setTotalUsers(response.total || 0);
+      } else {
+        const list = Array.isArray(response) ? response : [];
+        setUsers(list);
+        setTotalUsers(list.length);
+      }
+
       // Load pending deletion requests
       try {
         const pending = await User.listDeletionRequests({ status: 'pending' });
@@ -82,33 +103,10 @@ export default function AdminUsers() {
       setLoading(false);
     };
     load();
-  }, []);
+  }, [currentPage, search, typeParam]);
 
-  const filtered = useMemo(() => {
-    return users
-      .filter(u => {
-        if (typeParam === "all") return true;
-        if (typeParam === "client") return (u.user_type === "client" || u.user_type === "user") && u.role !== "admin";
-        if (typeParam === "coach") return u.user_type === "coach" && u.role !== "admin";
-        return u.user_type === typeParam;
-      })
-      .filter(u => {
-        const s = search.toLowerCase();
-        return (
-          u.full_name?.toLowerCase().includes(s) ||
-          u.email?.toLowerCase().includes(s)
-        );
-      });
-  }, [users, typeParam, search]);
-
-  // Pagination
-  const paginatedUsers = useMemo(() => {
-    const startIndex = (currentPage - 1) * USERS_PER_PAGE;
-    const endIndex = startIndex + USERS_PER_PAGE;
-    return filtered.slice(startIndex, endIndex);
-  }, [filtered, currentPage]);
-
-  const totalPages = Math.ceil(filtered.length / USERS_PER_PAGE);
+  const paginatedUsers = users;
+  const totalPages = Math.ceil(totalUsers / USERS_PER_PAGE);
 
   // Reset to page 1 when search or type changes
   useEffect(() => {
@@ -299,7 +297,7 @@ export default function AdminUsers() {
             </div>
             
             {/* Pagination Controls */}
-            {filtered.length > USERS_PER_PAGE && (
+            {totalUsers > USERS_PER_PAGE && (
               <div className="mt-6 flex items-center justify-center gap-2">
                 <Button
                   variant="outline"
@@ -348,13 +346,13 @@ export default function AdminUsers() {
             )}
             
             {/* Results counter */}
-            {filtered.length > 0 && (
+            {totalUsers > 0 && (
               <div className="mt-4 text-center text-sm text-slate-600">
-                Showing {((currentPage - 1) * USERS_PER_PAGE) + 1} - {Math.min(currentPage * USERS_PER_PAGE, filtered.length)} of {filtered.length} users
+                Showing {((currentPage - 1) * USERS_PER_PAGE) + 1} - {Math.min(currentPage * USERS_PER_PAGE, totalUsers)} of {totalUsers} users
               </div>
             )}
             
-            {filtered.length === 0 && <p className="text-slate-500 mt-4">No users found.</p>}
+            {users.length === 0 && <p className="text-slate-500 mt-4">No users found.</p>}
           </CardContent>
         </Card>
       </div>

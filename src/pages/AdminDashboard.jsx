@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
+import { apiClient } from "@/api/apiClient.js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,28 +69,26 @@ export default function AdminDashboard() {
           return;
         }
 
-        console.log('📊 Fetching users list...');
-  const allUsers = await User.list();
-        console.log('✅ Fetched', allUsers?.length || 0, 'users');
+          console.log('📊 Fetching user stats...');
+          const userStats = await apiClient.getUsers({ stats: '1' });
 
-  // Break down by type and role
-  const admins = allUsers.filter(u => u.role === "admin").length;
-  const totalCoaches = allUsers.filter(u => u.user_type === "coach" && u.role !== "admin").length;
-  const totalClients = allUsers.filter(u => (u.user_type === "client" || u.user_type === "user") && u.role !== "admin").length;
-  const totalUsers = totalCoaches + totalClients; // excludes admins
-  const totalAccounts = allUsers.length; // includes admins
+          console.log('📅 Fetching booking stats...');
+          const bookingStats = await apiClient.getBookingStats();
 
-        console.log('📅 Fetching bookings list...');
-        const allBookings = await Booking.list('-created_at', 1000);
-        console.log('✅ Fetched', allBookings?.length || 0, 'bookings');
-        
-        const totalBookings = allBookings.length;
-        const pending = allBookings.filter(b => b.status === "pending").length;
-        const confirmed = allBookings.filter(b => b.status === "confirmed").length;
-        const cancelled = allBookings.filter(b => b.status === "cancelled").length;
-        const completed = allBookings.filter(b => b.status === "completed").length;
-        
-  const recent = allBookings.slice(0, 8);
+          const totalBookings = bookingStats?.total || 0;
+          const pending = bookingStats?.pending || 0;
+          const confirmed = bookingStats?.confirmed || 0;
+          const cancelled = bookingStats?.cancelled || 0;
+          const completed = bookingStats?.completed || 0;
+
+          const totalAccounts = userStats?.total_accounts || 0;
+          const totalUsers = userStats?.total_users || 0;
+          const totalCoaches = userStats?.total_coaches || 0;
+          const totalClients = userStats?.total_clients || 0;
+          const admins = userStats?.admins || 0;
+
+          console.log('📅 Fetching recent bookings...');
+          const recent = await Booking.list('-created_at', 8);
         const ids = Array.from(new Set(recent.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
         const users = ids.length ? await User.filter({ id: { in: ids } }) : [];
         const umap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});

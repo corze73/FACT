@@ -122,19 +122,115 @@ export async function handler(event) {
         } else {
           // Get all users (with query filters if provided)
           const queryParams = event.queryStringParameters || {};
+          if (queryParams.stats === '1') {
+            if (!isAdmin) {
+              return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
+            }
+
+            const stats = await executeQueryOne(
+              withUserCtx(`
+                SELECT
+                  COUNT(*)::int AS total_accounts,
+                  COUNT(*) FILTER (WHERE role = 'admin')::int AS admins,
+                  COUNT(*) FILTER (WHERE user_type = 'coach' AND role <> 'admin')::int AS total_coaches,
+                  COUNT(*) FILTER (WHERE (user_type = 'client' OR user_type = 'user') AND role <> 'admin')::int AS total_clients,
+                  COUNT(*) FILTER (WHERE role <> 'admin')::int AS total_users
+                FROM profiles
+              `, currentUserId),
+              []
+            );
+
+            return { statusCode: 200, headers, body: JSON.stringify(stats || {}) };
+          }
+
           const isPublicCoachList = !isAdmin && queryParams.role === 'coach';
           if (!isAdmin && !isPublicCoachList) {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
           }
 
           const publicFields = `id, full_name, avatar_url, user_type, bio, country, city, coach_profile`;
-          let query = `SELECT ${isPublicCoachList ? publicFields : '*'} FROM profiles`;
+          const selectFields = isPublicCoachList ? publicFields : '*';
+          const includeTotal = queryParams.include_total === '1' || queryParams.include_total === 'true';
+          let query = `SELECT ${selectFields}${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''} FROM profiles`;
           const conditions = [];
           const params = [];
+          const type = queryParams.type || null;
+          const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
 
-          if (queryParams.role) {
-            conditions.push(`role = $${params.length + 1}`);
-            params.push(queryParams.role);
+          if (isPublicCoachList) {
+            conditions.push(`user_type = $${params.length + 1}`);
+            params.push('coach');
+          }
+
+          if (isAdmin) {
+            if (type === 'coach') {
+              conditions.push(`user_type = $${params.length + 1}`);
+              params.push('coach');
+              conditions.push(`role <> 'admin'`);
+            } else if (type === 'client') {
+              conditions.push(`(user_type = 'client' OR user_type = 'user')`);
+              conditions.push(`role <> 'admin'`);
+            } else if (type === 'admin') {
+              conditions.push(`role = 'admin'`);
+            }
+
+            if (queryParams.role) {
+              conditions.push(`role = $${params.length + 1}`);
+              params.push(queryParams.role);
+            }
+
+            if (queryParams.ids) {
+              const ids = queryParams.ids.split(',').map((id) => id.trim()).filter(Boolean);
+              if (ids.length > 0) {
+                conditions.push(`id = ANY($${params.length + 1}::uuid[])`);
+                params.push(ids);
+              }
+            }
+          }
+
+          if (search) {
+            if (isPublicCoachList) {
+              conditions.push(`(full_name ILIKE $${params.length + 1} OR bio ILIKE $${params.length + 1})`);
+              params.push(`%${search}%`);
+            } else if (isAdmin) {
+              conditions.push(`(full_name ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1})`);
+              params.push(`%${search}%`);
+            }
+          }
+
+          if (isPublicCoachList && queryParams.country) {
+            conditions.push(`country ILIKE $${params.length + 1}`);
+            params.push(`%${queryParams.country}%`);
+          }
+
+          if (isPublicCoachList && queryParams.city) {
+            conditions.push(`city ILIKE $${params.length + 1}`);
+            params.push(`%${queryParams.city}%`);
+          }
+
+          if (isPublicCoachList && queryParams.location) {
+            conditions.push(`location ILIKE $${params.length + 1}`);
+            params.push(`%${queryParams.location}%`);
+          }
+
+          if (isPublicCoachList && queryParams.service_type) {
+            conditions.push(`(coach_profile->'services_offered') ? $${params.length + 1}`);
+            params.push(queryParams.service_type);
+          }
+
+          if (isPublicCoachList && queryParams.min_rate) {
+            conditions.push(`COALESCE((coach_profile->>'hourly_rate')::numeric, 0) >= $${params.length + 1}`);
+            params.push(Number(queryParams.min_rate));
+          }
+
+          if (isPublicCoachList && queryParams.max_rate) {
+            conditions.push(`COALESCE((coach_profile->>'hourly_rate')::numeric, 0) <= $${params.length + 1}`);
+            params.push(Number(queryParams.max_rate));
+          }
+
+          if (isPublicCoachList && queryParams.min_rating) {
+            conditions.push(`COALESCE((coach_profile->>'rating')::numeric, 0) >= $${params.length + 1}`);
+            params.push(Number(queryParams.min_rating));
           }
 
           if (conditions.length > 0) {
@@ -143,21 +239,22 @@ export async function handler(event) {
 
           query += ' ORDER BY created_at DESC';
 
-          if (isPublicCoachList) {
-            const limit = Math.min(Number(queryParams.limit) || 40, 100);
-            const offset = Math.max(Number(queryParams.offset) || 0, 0);
-            query += ` LIMIT ${limit} OFFSET ${offset}`;
-          }
+          const limitDefault = isPublicCoachList ? 40 : 20;
+          const limit = Math.min(Number(queryParams.limit) || limitDefault, 100);
+          const offset = Math.max(Number(queryParams.offset) || 0, 0);
+          query += ` LIMIT ${limit} OFFSET ${offset}`;
 
           // Set RLS context if user is authenticated
           const finalQuery = currentUserId ? withUserCtx(query, currentUserId) : query;
           const users = await executeQuery(finalQuery, params);
 
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(users)
-          };
+          if (includeTotal) {
+            const total = users.length > 0 ? Number(users[0].total_count) : 0;
+            const data = users.map(({ total_count, ...rest }) => rest);
+            return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit, offset }) };
+          }
+
+          return { statusCode: 200, headers, body: JSON.stringify(users) };
         }
 
   case 'POST': {

@@ -129,13 +129,15 @@ export async function handler(event) {
           return { statusCode: 200, headers, body: JSON.stringify(booking) };
         }
 
-        // List bookings with filters
-        let query = `SELECT b.*,
-                            c.full_name as coach_name, c.avatar_url as coach_avatar,
-                            cl.full_name as client_name, cl.avatar_url as client_avatar
-                     FROM bookings b
-                     LEFT JOIN profiles c ON b.coach_id = c.id
-                     LEFT JOIN profiles cl ON b.client_id = cl.id`;
+         // List bookings with filters
+         const includeTotal = isTruthy(queryStringParameters?.include_total);
+         let query = `SELECT b.*,
+              c.full_name as coach_name, c.avatar_url as coach_avatar,
+              cl.full_name as client_name, cl.avatar_url as client_avatar
+              ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
+            FROM bookings b
+            LEFT JOIN profiles c ON b.coach_id = c.id
+            LEFT JOIN profiles cl ON b.client_id = cl.id`;
 
         const conditions = [];
         const params = [];
@@ -168,16 +170,28 @@ export async function handler(event) {
         const orderDirection = orderBy.startsWith('-') ? 'DESC' : 'ASC';
         query += ` ORDER BY b.${orderField} ${orderDirection}`;
 
-        // Optional limit for "recent bookings" widget
+        // Optional pagination
         if (queryStringParameters?.limit) {
           const limit = Number(queryStringParameters.limit);
           if (Number.isFinite(limit) && limit > 0 && limit <= 1000) {
             query += ` LIMIT ${limit}`;
           }
         }
+        if (queryStringParameters?.offset) {
+          const offset = Number(queryStringParameters.offset);
+          if (Number.isFinite(offset) && offset >= 0) {
+            query += ` OFFSET ${offset}`;
+          }
+        }
 
         const finalQuery = currentUserId ? withUserCtx(query, currentUserId) : query;
         const bookings = await executeQuery(finalQuery, params);
+
+        if (includeTotal) {
+          const total = bookings.length > 0 ? Number(bookings[0].total_count) : 0;
+          const data = bookings.map(({ total_count, ...rest }) => rest);
+          return { statusCode: 200, headers, body: JSON.stringify({ data, total }) };
+        }
 
         return { statusCode: 200, headers, body: JSON.stringify(bookings) };
       }

@@ -28,12 +28,15 @@ export default function AdminBookings() {
   const navigate = useNavigate();
   const location = useLocation();
   const [bookings, setBookings] = useState([]);
+  const [totalBookings, setTotalBookings] = useState(0);
   const [userMap, setUserMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [highlightedBookingId, setHighlightedBookingId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const urlParams = new URLSearchParams(window.location.search);
   const statusParam = (urlParams.get("status") || "all").toLowerCase();
@@ -46,12 +49,23 @@ export default function AdminBookings() {
         setCurrentUser(me);
         if (me.role !== "admin") return;
 
-        const all = await Booking.list('-created_at', 1000);
-        const ids = Array.from(new Set(all.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
+        const response = await Booking.list({
+          orderBy: '-created_at',
+          limit: PAGE_SIZE,
+          offset: (currentPage - 1) * PAGE_SIZE,
+          includeTotal: true,
+          status: statusParam !== 'all' ? statusParam : undefined
+        });
+
+        const list = response?.data || response || [];
+        const total = response?.total ?? list.length;
+        setTotalBookings(total);
+
+        const ids = Array.from(new Set(list.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
         const users = ids.length ? await User.filter({ id: { in: ids }}) : [];
         const map = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
         setUserMap(map);
-        setBookings(all);
+        setBookings(list);
       } catch (error) {
         console.error("Error loading bookings:", error);
       } finally {
@@ -59,7 +73,11 @@ export default function AdminBookings() {
       }
     };
     load();
-  }, []);
+  }, [currentPage, statusParam]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusParam]);
 
   // Handle navigation from sidebar search
   useEffect(() => {
@@ -74,9 +92,7 @@ export default function AdminBookings() {
     }
   }, [location.state, highlightParam]);
 
-  const filtered = useMemo(() => {
-    return bookings.filter(b => statusParam === "all" ? true : b.status === statusParam);
-  }, [bookings, statusParam]);
+  const filtered = bookings;
 
   const statusBadge = (status) => {
     const map = {
@@ -152,6 +168,29 @@ export default function AdminBookings() {
                     }`}
                   >
                     <div className="flex-1">
+                {totalBookings > PAGE_SIZE && (
+                  <div className="mt-6 flex items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-slate-600">
+                      Page {currentPage} of {Math.max(1, Math.ceil(totalBookings / PAGE_SIZE))}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalBookings / PAGE_SIZE), p + 1))}
+                      disabled={currentPage >= Math.ceil(totalBookings / PAGE_SIZE)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
                       <div className="flex items-center gap-3 mb-1">
                         <p className="font-medium text-slate-900">{b.service_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
                         <BookingReference reference={b.reference_code} />

@@ -25,8 +25,8 @@ export function useCoaches(filters = {}) {
       if (filters.country) params.append('country', filters.country);
       if (filters.city) params.append('city', filters.city);
       if (filters.search) params.append('search', filters.search);
-      if (filters.page) params.append('page', filters.page);
       if (filters.limit) params.append('limit', filters.limit);
+      if (filters.page) params.append('offset', (filters.page - 1) * (filters.limit || 20));
       
       const response = await apiClient.getCoaches(params.toString());
       return response;
@@ -138,7 +138,7 @@ export function useUsers(page = 1, limit = 20) {
   return useQuery({
     queryKey: queryKeys.users({ page, limit }),
     queryFn: async () => {
-      const params = new URLSearchParams({ page, limit });
+      const params = new URLSearchParams({ limit, offset: (page - 1) * limit, include_total: '1' });
       return apiClient.getUsers(params.toString());
     },
     staleTime: 3 * 60 * 1000, // 3 minutes
@@ -215,10 +215,10 @@ export function useAdminUsers(page = 1) {
   return useQuery({
     queryKey: queryKeys.adminUsers(page),
     queryFn: async () => {
-      const params = new URLSearchParams({ 
-        page, 
+      const params = new URLSearchParams({
         limit,
-        include_deactivated: 'true' 
+        offset: (page - 1) * limit,
+        include_total: '1'
       });
       return apiClient.getUsers(params.toString());
     },

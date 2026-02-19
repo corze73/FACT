@@ -103,10 +103,10 @@ export const User = {
 
   async filter(filters) {
     try {
-      // Convert filters to query parameters
       const queryParams = {};
       if (filters.role) queryParams.role = filters.role;
-      
+      if (filters.user_type) queryParams.type = filters.user_type;
+      if (filters.id?.in) queryParams.ids = filters.id.in.join(',');
       return await apiClient.getUsers(queryParams);
     } catch (error) {
       console.error('API filter failed, using fallback:', error);
@@ -492,11 +492,26 @@ User.restore = async function(id) {
 
 // ========== BOOKING ENTITY (Migrated to API) ==========
 export const Booking = {
-  async list(orderBy = '-created_at', limit = null) {
+  async list(orderBy = '-created_at', limit = null, offset = null, includeTotal = false, extraFilters = {}) {
     try {
-      const filters = {};
-      if (limit) filters.limit = limit;
-      if (orderBy) filters.orderBy = orderBy;
+      let options = {};
+      if (typeof orderBy === 'object' && orderBy !== null) {
+        options = orderBy;
+      } else if (typeof limit === 'object' && limit !== null) {
+        options = limit;
+      } else {
+        options = { orderBy, limit, offset, includeTotal, ...extraFilters };
+      }
+
+      const filters = { ...options.filters };
+      if (options.orderBy) filters.orderBy = options.orderBy;
+      if (options.limit) filters.limit = options.limit;
+      if (options.offset !== null && options.offset !== undefined) filters.offset = options.offset;
+      if (options.includeTotal) filters.include_total = '1';
+      if (options.status) filters.status = options.status;
+      if (options.coach_id) filters.coach_id = options.coach_id;
+      if (options.client_id) filters.client_id = options.client_id;
+
       // orderBy format: '-created_at' means DESC, 'created_at' means ASC
       return await apiClient.getBookings(filters);
     } catch (error) {
