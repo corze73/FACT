@@ -5,6 +5,7 @@ console.log('🔍 Checking .env configuration:\n');
 
 const checks = [
   { name: 'DATABASE_URL', value: process.env.DATABASE_URL, shouldStart: 'postgresql://', required: true },
+  { name: 'APP_JWT_SECRET', value: process.env.APP_JWT_SECRET, shouldStart: null, required: true },
   { name: 'VITE_DATABASE_URL', value: process.env.VITE_DATABASE_URL, shouldStart: 'postgresql://', required: false },
   { name: 'STRIPE_SECRET_KEY', value: process.env.STRIPE_SECRET_KEY, shouldStart: 'sk_', required: true },
   { name: 'VITE_STRIPE_PUBLISHABLE_KEY', value: process.env.VITE_STRIPE_PUBLISHABLE_KEY, shouldStart: 'pk_', required: true },

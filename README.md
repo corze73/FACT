@@ -36,5 +36,16 @@ https://findacoachtoday.com
 npm install  
 npm run web
 
+## 🔐 Environment Variables
+Server-side (Netlify Functions):
+- `DATABASE_URL`
+- `APP_JWT_SECRET` (used to sign/verify auth tokens)
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+
+Client-side (Vite):
+- `VITE_STRIPE_PUBLISHABLE_KEY`
+- `VITE_GOOGLE_CLIENT_ID`
+
 ## 📦 Status
 Actively in development with core flows complete.

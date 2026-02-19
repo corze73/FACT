@@ -1,7 +1,7 @@
 /* eslint-env node */
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
-import { getAuthContext, signSupabaseToken } from './lib/auth.js';
+import { getAuthContext, signAuthToken } from './lib/auth.js';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
 
@@ -348,7 +348,7 @@ export async function handler(event) {
           );
         }
 
-        const token = signSupabaseToken({ sub: upsertedUser.id, email: upsertedUser.email, role: upsertedUser.role });
+        const token = signAuthToken({ sub: upsertedUser.id, email: upsertedUser.email, role: upsertedUser.role });
         console.log('✅ User upserted/loaded:', email, 'id:', upsertedUser?.id);
         return {
           statusCode: 200,

@@ -78,6 +78,7 @@
 #### Production Environment Variables
 Check in Netlify dashboard:
 - [ ] `DATABASE_URL` - Neon production database
+- [ ] `APP_JWT_SECRET` - Auth token signing secret
 - [ ] `STRIPE_SECRET_KEY` - Production Stripe key
 - [ ] `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
 - [ ] `STRIPE_PUBLISHABLE_KEY` or `VITE_STRIPE_PUBLISHABLE_KEY`

@@ -11,6 +11,7 @@ const __dirname = dirname(__filename);
 const requiredVars = {
   server: [
     'DATABASE_URL',
+    'APP_JWT_SECRET',
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET'
   ],

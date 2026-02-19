@@ -21,11 +21,11 @@ const timingSafeEqual = (a, b) => {
   return crypto.timingSafeEqual(aBuf, bBuf);
 };
 
-export const verifySupabaseToken = (token) => {
+export const verifyAuthToken = (token) => {
   if (!token) return null;
-  const secret = process.env.SUPABASE_JWT_SECRET;
+  const secret = process.env.APP_JWT_SECRET;
   if (!secret) {
-    throw new Error('SUPABASE_JWT_SECRET is not set');
+    throw new Error('APP_JWT_SECRET is not set');
   }
 
   const parts = token.split('.');
@@ -59,7 +59,7 @@ export const verifySupabaseToken = (token) => {
 export const getAuthPayload = (event) => {
   const token = getBearerToken(event.headers || {});
   if (!token) return null;
-  return verifySupabaseToken(token);
+  return verifyAuthToken(token);
 };
 
 const withUserCtx = (query, ctxId) => {
@@ -84,10 +84,10 @@ export const getAuthContext = async (event) => {
   };
 };
 
-export const signSupabaseToken = (payload, { expiresInSeconds = 60 * 60 * 24 * 7 } = {}) => {
-  const secret = process.env.SUPABASE_JWT_SECRET;
+export const signAuthToken = (payload, { expiresInSeconds = 60 * 60 * 24 * 7 } = {}) => {
+  const secret = process.env.APP_JWT_SECRET;
   if (!secret) {
-    throw new Error('SUPABASE_JWT_SECRET is not set');
+    throw new Error('APP_JWT_SECRET is not set');
   }
 
   const header = { alg: 'HS256', typ: 'JWT' };
