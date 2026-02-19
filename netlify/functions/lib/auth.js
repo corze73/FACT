@@ -23,9 +23,9 @@ const timingSafeEqual = (a, b) => {
 
 export const verifyAuthToken = (token) => {
   if (!token) return null;
-  const secret = process.env.APP_JWT_SECRET;
+  const secret = process.env.APP_JWT_SECRET || process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error('APP_JWT_SECRET is not set');
+    throw new Error('APP_JWT_SECRET or JWT_SECRET is not set');
   }
 
   const parts = token.split('.');
@@ -85,9 +85,9 @@ export const getAuthContext = async (event) => {
 };
 
 export const signAuthToken = (payload, { expiresInSeconds = 60 * 60 * 24 * 7 } = {}) => {
-  const secret = process.env.APP_JWT_SECRET;
+  const secret = process.env.APP_JWT_SECRET || process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error('APP_JWT_SECRET is not set');
+    throw new Error('APP_JWT_SECRET or JWT_SECRET is not set');
   }
 
   const header = { alg: 'HS256', typ: 'JWT' };
