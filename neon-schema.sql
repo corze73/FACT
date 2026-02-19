@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     role TEXT CHECK (role IN ('user', 'admin')) DEFAULT 'user',
     preferred_coaching_types TEXT[],
     preferred_session_times TEXT[],
-    coach_profile JSONB
+    coach_profile JSONB,
+    metadata JSONB DEFAULT '{}'::jsonb
 );
 
 -- Create bookings table

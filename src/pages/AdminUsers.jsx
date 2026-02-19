@@ -24,11 +24,16 @@ export default function AdminUsers() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [reason, setReason] = useState("");
+  const [hardDelete, setHardDelete] = useState(false);
   const [requests, setRequests] = useState([]);
   const [requestActionReason, setRequestActionReason] = useState("");
   const [decidingId, setDecidingId] = useState(null);
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  const isTestUser = (u) => {
+    const flag = u?.metadata?.is_test;
+    return flag === true || flag === 'true' || flag === 1 || flag === '1';
+  };
 
   const urlParams = new URLSearchParams(window.location.search);
   const typeParam = urlParams.get("type") || "all";
@@ -45,14 +50,19 @@ export default function AdminUsers() {
   const openRemove = (u) => {
     setSelectedUser(u);
     setReason("");
+    setHardDelete(false);
     setConfirmOpen(true);
   };
 
   const handleRemove = async () => {
     if (!selectedUser) return;
     try {
-      await User.delete(selectedUser.id, { reason });
-      setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: reason } : u));
+      await User.delete(selectedUser.id, { reason, hard: hardDelete });
+      if (hardDelete) {
+        setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+      } else {
+        setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: reason } : u));
+      }
       setConfirmOpen(false);
     } catch (e) {
       alert(`Failed to remove user: ${e.message}`);
@@ -201,6 +211,9 @@ export default function AdminUsers() {
                           <div className="flex gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="capitalize">{u.user_type || "member"}</Badge>
                             <Badge className={u.role === "admin" ? "bg-yellow-100 text-yellow-800" : "bg-slate-100 text-slate-700"}>{u.role || "user"}</Badge>
+                            {isTestUser(u) && (
+                              <Badge className="bg-rose-50 text-rose-700 border border-rose-100">test</Badge>
+                            )}
                             {u.is_active === false && (
                               <Badge className="bg-red-100 text-red-700">deactivated</Badge>
                             )}
@@ -362,9 +375,26 @@ export default function AdminUsers() {
           <div className="space-y-3">
             <p className="text-sm text-slate-600">You&apos;re removing {selectedUser?.full_name || 'this user'}. This is a soft deactivation—they won&apos;t be able to log in. Please provide a reason (visible to admins only).</p>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for removal (optional)" />
+            <label className="flex items-start gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={hardDelete}
+                onChange={(e) => setHardDelete(e.target.checked)}
+                disabled={!isTestUser(selectedUser)}
+              />
+              <span>
+                Hard delete (test users only). This permanently removes the user and related records.
+                {!isTestUser(selectedUser) && (
+                  <span className="block text-xs text-slate-500">Requires metadata.is_test = true.</span>
+                )}
+              </span>
+            </label>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
-              <Button className="bg-red-600 hover:bg-red-700" onClick={handleRemove}>Remove user</Button>
+              <Button className="bg-red-600 hover:bg-red-700" onClick={handleRemove}>
+                {hardDelete ? 'Hard delete' : 'Remove user'}
+              </Button>
             </div>
           </div>
         </DialogContent>

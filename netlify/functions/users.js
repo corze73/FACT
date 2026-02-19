@@ -382,8 +382,47 @@ export async function handler(event) {
         const hard = payload.hard === true;
 
         if (hard) {
-          // Hard delete requested (use sparingly)
-          await executeQuery(withUserCtx('DELETE FROM profiles WHERE id = $1', userId), [userId]);
+          if (!currentUserId) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+          }
+
+          const actor = await executeQueryOne(
+            withUserCtx('SELECT role FROM profiles WHERE id = $1', currentUserId),
+            [currentUserId]
+          );
+
+          if (!actor || actor.role !== 'admin') {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required for hard delete' }) };
+          }
+
+          const target = await executeQueryOne(
+            withUserCtx('SELECT id, role, metadata FROM profiles WHERE id = $1', currentUserId),
+            [userId]
+          );
+
+          if (!target) {
+            return { statusCode: 404, headers, body: JSON.stringify({ error: 'User not found' }) };
+          }
+
+          if (target.role === 'admin') {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Cannot hard delete admin users' }) };
+          }
+
+          const testFlag = target?.metadata?.is_test;
+          const isTestUser = testFlag === true || testFlag === 'true' || testFlag === 1 || testFlag === '1';
+          if (!isTestUser) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hard delete is allowed only for test users (metadata.is_test = true)' }) };
+          }
+
+          // Hard delete requested (test users only). Clean related records first.
+          await executeQuery(withUserCtx('DELETE FROM bookings WHERE user_id = $1 OR client_id = $1 OR coach_id = $1', currentUserId), [userId]);
+          await executeQuery(withUserCtx('DELETE FROM messages WHERE sender_id = $1 OR receiver_id = $1', currentUserId), [userId]);
+          await executeQuery(withUserCtx('DELETE FROM reviews WHERE reviewer_id = $1 OR reviewee_id = $1', currentUserId), [userId]);
+          await executeQuery(withUserCtx('DELETE FROM coach_availability WHERE coach_id = $1', currentUserId), [userId]);
+          await executeQuery(withUserCtx('DELETE FROM coach_recurring_availability WHERE coach_id = $1', currentUserId), [userId]);
+          await executeQuery(withUserCtx('DELETE FROM account_deletion_requests WHERE user_id = $1 OR decided_by = $1', currentUserId), [userId]);
+
+          await executeQuery(withUserCtx('DELETE FROM profiles WHERE id = $1', currentUserId), [userId]);
           return { statusCode: 204, headers, body: '' };
         }
 
