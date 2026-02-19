@@ -396,7 +396,8 @@ export async function handler(event) {
           }
 
           const target = await executeQueryOne(
-            withUserCtx('SELECT id, role, metadata FROM profiles WHERE id = $1', currentUserId),
+            withUserCtx(`SELECT id, role, (to_jsonb(p.*)->'metadata') AS metadata
+              FROM profiles p WHERE id = $1`, currentUserId),
             [userId]
           );
 
