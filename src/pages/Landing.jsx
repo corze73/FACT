@@ -380,26 +380,33 @@ export default function Landing() {
               tailored, on-pitch development. Browse verified coaches, compare styles and
               specialties, and book sessions that fit your goals, schedule, and budget.
             </p>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1508606572321-901ea443707f?auto=format&fit=crop&w=900&q=80"
-                  alt="Coach guiding a player during a drill"
-                  className="h-48 w-full object-cover"
+                  src="https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=900&q=80"
+                  alt="Female coach running a session"
+                  className="h-44 w-full object-cover"
                 />
               </div>
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1521412644187-c49fa049e84d?auto=format&fit=crop&w=900&q=80"
-                  alt="Coach providing feedback on the pitch"
-                  className="h-48 w-full object-cover"
+                  src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=900&q=80"
+                  alt="Black coach on the pitch"
+                  className="h-44 w-full object-cover"
                 />
               </div>
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
                   src="https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=900&q=80"
-                  alt="Coach leading a training session"
-                  className="h-48 w-full object-cover"
+                  alt="Asian coach leading training"
+                  className="h-44 w-full object-cover"
+                />
+              </div>
+              <div className="overflow-hidden rounded-xl shadow-lg">
+                <img
+                  src="https://images.unsplash.com/photo-1521412644187-c49fa049e84d?auto=format&fit=crop&w=900&q=80"
+                  alt="Male coach providing feedback"
+                  className="h-44 w-full object-cover"
                 />
               </div>
             </div>
