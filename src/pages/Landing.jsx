@@ -397,8 +397,8 @@ export default function Landing() {
               </div>
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
-                  src="https://images.pexels.com/photos/31816158/pexels-photo-31816158.jpeg?auto=compress&cs=tinysrgb&w=900"
-                  alt="Coach preparing a player for a soccer game"
+                  src="https://images.pexels.com/photos/15153162/pexels-photo-15153162.jpeg?auto=compress&cs=tinysrgb&w=900"
+                  alt="Coach running a soccer training session"
                   className="h-44 w-full object-cover"
                 />
               </div>
