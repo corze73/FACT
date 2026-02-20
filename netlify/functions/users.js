@@ -62,7 +62,7 @@ export async function handler(event) {
     
     const auth = await getAuthContext(event);
     const currentUserId = auth.userId;
-    const isAdmin = auth.role === 'admin';
+    const isAdmin = auth.isAdmin === true;
     console.log('👤 Auth user ID:', currentUserId);
     
     // Parse body if it exists and is base64 encoded
@@ -131,10 +131,10 @@ export async function handler(event) {
               withUserCtx(`
                 SELECT
                   COUNT(*)::int AS total_accounts,
-                  COUNT(*) FILTER (WHERE role = 'admin')::int AS admins,
-                  COUNT(*) FILTER (WHERE user_type = 'coach' AND role <> 'admin')::int AS total_coaches,
-                  COUNT(*) FILTER (WHERE (user_type = 'client' OR user_type = 'user') AND role <> 'admin')::int AS total_clients,
-                  COUNT(*) FILTER (WHERE role <> 'admin')::int AS total_users
+                  COUNT(*) FILTER (WHERE user_type = 'admin')::int AS admins,
+                  COUNT(*) FILTER (WHERE user_type = 'coach')::int AS total_coaches,
+                  COUNT(*) FILTER (WHERE user_type = 'client')::int AS total_clients,
+                  COUNT(*) FILTER (WHERE user_type <> 'admin')::int AS total_users
                 FROM profiles
               `, currentUserId),
               []
@@ -143,14 +143,62 @@ export async function handler(event) {
             return { statusCode: 200, headers, body: JSON.stringify(stats || {}) };
           }
 
-          const isPublicCoachList = !isAdmin && queryParams.role === 'coach';
+          const requestedPublicCoachList =
+            queryParams.role === 'coach' || queryParams.type === 'coach' || queryParams.user_type === 'coach';
+          const isPublicCoachList = !isAdmin && requestedPublicCoachList;
           if (!isAdmin && !isPublicCoachList) {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
           }
 
-          const publicFields = `id, full_name, avatar_url, user_type, bio, country, city, coach_profile`;
-          const selectFields = isPublicCoachList ? publicFields : '*';
           const includeTotal = queryParams.include_total === '1' || queryParams.include_total === 'true';
+
+          if (isPublicCoachList && (queryParams.limit === undefined || queryParams.offset === undefined)) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'Public coach list requires limit and offset parameters' })
+            };
+          }
+
+          const parseLimit = (raw, fallback, max) => {
+            const num = Number(raw ?? fallback);
+            if (!Number.isInteger(num) || num < 1 || num > max) return null;
+            return num;
+          };
+
+          const parseOffset = (raw, fallback = 0) => {
+            const num = Number(raw ?? fallback);
+            if (!Number.isInteger(num) || num < 0) return null;
+            return num;
+          };
+
+          const limitDefault = isPublicCoachList ? 24 : 20;
+          const limitMax = isPublicCoachList ? 100 : 100;
+          const limit = parseLimit(queryParams.limit, limitDefault, limitMax);
+          const offset = parseOffset(queryParams.offset, 0);
+
+          if (limit === null || offset === null) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'Invalid pagination. limit must be 1-100 and offset must be >= 0' })
+            };
+          }
+
+          const publicFields = `
+            id,
+            full_name,
+            avatar_url,
+            user_type,
+            city,
+            country,
+            LEFT(COALESCE(NULLIF(TRIM(bio), ''), coach_profile->>'headline', ''), 280) AS bio,
+            COALESCE(coach_profile->'services_offered', '[]'::jsonb) AS services_offered,
+            COALESCE((coach_profile->>'hourly_rate')::numeric, 0) AS hourly_rate,
+            COALESCE((coach_profile->>'rating')::numeric, 0) AS rating,
+            COALESCE((coach_profile->>'total_reviews')::int, 0) AS total_reviews
+          `;
+          const selectFields = isPublicCoachList ? publicFields : '*';
           let query = `SELECT ${selectFields}${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''} FROM profiles`;
           const conditions = [];
           const params = [];
@@ -160,23 +208,27 @@ export async function handler(event) {
           if (isPublicCoachList) {
             conditions.push(`user_type = $${params.length + 1}`);
             params.push('coach');
+            conditions.push(`COALESCE(is_active, true) = true`);
           }
 
           if (isAdmin) {
             if (type === 'coach') {
               conditions.push(`user_type = $${params.length + 1}`);
               params.push('coach');
-              conditions.push(`role <> 'admin'`);
             } else if (type === 'client') {
-              conditions.push(`(user_type = 'client' OR user_type = 'user')`);
-              conditions.push(`role <> 'admin'`);
+              conditions.push(`user_type = 'client'`);
             } else if (type === 'admin') {
-              conditions.push(`role = 'admin'`);
+              conditions.push(`user_type = 'admin'`);
             }
 
             if (queryParams.role) {
-              conditions.push(`role = $${params.length + 1}`);
-              params.push(queryParams.role);
+              if (queryParams.role === 'admin') {
+                conditions.push(`user_type = 'admin'`);
+              } else if (queryParams.role === 'coach') {
+                conditions.push(`user_type = 'coach'`);
+              } else if (queryParams.role === 'user' || queryParams.role === 'client') {
+                conditions.push(`user_type = 'client'`);
+              }
             }
 
             if (queryParams.ids) {
@@ -239,9 +291,6 @@ export async function handler(event) {
 
           query += ' ORDER BY created_at DESC';
 
-          const limitDefault = isPublicCoachList ? 40 : 20;
-          const limit = Math.min(Number(queryParams.limit) || limitDefault, 100);
-          const offset = Math.max(Number(queryParams.offset) || 0, 0);
           query += ` LIMIT ${limit} OFFSET ${offset}`;
 
           // Set RLS context if user is authenticated
@@ -252,6 +301,10 @@ export async function handler(event) {
             const total = users.length > 0 ? Number(users[0].total_count) : 0;
             const data = users.map(({ total_count, ...rest }) => rest);
             return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit, offset }) };
+          }
+
+          if (isPublicCoachList) {
+            return { statusCode: 200, headers, body: JSON.stringify({ data: users, limit, offset }) };
           }
 
           return { statusCode: 200, headers, body: JSON.stringify(users) };
@@ -372,7 +425,7 @@ export async function handler(event) {
           );
         }
 
-        const token = signAuthToken({ sub: upsertedUser.id, email: upsertedUser.email, role: upsertedUser.role });
+        const token = signAuthToken({ sub: upsertedUser.id, email: upsertedUser.email, user_type: upsertedUser.user_type });
         console.log('✅ User upserted/loaded:', email, 'id:', upsertedUser?.id);
         return {
           statusCode: 200,
@@ -528,17 +581,17 @@ export async function handler(event) {
           return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
         }
 
-        if (hard && !isAdmin) {
-          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required for hard delete' }) };
+        if (!isAdmin) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
         }
 
-        if (!hard && !isAdmin && currentUserId !== userId) {
-          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Cannot remove other users' }) };
+        if (currentUserId === userId) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin self-delete is not allowed' }) };
         }
 
         if (hard) {
           const target = await executeQueryOne(
-            withUserCtx('SELECT id, role FROM profiles WHERE id = $1', currentUserId),
+            withUserCtx('SELECT id, user_type FROM profiles WHERE id = $1', currentUserId),
             [userId]
           );
 
@@ -546,7 +599,7 @@ export async function handler(event) {
             return { statusCode: 404, headers, body: JSON.stringify({ error: 'User not found' }) };
           }
 
-          if (target.role === 'admin') {
+          if (target.user_type === 'admin') {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Cannot hard delete admin users' }) };
           }
 
@@ -601,8 +654,7 @@ export async function handler(event) {
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: error.message,
-        stack: error.stack
+        message: 'Request failed'
       })
     };
   }

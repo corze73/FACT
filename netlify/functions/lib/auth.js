@@ -69,16 +69,20 @@ const withUserCtx = (query, ctxId) => {
 
 export const getAuthContext = async (event) => {
   const payload = getAuthPayload(event);
-  if (!payload?.sub) return { userId: null, role: null, payload: null };
+  if (!payload?.sub) return { userId: null, userType: null, isAdmin: false, payload: null };
 
   const profile = await executeQueryOne(
-    withUserCtx('SELECT role, is_active FROM profiles WHERE id = $1', payload.sub),
+    withUserCtx('SELECT user_type, is_active FROM profiles WHERE id = $1', payload.sub),
     [payload.sub]
   );
 
+  const userType = profile?.user_type || null;
+  const isAdmin = userType === 'admin';
+
   return {
     userId: payload.sub,
-    role: profile?.role || payload.role || null,
+    userType,
+    isAdmin,
     isActive: profile?.is_active !== false,
     payload
   };

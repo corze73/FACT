@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +82,7 @@ export default function AdminUsers() {
     const load = async () => {
       const me = await User.me();
       setCurrentUser(me);
-      if (me.role !== "admin") return;
+      if (!isAdminUser(me)) return;
 
       setLoading(true);
       const params = {
@@ -124,7 +124,7 @@ export default function AdminUsers() {
   }, [search, typeParam]);
 
   if (loading) return <div className="p-8">Loading users...</div>;
-  if (!currentUser || currentUser.role !== "admin") return null;
+  if (!currentUser || !isAdminUser(currentUser)) return null;
 
   return (
     <div className="p-6 md:p-8">
@@ -214,7 +214,7 @@ export default function AdminUsers() {
                           <p className="text-xs text-slate-500">Email hidden</p>
                           <div className="flex gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="capitalize">{u.user_type || "member"}</Badge>
-                            <Badge className={u.role === "admin" ? "bg-yellow-100 text-yellow-800" : "bg-slate-100 text-slate-700"}>{u.role || "user"}</Badge>
+                            <Badge className={u.user_type === "admin" ? "bg-yellow-100 text-yellow-800" : "bg-slate-100 text-slate-700"}>{u.user_type === 'admin' ? 'admin' : 'member'}</Badge>
                             {u.is_active === false && (
                               <Badge className="bg-red-100 text-red-700">deactivated</Badge>
                             )}
@@ -250,7 +250,7 @@ export default function AdminUsers() {
                         </div>
                       </div>
                     </CardContent>
-                    {currentUser?.role === 'admin' && u.role !== 'admin' && (
+                    {isAdminUser(currentUser) && u.user_type !== 'admin' && (
                       <div className="flex justify-end pb-3 pr-3 gap-2">
                         <Button
                           variant="outline"

@@ -26,7 +26,7 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
 };
 import ReviewModal from "../components/reviews/ReviewModal";
 import { useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser } from "@/utils";
 import CancelBookingModal from "../components/booking/CancelBookingModal";
 import RescheduleBookingModal from "../components/booking/RescheduleBookingModal";
 import { BookingReference } from "../components/booking/BookingReference";
@@ -50,7 +50,7 @@ export default function MyBookings() {
     (async () => {
       try {
         const me = await User.me();
-        if (me.role === "admin") {
+        if (isAdminUser(me)) {
           navigate(createPageUrl("AdminDashboard"));
         }
       } catch (error) {

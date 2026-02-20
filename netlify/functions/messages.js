@@ -47,7 +47,7 @@ export async function handler(event) {
 
     const auth = await getAuthContext(event);
     const currentUserId = auth.userId;
-    const isAdmin = auth.role === 'admin';
+    const isAdmin = auth.isAdmin === true;
 
     if (!currentUserId) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };

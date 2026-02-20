@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, CreditCard } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser } from "@/utils";
 import { format, isValid } from "date-fns";
 import { BookingReference, BookingReferenceSearch } from "../components/booking/BookingReference";
 import StripePaymentModal from "@/components/payment/StripePaymentModal.jsx";
@@ -47,7 +47,7 @@ export default function AdminBookings() {
       try {
         const me = await User.me();
         setCurrentUser(me);
-        if (me.role !== "admin") return;
+        if (!isAdminUser(me)) return;
 
         const response = await Booking.list({
           orderBy: '-created_at',
@@ -131,7 +131,7 @@ export default function AdminBookings() {
   };
 
   if (loading) return <div className="p-8">Loading bookings...</div>;
-  if (!currentUser || currentUser.role !== "admin") return null;
+  if (!currentUser || !isAdminUser(currentUser)) return null;
 
   const handleBookingFound = (booking) => {
     // Highlight or navigate to the found booking

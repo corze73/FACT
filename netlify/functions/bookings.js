@@ -70,7 +70,7 @@ export async function handler(event) {
 
     const auth = await getAuthContext(event);
     const currentUserId = auth.userId;
-    const isAdmin = auth.role === 'admin';
+    const isAdmin = auth.isAdmin === true;
     console.log('👤 Auth user ID:', currentUserId);
     
     // Helper to set RLS context
@@ -131,6 +131,27 @@ export async function handler(event) {
 
          // List bookings with filters
          const includeTotal = isTruthy(queryStringParameters?.include_total);
+
+         const parseLimit = (raw) => {
+           if (raw === undefined) return null;
+           const num = Number(raw);
+           if (!Number.isInteger(num) || num < 1 || num > 100) return null;
+           return num;
+         };
+
+         const parseOffset = (raw) => {
+           if (raw === undefined) return null;
+           const num = Number(raw);
+           if (!Number.isInteger(num) || num < 0) return null;
+           return num;
+         };
+
+         const parsedLimit = parseLimit(queryStringParameters?.limit);
+         const parsedOffset = parseOffset(queryStringParameters?.offset);
+         if ((queryStringParameters?.limit !== undefined && parsedLimit === null) || (queryStringParameters?.offset !== undefined && parsedOffset === null)) {
+           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination. limit must be 1-100 and offset must be >= 0' }) };
+         }
+
          let query = `SELECT b.*,
               c.full_name as coach_name, c.avatar_url as coach_avatar,
               cl.full_name as client_name, cl.avatar_url as client_avatar
@@ -155,6 +176,16 @@ export async function handler(event) {
           params.push(queryStringParameters.client_id);
         }
 
+        // Non-admin users must scope list queries to their own bookings
+        if (!isAdmin) {
+          const scopedCoachId = queryStringParameters?.coach_id;
+          const scopedClientId = queryStringParameters?.client_id;
+          const isSelfScoped = scopedCoachId === currentUserId || scopedClientId === currentUserId;
+          if (!isSelfScoped) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Access denied for unscoped booking list' }) };
+          }
+        }
+
         if (queryStringParameters?.status) {
           conditions.push(`b.status = $${params.length + 1}`);
           params.push(queryStringParameters.status);
@@ -171,17 +202,11 @@ export async function handler(event) {
         query += ` ORDER BY b.${orderField} ${orderDirection}`;
 
         // Optional pagination
-        if (queryStringParameters?.limit) {
-          const limit = Number(queryStringParameters.limit);
-          if (Number.isFinite(limit) && limit > 0 && limit <= 1000) {
-            query += ` LIMIT ${limit}`;
-          }
+        if (parsedLimit !== null) {
+          query += ` LIMIT ${parsedLimit}`;
         }
-        if (queryStringParameters?.offset) {
-          const offset = Number(queryStringParameters.offset);
-          if (Number.isFinite(offset) && offset >= 0) {
-            query += ` OFFSET ${offset}`;
-          }
+        if (parsedOffset !== null) {
+          query += ` OFFSET ${parsedOffset}`;
         }
 
         const finalQuery = currentUserId ? withUserCtx(query, currentUserId) : query;
@@ -367,6 +392,9 @@ export async function handler(event) {
       case 'DELETE': {
         if (!currentUserId) {
           return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
+        if (!isAdmin) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
         }
         // Hard delete (not recommended)
         if (!bookingId) {

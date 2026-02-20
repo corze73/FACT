@@ -11,7 +11,7 @@ import { Search, MapPin, Filter, Users, Plus, X, ChevronLeft, ChevronRight } fro
 import { showSuccess, showError, devLog, devError } from "@/utils/notifications";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser } from "@/utils";
 import CoachCard from "../components/coaches/CoachCard";
 import BookingModal from "../components/booking/BookingModal";
 
@@ -88,7 +88,7 @@ export default function FindCoaches() {
     (async () => {
       try {
         const me = await User.me();
-        if (me.role === "admin") {
+        if (isAdminUser(me)) {
           navigate(createPageUrl("AdminDashboard"));
           return;
         }

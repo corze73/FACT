@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
 import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
@@ -26,12 +26,6 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
-
-  const normalizeUserType = (value) => {
-    if (value === 'coach' || value === 'client') return value;
-    if (value === 'user' || !value) return 'client';
-    return value;
-  };
 
   useEffect(() => {
     loadCurrentUser();
@@ -94,7 +88,7 @@ export default function Layout({ children, currentPageName }) {
 
   const getNavigationItems = () => {
     if (!currentUser) return [];
-    if (currentUser.role === "admin") {
+    if (isAdminUser(currentUser)) {
       return [
         { title: "Admin Dashboard", url: createPageUrl("AdminDashboard"), icon: Star },
         { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle }
@@ -162,7 +156,7 @@ export default function Layout({ children, currentPageName }) {
           </SidebarHeader>
           
           {/* Booking Search for Admin Users */}
-          {currentUser?.role === 'admin' && (
+          {isAdminUser(currentUser) && (
             <div className="px-4 py-2 border-b border-slate-200">
               <SidebarBookingSearch />
             </div>
@@ -207,15 +201,9 @@ export default function Layout({ children, currentPageName }) {
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 capitalize truncate">
                     {normalizeUserType(currentUser?.user_type) || 'member'}
                   </span>
-                  {currentUser?.role && (
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full truncate ${
-                        currentUser.role === 'admin'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {currentUser.role}
+                  {isAdminUser(currentUser) && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full truncate bg-yellow-100 text-yellow-800">
+                      admin
                     </span>
                   )}
                 </div>

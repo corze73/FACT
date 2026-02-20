@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser } from "@/utils";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
@@ -63,7 +63,7 @@ export default function AdminDashboard() {
         const me = await User.me();
         console.log('👤 Current user:', me);
         setCurrentUser(me);
-        if (me.role !== "admin") {
+        if (!isAdminUser(me)) {
           const home = me.user_type === "coach" ? "CoachDashboard" : "FindCoaches";
           navigate(createPageUrl(home));
           return;
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
   };
 
   if (loading) return <div className="p-8">Loading admin dashboard...</div>;
-  if (!currentUser || currentUser.role !== "admin") return null;
+  if (!currentUser || !isAdminUser(currentUser)) return null;
 
   const StatCard = ({ icon: Icon, label, value, color = "text-slate-700", onClick }) => (
     <button onClick={onClick} className="text-left">

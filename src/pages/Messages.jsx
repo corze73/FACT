@@ -4,7 +4,7 @@ import { Message } from '@/api/entities.jsx';
 import { Booking } from '@/api/entities.jsx';
 import { apiClient } from '@/api/apiClient.js';
 import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
+import { createPageUrl, isAdminUser } from '@/utils';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -19,7 +19,7 @@ export default function Messages() {
                 console.log('Messages: Loading for user:', currentUser.id, currentUser.full_name);
 
                 // Admin: see conversations across all bookings (platform-wide) + direct threads
-                if (currentUser.role === 'admin') {
+                if (isAdminUser(currentUser)) {
                     const [allBookings, directThreads] = await Promise.all([
                         Booking.list('-updated_date', 200),
                         apiClient.getDirectThreads()
@@ -85,19 +85,17 @@ export default function Messages() {
                 }
 
                 // Non-admin: conversations based on user's bookings
-                // Get bookings where user is either client or coach
-                const allBookings = await Booking.list('-created_at', 1000);
-                console.log('Non-admin: All bookings loaded:', allBookings.length);
-                
-                const clientBookings = allBookings.filter(b => b.client_id === currentUser.id);
-                const coachBookings = allBookings.filter(b => b.coach_id === currentUser.id);
-                
+                // Get bookings where user is either client or coach (server-scoped)
+                const [clientBookings, coachBookings] = await Promise.all([
+                    Booking.filter({ client_id: currentUser.id }, '-created_at'),
+                    Booking.filter({ coach_id: currentUser.id }, '-created_at')
+                ]);
+
                 console.log('Filtered bookings:', {
                     client: clientBookings.length,
-                    coach: coachBookings.length,
-                    total: allBookings.length
+                    coach: coachBookings.length
                 });
-                
+
                 // Combine and deduplicate bookings
                 const allBookingsMap = new Map();
                 [...clientBookings, ...coachBookings].forEach(booking => {

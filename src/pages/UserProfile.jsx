@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser } from "@/utils";
 import { Upload } from "lucide-react";
 import { validateAndSanitize, profileUpdateSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
@@ -39,7 +39,7 @@ export default function UserProfile() {
         
         // Only redirect admin to dashboard if they're trying to view their own profile without userId
         // Allow admin to view other users when userId is present
-        if (me.role === "admin" && !userId) {
+        if (isAdminUser(me) && !userId) {
           // Admin trying to view their own user profile - redirect to dashboard
           navigate(createPageUrl("AdminDashboard"));
         }
@@ -61,7 +61,7 @@ export default function UserProfile() {
       // Get current logged-in user
       const loggedInUser = await User.me();
       setCurrentUser(loggedInUser);
-      console.log('Logged in user:', loggedInUser.full_name, 'Role:', loggedInUser.role);
+      console.log('Logged in user:', loggedInUser.full_name, 'Type:', loggedInUser.user_type);
       
       // Check if admin is viewing another user's profile
       const urlParams = new URLSearchParams(window.location.search);
@@ -70,7 +70,7 @@ export default function UserProfile() {
       
       let userToLoad = loggedInUser;
       
-      if (userId && loggedInUser.role === 'admin') {
+      if (userId && isAdminUser(loggedInUser)) {
         // Admin viewing another user's profile
         console.log('Admin viewing another user profile, loading user:', userId);
         setIsViewingAsAdmin(true);
@@ -485,7 +485,7 @@ export default function UserProfile() {
           </CardContent>
         </Card>
         {/* Account deletion request (self-service, requires admin approval) */}
-        {!isViewingAsAdmin && currentUser?.role !== 'admin' && (
+        {!isViewingAsAdmin && !isAdminUser(currentUser) && (
           <div className="mt-8">
             <Card className="border-0 shadow-lg">
               <CardHeader>

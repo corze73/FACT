@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -61,11 +61,6 @@ export default function Landing() {
     const params = new URLSearchParams(window.location.search);
     const next = params.get('next');
     if (next === 'dashboard') {
-      const normalizeUserType = (value) => {
-        if (value === 'coach' || value === 'client') return value;
-        if (value === 'user' || !value) return 'client';
-        return value;
-      };
       (async () => {
         try {
           // Check localStorage first for cached user data
@@ -131,7 +126,7 @@ export default function Landing() {
           }
           
           // Normal redirect logic for existing users
-          if (me.role === 'admin') {
+          if (isAdminUser(me)) {
             navigate(createPageUrl("AdminDashboard"), { replace: true });
           } else if (normalizeUserType(me.user_type) === 'coach') {
             navigate(createPageUrl("CoachDashboard"), { replace: true });

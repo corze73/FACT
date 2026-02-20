@@ -23,7 +23,7 @@ export async function handler(event) {
     const { httpMethod } = event;
     const auth = await getAuthContext(event);
     const currentUserId = auth.userId;
-    const isAdmin = auth.role === 'admin';
+    const isAdmin = auth.isAdmin === true;
 
     if (httpMethod === 'POST') {
       if (!currentUserId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
@@ -98,6 +98,6 @@ export async function handler(event) {
       return { statusCode: 200, headers, body: JSON.stringify([]) };
     }
     console.error('account-deletion-requests error:', e);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 }
