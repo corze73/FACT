@@ -383,29 +383,29 @@ export default function Landing() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=900&q=80"
-                  alt="Female coach running a session"
+                  src="https://images.pexels.com/photos/7611541/pexels-photo-7611541.jpeg?auto=compress&cs=tinysrgb&w=900"
+                  alt="Coach watching soccer players during practice"
                   className="h-44 w-full object-cover"
                 />
               </div>
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=900&q=80"
-                  alt="Black coach on the pitch"
+                  src="https://images.pexels.com/photos/33072534/pexels-photo-33072534.jpeg?auto=compress&cs=tinysrgb&w=900"
+                  alt="Coach leading youth soccer training indoors"
                   className="h-44 w-full object-cover"
                 />
               </div>
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=900&q=80"
-                  alt="Asian coach leading training"
+                  src="https://images.pexels.com/photos/31816158/pexels-photo-31816158.jpeg?auto=compress&cs=tinysrgb&w=900"
+                  alt="Coach preparing a player for a soccer game"
                   className="h-44 w-full object-cover"
                 />
               </div>
               <div className="overflow-hidden rounded-xl shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1521412644187-c49fa049e84d?auto=format&fit=crop&w=900&q=80"
-                  alt="Male coach providing feedback"
+                  src="https://images.pexels.com/photos/9438094/pexels-photo-9438094.jpeg?auto=compress&cs=tinysrgb&w=900"
+                  alt="Women athletes playing soccer on a field"
                   className="h-44 w-full object-cover"
                 />
               </div>
