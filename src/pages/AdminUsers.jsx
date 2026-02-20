@@ -48,6 +48,7 @@ export default function AdminUsers() {
 
   const urlParams = new URLSearchParams(window.location.search);
   const typeParam = urlParams.get("type") || "all";
+  const hasActiveFilters = search.trim().length > 0 || typeParam !== "all";
 
   const handleCardClick = (user) => {
     // Navigate to the appropriate profile page based on user type
@@ -218,6 +219,21 @@ export default function AdminUsers() {
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Users ({typeParam === "all" ? "All" : typeParam.charAt(0).toUpperCase() + typeParam.slice(1)})</CardTitle>
+            {hasActiveFilters && (
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setCurrentPage(1);
+                    navigate(createPageUrl("AdminUsers?type=all"));
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <div className="mb-4">

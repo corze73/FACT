@@ -41,6 +41,7 @@ export default function AdminBookings() {
   const urlParams = new URLSearchParams(window.location.search);
   const statusParam = (urlParams.get("status") || "all").toLowerCase();
   const highlightParam = urlParams.get("highlight");
+  const hasActiveFilters = statusParam !== "all";
 
   useEffect(() => {
     const load = async () => {
@@ -148,6 +149,20 @@ export default function AdminBookings() {
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Bookings ({statusParam === "all" ? "All" : statusParam})</CardTitle>
+            {hasActiveFilters && (
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCurrentPage(1);
+                    navigate(createPageUrl("AdminBookings?status=all"));
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )}
             {isFetching && !loading && <p className="text-xs text-slate-500">Updating bookings...</p>}
           </CardHeader>
           <CardContent className="space-y-3">
