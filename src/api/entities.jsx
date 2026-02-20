@@ -17,6 +17,19 @@ const dbAvailable = !!db && typeof db.query === 'function';
  * ⏳ CoachRecurringAvailability - Still using direct DB (will migrate)
  */
 
+const normalizeUserType = (value) => {
+  if (value === 'coach' || value === 'client') return value;
+  if (value === 'user' || !value) return 'client';
+  return value;
+};
+
+const normalizeUserRecord = (user) => {
+  if (!user) return user;
+  return { ...user, user_type: normalizeUserType(user.user_type) };
+};
+
+const normalizeUserList = (list) => (Array.isArray(list) ? list.map(normalizeUserRecord) : list);
+
 // ========== USER ENTITY (Migrated to API) ==========
 export const User = {
   // Auth functions still use auth client (Google OAuth)
@@ -31,7 +44,7 @@ export const User = {
       return {
         id: user.id,
         email: user.email,
-        ...profile
+        ...normalizeUserRecord(profile)
       };
     } catch (apiError) {
       // If API fails, clear invalid cached user and surface a clean state in production
@@ -71,33 +84,35 @@ export const User = {
       return {
         id: user.id,
         email: user.email,
-        ...profile
+        ...normalizeUserRecord(profile)
       };
     }
   },
 
   async list() {
     try {
-      return await apiClient.getUsers();
+      const data = await apiClient.getUsers();
+      return normalizeUserList(data);
     } catch (error) {
       console.error('API list failed, using fallback:', error);
       if (!dbAvailable) throw error;
       // Fallback to direct DB (dev only)
       const data = await db.select('profiles', { orderBy: { created_at: 'desc' }, limit: 1000 });
-      return data || [];
+      return normalizeUserList(data || []);
     }
   },
 
   async get(id) {
     try {
-      return await apiClient.getUser(id);
+      const user = await apiClient.getUser(id);
+      return normalizeUserRecord(user);
     } catch (error) {
       console.error('API get failed, using fallback:', error);
       if (!dbAvailable) throw error;
       // Fallback to direct DB (dev only)
       const users = await db.select('profiles', { where: { id } });
       if (users.length === 0) throw new Error('User not found');
-      return users[0];
+      return normalizeUserRecord(users[0]);
     }
   },
 
@@ -107,7 +122,8 @@ export const User = {
       if (filters.role) queryParams.role = filters.role;
       if (filters.user_type) queryParams.type = filters.user_type;
       if (filters.id?.in) queryParams.ids = filters.id.in.join(',');
-      return await apiClient.getUsers(queryParams);
+      const users = await apiClient.getUsers(queryParams);
+      return normalizeUserList(users);
     } catch (error) {
       console.error('API filter failed, using fallback:', error);
       if (!dbAvailable) throw error;
@@ -117,20 +133,23 @@ export const User = {
       if (filters.id?.in) {
         const placeholders = filters.id.in.map((_, i) => `$${i + 1}`).join(', ');
         const query = `SELECT * FROM profiles WHERE id IN (${placeholders})`;
-        return await db.query(query, filters.id.in);
+        const rows = await db.query(query, filters.id.in);
+        return normalizeUserList(rows);
       }
       
       if (filters.role) {
         options.where.role = filters.role;
       }
       
-      return await db.select('profiles', options);
+      const rows = await db.select('profiles', options);
+      return normalizeUserList(rows);
     }
   },
 
   async update(id, userData) {
     try {
-      return await apiClient.updateUser(id, userData);
+      const updated = await apiClient.updateUser(id, userData);
+      return normalizeUserRecord(updated);
     } catch (error) {
       console.error('API update failed, using fallback:', error);
       if (!dbAvailable) throw error;

@@ -9,6 +9,27 @@ import { queryKeys } from '@/lib/queryClient.js';
 
 // ========== COACHES ==========
 
+const normalizeUserType = (value) => {
+  if (value === 'coach' || value === 'client') return value;
+  if (value === 'user' || !value) return 'client';
+  return value;
+};
+
+const normalizeUserRecord = (user) => (user ? { ...user, user_type: normalizeUserType(user.user_type) } : user);
+
+const normalizeUserListResponse = (response) => {
+  if (response && Array.isArray(response.data)) {
+    return {
+      ...response,
+      data: response.data.map((u) => ({ ...u, user_type: normalizeUserType(u.user_type) }))
+    };
+  }
+  if (Array.isArray(response)) {
+    return response.map((u) => ({ ...u, user_type: normalizeUserType(u.user_type) }));
+  }
+  return response;
+};
+
 /**
  * Fetch coaches with filters and pagination
  * Cached for 5 minutes, perfect for browsing
@@ -123,7 +144,7 @@ export function useUpdateBooking() {
 export function useCurrentUser(userId) {
   return useQuery({
     queryKey: queryKeys.currentUser,
-    queryFn: () => apiClient.getUser(userId),
+    queryFn: async () => normalizeUserRecord(await apiClient.getUser(userId)),
     enabled: !!userId,
     staleTime: 10 * 60 * 1000, // 10 minutes
     // User data doesn't change often, refetch only on explicit refresh
@@ -139,7 +160,8 @@ export function useUsers(page = 1, limit = 20) {
     queryKey: queryKeys.users({ page, limit }),
     queryFn: async () => {
       const params = new URLSearchParams({ limit, offset: (page - 1) * limit, include_total: '1' });
-      return apiClient.getUsers(params.toString());
+      const response = await apiClient.getUsers(params.toString());
+      return normalizeUserListResponse(response);
     },
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
@@ -220,7 +242,8 @@ export function useAdminUsers(page = 1) {
         offset: (page - 1) * limit,
         include_total: '1'
       });
-      return apiClient.getUsers(params.toString());
+      const response = await apiClient.getUsers(params.toString());
+      return normalizeUserListResponse(response);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
   });

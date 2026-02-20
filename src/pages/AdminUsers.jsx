@@ -14,6 +14,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 
 const USERS_PER_PAGE = 20;
+const normalizeUserType = (value) => {
+  if (value === 'coach' || value === 'client') return value;
+  if (value === 'user' || !value) return 'client';
+  return value;
+};
+
+const normalizeUserList = (list) => (Array.isArray(list)
+  ? list.map((u) => ({ ...u, user_type: normalizeUserType(u.user_type) }))
+  : list
+);
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -85,11 +95,11 @@ export default function AdminUsers() {
 
       const response = await apiClient.getUsers(params);
       if (response && Array.isArray(response.data)) {
-        setUsers(response.data);
+        setUsers(normalizeUserList(response.data));
         setTotalUsers(response.total || 0);
       } else {
         const list = Array.isArray(response) ? response : [];
-        setUsers(list);
+        setUsers(normalizeUserList(list));
         setTotalUsers(list.length);
       }
 
