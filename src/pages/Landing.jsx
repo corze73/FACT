@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
@@ -37,6 +38,7 @@ export default function Landing() {
   };
 
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
 
   const handleEmailLogin = async (email, password) => {
     try {
@@ -164,6 +166,13 @@ export default function Landing() {
               <h2 className="font-bold text-white text-xl">FACT</h2>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              className="bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white"
+              onClick={() => setShowAboutModal(true)}
+            >
+              About
+            </Button>
             <Button 
               variant="outline" 
               className="bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white"
@@ -358,6 +367,59 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {/* Login Options Modal */}
+      <Dialog open={showAboutModal} onOpenChange={setShowAboutModal}>
+        <DialogContent className="max-w-4xl bg-white/95 backdrop-blur-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">About FACT</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <p className="text-slate-700 text-lg leading-relaxed">
+              FACT: Find a Coach Today connects players with trusted football coaches for
+              tailored, on-pitch development. Browse verified coaches, compare styles and
+              specialties, and book sessions that fit your goals, schedule, and budget.
+            </p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="overflow-hidden rounded-xl shadow-lg">
+                <img
+                  src="https://images.unsplash.com/photo-1508606572321-901ea443707f?auto=format&fit=crop&w=900&q=80"
+                  alt="Coach guiding a player during a drill"
+                  className="h-48 w-full object-cover"
+                />
+              </div>
+              <div className="overflow-hidden rounded-xl shadow-lg">
+                <img
+                  src="https://images.unsplash.com/photo-1521412644187-c49fa049e84d?auto=format&fit=crop&w=900&q=80"
+                  alt="Coach providing feedback on the pitch"
+                  className="h-48 w-full object-cover"
+                />
+              </div>
+              <div className="overflow-hidden rounded-xl shadow-lg">
+                <img
+                  src="https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=900&q=80"
+                  alt="Coach leading a training session"
+                  className="h-48 w-full object-cover"
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3 text-sm text-slate-600">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-slate-900 font-semibold mb-1">Trusted Coaches</h3>
+                <p>Profiles highlight experience, services, and coaching style.</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-slate-900 font-semibold mb-1">Flexible Sessions</h3>
+                <p>Book one-off sessions or ongoing training programs.</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-slate-900 font-semibold mb-1">Local & Remote</h3>
+                <p>Find coaches in your city or arrange remote analysis.</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Login Options Modal */}
       <LoginOptionsModal
