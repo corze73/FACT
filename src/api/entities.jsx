@@ -187,6 +187,24 @@ export const User = {
       const profileRole = 'user';
       const userRole = profileData.user_type === 'coach' ? 'coach' : 'user';
 
+      const now = new Date().toISOString();
+
+      // Ensure users identity row exists before profiles (FK requirement)
+      await db.query(`
+        INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        userId,
+        email,
+        profileData.full_name,
+        userRole,
+        profileData.phone,
+        now,
+        now
+      ]);
+
+      await db.setUserContext(userId);
+
       const newProfile = {
         id: userId,
         email,
@@ -201,8 +219,8 @@ export const User = {
         preferred_session_times: profileData.preferred_session_times || [],
         coach_profile: profileData.coach_profile || null,
         is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_at: now,
+        updated_at: now
       };
 
       // Insert profile using direct SQL to handle arrays properly
@@ -231,24 +249,6 @@ export const User = {
         newProfile.created_at,
         newProfile.updated_at
       ]);
-
-      // Optional secondary users table (kept for consistency with legacy scripts)
-      try {
-        await db.query(`
-          INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `, [
-          userId,
-          email,
-          profileData.full_name,
-          userRole,
-          profileData.phone,
-          new Date().toISOString(),
-          new Date().toISOString()
-        ]);
-      } catch {
-        // Non-fatal if users table is missing
-      }
 
       // Mark user as logged in (dev auth)
       await auth.setCurrentUser({ id: userId, email });

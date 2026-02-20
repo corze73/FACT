@@ -295,6 +295,7 @@ export async function handler(event) {
 
         // Generate a new user id for first-time signup and set it as session context
         const newUserId = crypto.randomUUID();
+        const normalizedFullName = (userData.full_name || '').trim() || null;
 
         // Try a safe EXISTS check; if RLS blocks, treat as unknown and fall back to insert
         let existing = null;
@@ -304,18 +305,41 @@ export async function handler(event) {
           console.warn('⚠️ Email lookup blocked by RLS, proceeding with insert-only flow');
         }
 
+        const identity = await executeQueryOne(
+          `INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+           ON CONFLICT (email) DO UPDATE
+           SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
+               updated_at = NOW()
+           RETURNING id, email, full_name, role`,
+          [newUserId, email, normalizedFullName, 'user', userData.phone || null]
+        );
+
+        if (existing && identity && existing.id !== identity.id) {
+          return {
+            statusCode: 409,
+            headers,
+            body: JSON.stringify({ error: 'Email already mapped to a different user id', email })
+          };
+        }
+
+        const targetId = existing?.id || identity?.id || newUserId;
+
         let upsertedUser;
         if (!existing) {
-          // Insert new user with context set to the new id (satisfies RLS insert policy)
+          // Insert new user profile with context set to the target id (satisfies RLS insert policy)
           upsertedUser = await executeQueryOne(
             withUserCtx(`
               INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
               VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
-              ON CONFLICT (email) DO NOTHING
+              ON CONFLICT (email) DO UPDATE
+              SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), profiles.full_name),
+                  avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+                  updated_at = NOW()
               RETURNING *
-            `, newUserId),
+            `, targetId),
             [
-              newUserId,
+              targetId,
               email,
               userData.full_name || '',
               'user',
@@ -334,7 +358,7 @@ export async function handler(event) {
           }
         } else {
           // Existing user: update a couple of fields with proper context
-          const targetId = existing.id;
+          const existingId = existing.id;
           upsertedUser = await executeQueryOne(
             withUserCtx(`
               UPDATE profiles 
@@ -343,8 +367,8 @@ export async function handler(event) {
                   updated_at = NOW()
               WHERE id = $1
               RETURNING *
-            `, targetId),
-            [targetId, userData.full_name || '', userData.avatar_url || null]
+            `, existingId),
+            [existingId, userData.full_name || '', userData.avatar_url || null]
           );
         }
 
@@ -534,6 +558,7 @@ export async function handler(event) {
           await executeQuery(withUserCtx('DELETE FROM coach_recurring_availability WHERE coach_id = $1', currentUserId), [userId]);
           await executeQuery(withUserCtx('DELETE FROM account_deletion_requests WHERE user_id = $1 OR decided_by = $1', currentUserId), [userId]);
 
+          await executeQuery(withUserCtx('DELETE FROM users WHERE id = $1', currentUserId), [userId]);
           await executeQuery(withUserCtx('DELETE FROM profiles WHERE id = $1', currentUserId), [userId]);
           return { statusCode: 204, headers, body: '' };
         }

@@ -69,6 +69,27 @@ async function main() {
     const name = `${pick(firstNames)} ${pick(lastNames)}`;
     const email = demoEmail(name, i);
 
+    const userId = randomUUID();
+    const userRes = await sql`
+      INSERT INTO users (
+        id, email, full_name, role,
+        created_at, updated_at
+      )
+      VALUES (
+        ${userId}, ${email}, ${name}, 'user',
+        NOW(), NOW()
+      )
+      ON CONFLICT (email) DO UPDATE
+        SET full_name = COALESCE(EXCLUDED.full_name, users.full_name),
+            updated_at = NOW()
+      RETURNING id
+    `;
+
+    const profileId = userRes?.[0]?.id;
+    if (!profileId) {
+      continue;
+    }
+
     const res = await sql`
       INSERT INTO profiles (
         id, email, full_name, user_type, role,
@@ -76,7 +97,7 @@ async function main() {
         created_at, updated_at
       )
       VALUES (
-        ${randomUUID()}, ${email}, ${name}, 'coach', 'user',
+        ${profileId}, ${email}, ${name}, 'coach', 'user',
         ${pick(avatars)}, ${pick(bios)},
         ${isUk ? `${city}, UK` : city},
         ARRAY['Football'],
