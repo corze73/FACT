@@ -173,7 +173,7 @@ export async function handler(event) {
           };
 
           const limitDefault = isPublicCoachList ? 24 : 20;
-          const limitMax = isPublicCoachList ? 100 : 100;
+          const limitMax = 50;
           const limit = parseLimit(queryParams.limit, limitDefault, limitMax);
           const offset = parseOffset(queryParams.offset, 0);
 
@@ -181,7 +181,7 @@ export async function handler(event) {
             return {
               statusCode: 400,
               headers,
-              body: JSON.stringify({ error: 'Invalid pagination. limit must be 1-100 and offset must be >= 0' })
+              body: JSON.stringify({ error: 'Invalid pagination. limit must be 1-50 and offset must be >= 0' })
             };
           }
 
@@ -198,7 +198,26 @@ export async function handler(event) {
             COALESCE((coach_profile->>'rating')::numeric, 0) AS rating,
             COALESCE((coach_profile->>'total_reviews')::int, 0) AS total_reviews
           `;
-          const selectFields = isPublicCoachList ? publicFields : '*';
+          const adminListFields = `
+            id,
+            full_name,
+            email,
+            user_type,
+            is_active,
+            deactivated_at,
+            deactivation_reason,
+            COALESCE(preferred_coaching_types, '{}'::text[]) AS preferred_coaching_types,
+            jsonb_build_object(
+              'services_offered',
+              COALESCE(coach_profile->'services_offered', '[]'::jsonb)
+            ) AS coach_profile
+          `;
+          const isAdminListView = isAdmin && queryParams.view === 'admin_list';
+          const selectFields = isPublicCoachList
+            ? publicFields
+            : isAdminListView
+              ? adminListFields
+              : '*';
           let query = `SELECT ${selectFields}${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''} FROM profiles`;
           const conditions = [];
           const params = [];

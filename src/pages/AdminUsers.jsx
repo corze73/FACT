@@ -30,6 +30,8 @@ export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -40,6 +42,7 @@ export default function AdminUsers() {
   const [requests, setRequests] = useState([]);
   const [requestActionReason, setRequestActionReason] = useState("");
   const [decidingId, setDecidingId] = useState(null);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState(new Set());
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
@@ -64,56 +67,83 @@ export default function AdminUsers() {
 
   const handleRemove = async () => {
     if (!selectedUser) return;
+
+    const previousUsers = users;
+    const previousTotalUsers = totalUsers;
+
     try {
-      await User.delete(selectedUser.id, { reason, hard: hardDelete });
+      const selectedId = selectedUser.id;
+      setPendingDeleteIds(prev => new Set(prev).add(selectedId));
+
       if (hardDelete) {
-        setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+        setUsers(prev => prev.filter(u => u.id !== selectedId));
         setTotalUsers(prev => Math.max(0, prev - 1));
       } else {
-        setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: reason } : u));
+        setUsers(prev => prev.map(u => u.id === selectedId
+          ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: reason }
+          : u));
       }
+
       setConfirmOpen(false);
+      await User.delete(selectedUser.id, { reason, hard: hardDelete });
     } catch (e) {
+      setUsers(previousUsers);
+      setTotalUsers(previousTotalUsers);
       alert(`Failed to remove user: ${e.message}`);
+    } finally {
+      setPendingDeleteIds(prev => {
+        const next = new Set(prev);
+        next.delete(selectedUser.id);
+        return next;
+      });
     }
   };
 
   useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  useEffect(() => {
     const load = async () => {
-      const me = await User.me();
-      setCurrentUser(me);
-      if (!isAdminUser(me)) return;
-
-      setLoading(true);
-      const params = {
-        type: typeParam,
-        limit: USERS_PER_PAGE,
-        offset: (currentPage - 1) * USERS_PER_PAGE,
-        include_total: '1'
-      };
-      if (search) params.search = search;
-
-      const response = await apiClient.getUsers(params);
-      if (response && Array.isArray(response.data)) {
-        setUsers(normalizeUserList(response.data));
-        setTotalUsers(response.total || 0);
-      } else {
-        const list = Array.isArray(response) ? response : [];
-        setUsers(normalizeUserList(list));
-        setTotalUsers(list.length);
-      }
-
-      // Load pending deletion requests
       try {
-        const pending = await User.listDeletionRequests({ status: 'pending' });
-        setRequests(pending);
+        const me = await User.me();
+        setCurrentUser(me);
+        if (!isAdminUser(me)) return;
+
+        setIsFetching(true);
+        const params = {
+          type: typeParam,
+          limit: USERS_PER_PAGE,
+          offset: (currentPage - 1) * USERS_PER_PAGE,
+          include_total: '1',
+          view: 'admin_list'
+        };
+        if (debouncedSearch) params.search = debouncedSearch;
+
+        const response = await apiClient.getUsers(params);
+        if (response && Array.isArray(response.data)) {
+          setUsers(normalizeUserList(response.data));
+          setTotalUsers(response.total || 0);
+        } else {
+          const list = Array.isArray(response) ? response : [];
+          setUsers(normalizeUserList(list));
+          setTotalUsers(list.length);
+        }
+
+        if (currentPage === 1) {
+          const pending = await User.listDeletionRequests({ status: 'pending' });
+          setRequests(pending);
+        }
       } catch (e) {
-        console.warn('Failed to load deletion requests', e);
+        console.warn('Failed to load users admin list', e);
+      } finally {
+        setLoading(false);
+        setIsFetching(false);
       }
-      setLoading(false);
     };
     load();
-  }, [currentPage, search, typeParam]);
+  }, [currentPage, debouncedSearch, typeParam]);
 
   const paginatedUsers = users;
   const totalPages = Math.ceil(totalUsers / USERS_PER_PAGE);
@@ -121,7 +151,7 @@ export default function AdminUsers() {
   // Reset to page 1 when search or type changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, typeParam]);
+  }, [debouncedSearch, typeParam]);
 
   if (loading) return <div className="p-8">Loading users...</div>;
   if (!currentUser || !isAdminUser(currentUser)) return null;
@@ -192,6 +222,9 @@ export default function AdminUsers() {
           <CardContent>
             <div className="mb-4">
               <Input placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              {isFetching && !loading && (
+                <p className="text-xs text-slate-500 mt-2">Updating users...</p>
+              )}
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {paginatedUsers.map((u, idx) => (
@@ -267,6 +300,7 @@ export default function AdminUsers() {
                           <Button
                             variant="outline"
                             size="sm"
+                            disabled={pendingDeleteIds.has(u.id)}
                             onClick={(e) => {
                               e.stopPropagation();
                               openRemove(u);

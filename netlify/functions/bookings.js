@@ -135,7 +135,7 @@ export async function handler(event) {
          const parseLimit = (raw) => {
            if (raw === undefined) return null;
            const num = Number(raw);
-           if (!Number.isInteger(num) || num < 1 || num > 100) return null;
+           if (!Number.isInteger(num) || num < 1 || num > 50) return null;
            return num;
          };
 
@@ -149,10 +149,26 @@ export async function handler(event) {
          const parsedLimit = parseLimit(queryStringParameters?.limit);
          const parsedOffset = parseOffset(queryStringParameters?.offset);
          if ((queryStringParameters?.limit !== undefined && parsedLimit === null) || (queryStringParameters?.offset !== undefined && parsedOffset === null)) {
-           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination. limit must be 1-100 and offset must be >= 0' }) };
+           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination. limit must be 1-50 and offset must be >= 0' }) };
          }
 
-         let query = `SELECT b.*,
+         const isAdminListView = isAdmin && queryStringParameters?.view === 'admin_list';
+         const baseSelect = isAdminListView
+           ? `b.id,
+              b.coach_id,
+              b.client_id,
+              b.service_type,
+              b.booking_date,
+              b.duration,
+              b.status,
+              b.price,
+              b.total_price,
+              b.reference_code,
+              b.updated_at,
+              b.created_at`
+           : 'b.*';
+
+         let query = `SELECT ${baseSelect},
               c.full_name as coach_name, c.avatar_url as coach_avatar,
               cl.full_name as client_name, cl.avatar_url as client_avatar
               ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
@@ -199,7 +215,9 @@ export async function handler(event) {
         const orderBy = queryStringParameters?.orderBy || '-created_at';
         const orderField = orderBy.startsWith('-') ? orderBy.slice(1) : orderBy;
         const orderDirection = orderBy.startsWith('-') ? 'DESC' : 'ASC';
-        query += ` ORDER BY b.${orderField} ${orderDirection}`;
+        const allowedOrderFields = new Set(['created_at', 'updated_at', 'booking_date', 'status']);
+        const safeOrderField = allowedOrderFields.has(orderField) ? orderField : 'created_at';
+        query += ` ORDER BY b.${safeOrderField} ${orderDirection}`;
 
         // Optional pagination
         if (parsedLimit !== null) {
@@ -215,7 +233,7 @@ export async function handler(event) {
         if (includeTotal) {
           const total = bookings.length > 0 ? Number(bookings[0].total_count) : 0;
           const data = bookings.map(({ total_count, ...rest }) => rest);
-          return { statusCode: 200, headers, body: JSON.stringify({ data, total }) };
+          return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit: parsedLimit, offset: parsedOffset ?? 0 }) };
         }
 
         return { statusCode: 200, headers, body: JSON.stringify(bookings) };

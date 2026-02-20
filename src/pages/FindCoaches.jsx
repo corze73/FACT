@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { User } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
 import { Booking } from "@/api/entities.jsx";
@@ -23,9 +23,12 @@ export default function FindCoaches() {
   const [totalCoaches, setTotalCoaches] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [debouncedLocation, setDebouncedLocation] = useState('');
   
   const [filters, setFilters] = useState({
     searchTerm: '',
@@ -37,6 +40,12 @@ export default function FindCoaches() {
     city: ''
   });
 
+  const effectiveFilters = useMemo(() => ({
+    ...filters,
+    searchTerm: debouncedSearchTerm,
+    location: debouncedLocation
+  }), [filters, debouncedSearchTerm, debouncedLocation]);
+
   const buildCoachQuery = useCallback(() => {
     const params = {
       limit: COACHES_PER_PAGE,
@@ -44,28 +53,37 @@ export default function FindCoaches() {
       include_total: '1'
     };
 
-    if (filters.searchTerm) params.search = filters.searchTerm;
-    if (filters.country) params.country = filters.country;
-    if (filters.city) params.city = filters.city;
-    if (filters.location) params.location = filters.location;
-    if (filters.serviceType !== 'all') params.service_type = filters.serviceType;
+    if (effectiveFilters.searchTerm) params.search = effectiveFilters.searchTerm;
+    if (effectiveFilters.country) params.country = effectiveFilters.country;
+    if (effectiveFilters.city) params.city = effectiveFilters.city;
+    if (effectiveFilters.location) params.location = effectiveFilters.location;
+    if (effectiveFilters.serviceType !== 'all') params.service_type = effectiveFilters.serviceType;
 
-    if (filters.priceRange !== 'all') {
-      const [min, max] = filters.priceRange.split('-').map(Number);
+    if (effectiveFilters.priceRange !== 'all') {
+      const [min, max] = effectiveFilters.priceRange.split('-').map(Number);
       if (Number.isFinite(min)) params.min_rate = min;
       if (Number.isFinite(max)) params.max_rate = max;
     }
 
-    if (filters.rating !== 'all') {
-      const minRating = parseFloat(filters.rating);
+    if (effectiveFilters.rating !== 'all') {
+      const minRating = parseFloat(effectiveFilters.rating);
       if (Number.isFinite(minRating)) params.min_rating = minRating;
     }
 
     return params;
-  }, [filters, currentPage]);
+  }, [effectiveFilters, currentPage]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearchTerm(filters.searchTerm.trim());
+      setDebouncedLocation(filters.location.trim());
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [filters.searchTerm, filters.location]);
 
   const fetchCoaches = useCallback(async () => {
-    setIsLoading(true);
+    setIsFetching(true);
     try {
       const response = await apiClient.getCoaches(buildCoachQuery());
       if (response && Array.isArray(response.data)) {
@@ -80,6 +98,7 @@ export default function FindCoaches() {
       devError("Error loading data:", error);
     } finally {
       setIsLoading(false);
+      setIsFetching(false);
     }
   }, [buildCoachQuery]);
 
@@ -109,7 +128,38 @@ export default function FindCoaches() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+  }, [
+    filters.serviceType,
+    filters.priceRange,
+    filters.rating,
+    filters.country,
+    filters.city,
+    debouncedSearchTerm,
+    debouncedLocation
+  ]);
+
+  const handleBookCoach = (coach) => {
+    setSelectedCoach(coach);
+    setShowBookingModal(true);
+  };
+
+  const renderedCoachCards = useMemo(() => (
+    coaches.map((coach, index) => (
+      <motion.div
+        key={coach.id}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ delay: index * 0.05 }}
+      >
+        <CoachCard
+          coach={coach}
+          onBook={() => handleBookCoach(coach)}
+          isGuest={!currentUser}
+        />
+      </motion.div>
+    ))
+  ), [coaches, currentUser, handleBookCoach]);
 
   const clearFilters = () => {
     setFilters({
@@ -132,11 +182,6 @@ export default function FindCoaches() {
     filters.location ||
     filters.country ||
     filters.city;
-
-  const handleBookCoach = (coach) => {
-    setSelectedCoach(coach);
-    setShowBookingModal(true);
-  };
 
   const handleBookingSubmit = async (bookingData) => {
     try {
@@ -330,6 +375,9 @@ export default function FindCoaches() {
               Found {totalCoaches} coach{totalCoaches !== 1 ? 'es' : ''}
             </p>
             <div className="flex gap-2">
+              {isFetching && !isLoading && (
+                <Badge variant="outline" className="text-blue-700 border-blue-200">Updating...</Badge>
+              )}
               <Badge variant="outline" className="flex items-center gap-1">
                 <Filter className="w-3 h-3" />
                 {Object.values(filters).filter(f => f && f !== 'all').length} filters active
@@ -341,21 +389,7 @@ export default function FindCoaches() {
         {/* Coaches Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
-            {coaches.map((coach, index) => (
-              <motion.div
-                key={coach.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <CoachCard
-                  coach={coach}
-                  onBook={() => handleBookCoach(coach)}
-                  isGuest={!currentUser}
-                />
-              </motion.div>
-            ))}
+            {renderedCoachCards}
           </AnimatePresence>
         </div>
 

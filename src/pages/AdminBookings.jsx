@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Booking } from "@/api/entities.jsx";
 import { User } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,8 +29,8 @@ export default function AdminBookings() {
   const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [totalBookings, setTotalBookings] = useState(0);
-  const [userMap, setUserMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [highlightedBookingId, setHighlightedBookingId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -49,27 +49,25 @@ export default function AdminBookings() {
         setCurrentUser(me);
         if (!isAdminUser(me)) return;
 
+        setIsFetching(true);
         const response = await Booking.list({
           orderBy: '-created_at',
           limit: PAGE_SIZE,
           offset: (currentPage - 1) * PAGE_SIZE,
           includeTotal: true,
+          view: 'admin_list',
           status: statusParam !== 'all' ? statusParam : undefined
         });
 
         const list = response?.data || response || [];
         const total = response?.total ?? list.length;
         setTotalBookings(total);
-
-        const ids = Array.from(new Set(list.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
-        const users = ids.length ? await User.filter({ id: { in: ids }}) : [];
-        const map = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
-        setUserMap(map);
         setBookings(list);
       } catch (error) {
         console.error("Error loading bookings:", error);
       } finally {
         setLoading(false);
+        setIsFetching(false);
       }
     };
     load();
@@ -150,14 +148,13 @@ export default function AdminBookings() {
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Bookings ({statusParam === "all" ? "All" : statusParam})</CardTitle>
+            {isFetching && !loading && <p className="text-xs text-slate-500">Updating bookings...</p>}
           </CardHeader>
           <CardContent className="space-y-3">
             {filtered.length === 0 ? (
               <p className="text-slate-600">No bookings found.</p>
             ) : (
               filtered.map((b) => {
-                const client = userMap[b.client_id];
-                const coach = userMap[b.coach_id];
                 return (
                   <div 
                     key={b.id} 
@@ -168,36 +165,13 @@ export default function AdminBookings() {
                     }`}
                   >
                     <div className="flex-1">
-                {totalBookings > PAGE_SIZE && (
-                  <div className="mt-6 flex items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-sm text-slate-600">
-                      Page {currentPage} of {Math.max(1, Math.ceil(totalBookings / PAGE_SIZE))}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalBookings / PAGE_SIZE), p + 1))}
-                      disabled={currentPage >= Math.ceil(totalBookings / PAGE_SIZE)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
                       <div className="flex items-center gap-3 mb-1">
                         <p className="font-medium text-slate-900">{b.service_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
                         <BookingReference reference={b.reference_code} />
                       </div>
-                      <p className="text-sm text-slate-600">{client?.full_name || "Client"} → {coach?.full_name || "Coach"}</p>
+                      <p className="text-sm text-slate-600">{b.client_name || "Client"} → {b.coach_name || "Coach"}</p>
                       <p className="text-xs text-slate-500 mt-1">
-                        {formatSafeDate(b.session_date)} • {b.session_time} • £{b.total_price || b.price}
+                        {formatSafeDate(b.booking_date)} • {b.duration || 60} mins • £{b.total_price || b.price}
                       </p>
                     </div>
                     <div className="mt-2 md:mt-0 flex items-center gap-2">
@@ -208,7 +182,7 @@ export default function AdminBookings() {
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => openPayment(b, client, coach)}
+                        onClick={() => openPayment(b, { full_name: b.client_name }, { full_name: b.coach_name })}
                       >
                         <CreditCard className="w-4 h-4 mr-2" /> Take Payment
                       </Button>
@@ -216,6 +190,30 @@ export default function AdminBookings() {
                   </div>
                 );
               })
+            )}
+
+            {totalBookings > PAGE_SIZE && (
+              <div className="mt-6 flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-slate-600">
+                  Page {currentPage} of {Math.max(1, Math.ceil(totalBookings / PAGE_SIZE))}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalBookings / PAGE_SIZE), p + 1))}
+                  disabled={currentPage >= Math.ceil(totalBookings / PAGE_SIZE)}
+                >
+                  Next
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

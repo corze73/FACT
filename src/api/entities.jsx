@@ -531,6 +531,7 @@ export const Booking = {
       if (options.status) filters.status = options.status;
       if (options.coach_id) filters.coach_id = options.coach_id;
       if (options.client_id) filters.client_id = options.client_id;
+      if (options.view) filters.view = options.view;
 
       // orderBy format: '-created_at' means DESC, 'created_at' means ASC
       return await apiClient.getBookings(filters);

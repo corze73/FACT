@@ -1,4 +1,4 @@
-
+import { memo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +7,13 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
-export default function CoachCard({ coach, onBook, isGuest = false }) {
+function CoachCard({ coach, onBook, isGuest = false }) {
   const navigate = useNavigate();
+  const servicesOffered = coach?.services_offered || coach?.coach_profile?.services_offered || [];
+  const coachRating = Number(coach?.rating ?? coach?.coach_profile?.rating ?? 0);
+  const totalSessions = Number(coach?.total_reviews ?? coach?.coach_profile?.total_sessions ?? 0);
+  const hourlyRate = coach?.hourly_rate ?? coach?.coach_profile?.hourly_rate ?? 0;
+  const coachLocation = coach?.location?.address || coach?.location || coach?.city || coach?.country || null;
   const getServiceStyle = (service) => {
     const styles = {
       goalkeeping: { icon: User, color: "bg-orange-100 text-orange-800" },
@@ -59,16 +64,16 @@ export default function CoachCard({ coach, onBook, isGuest = false }) {
           </h3>
           
           <div className="flex items-center justify-center gap-1 mb-2">
-            {renderStars(coach.coach_profile?.rating || 0)}
+            {renderStars(coachRating)}
             <span className="text-sm text-slate-600 ml-2">
-              ({coach.coach_profile?.total_sessions || 0} sessions)
+              ({totalSessions} sessions)
             </span>
           </div>
           
-          {(coach.location || coach.location?.address) && (
+          {coachLocation && (
             <div className="flex items-center justify-center gap-1 text-slate-500 text-sm">
               <MapPin className="w-3 h-3" />
-              <span>{typeof coach.location === 'string' ? coach.location : coach.location?.address}</span>
+              <span>{coachLocation}</span>
             </div>
           )}
         </CardHeader>
@@ -78,7 +83,7 @@ export default function CoachCard({ coach, onBook, isGuest = false }) {
             {/* Services */}
             <div>
               <div className="flex flex-wrap gap-2 mb-3">
-                {coach.coach_profile?.services_offered?.slice(0, 3).map((service) => {
+                {servicesOffered.slice(0, 3).map((service) => {
                   const { icon: Icon, color } = getServiceStyle(service);
                   return (
                     <Badge 
@@ -104,7 +109,7 @@ export default function CoachCard({ coach, onBook, isGuest = false }) {
             <div className="flex items-center justify-between pt-2 border-t border-slate-100">
               <div className="text-center">
                 <p className="text-2xl font-bold text-slate-900">
-                  £{coach.coach_profile?.hourly_rate}
+                  £{hourlyRate}
                 </p>
                 <p className="text-xs text-slate-500">per session</p>
               </div>
@@ -147,3 +152,5 @@ export default function CoachCard({ coach, onBook, isGuest = false }) {
     </motion.div>
   );
 }
+
+export default memo(CoachCard);
