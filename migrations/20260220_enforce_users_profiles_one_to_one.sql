@@ -36,16 +36,31 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'profiles_id_fkey_users'
-      AND conrePhase A migration created: 20260220_enforce_users_profiles_one_to_one.sql.
+      AND conrelid = 'public.profiles'::regclass
+  ) THEN
+    ALTER TABLE profiles
+      ADD CONSTRAINT profiles_id_fkey_users
+      FOREIGN KEY (id) REFERENCES users(id)
+      ON DELETE CASCADE;
+  END IF;
+END $$;
 
-What it does
+-- Ensure users.email is unique (identity table)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'users_email_key'
+      AND conrelid = 'public.users'::regclass
+  ) THEN
+    ALTER TABLE users
+      ADD CONSTRAINT users_email_key UNIQUE (email);
+  END IF;
+END $$;
 
-Verifies users table exists.
-Fails early if any users/profiles are orphaned (so it won’t apply silently).
-Adds FK profiles.id → users.id with ON DELETE CASCADE.
-Adds unique constraint on users.email.
-Adds indexes for browse/search: user_type, city, country, country+city, lower(full_name).
-Safety
-
-Safe to run on Neon if and only if there are no orphaned rows. It will halt with a clear error if there are.
-Confirm to proceed with Phase B (write-path consistency).
+-- Indexes for browse/search performance
+CREATE INDEX IF NOT EXISTS idx_profiles_user_type ON profiles(user_type);
+CREATE INDEX IF NOT EXISTS idx_profiles_country ON profiles(country);
+CREATE INDEX IF NOT EXISTS idx_profiles_city ON profiles(city);
+CREATE INDEX IF NOT EXISTS idx_profiles_country_city ON profiles(country, city);
+CREATE INDEX IF NOT EXISTS idx_profiles_full_name_lower ON profiles (LOWER(full_name));
