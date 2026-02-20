@@ -67,7 +67,7 @@ export const User = {
           email: user.email,
           full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'User',
           role: 'user',
-          user_type: 'user',
+          user_type: 'client',
           is_active: true
         };
 
@@ -204,7 +204,8 @@ export const User = {
       }
 
       const profileRole = 'user';
-      const userRole = profileData.user_type === 'coach' ? 'coach' : 'user';
+      const normalizedUserType = profileData.user_type === 'user' ? 'client' : profileData.user_type;
+      const userRole = normalizedUserType === 'coach' ? 'coach' : 'user';
 
       const now = new Date().toISOString();
 
@@ -228,7 +229,7 @@ export const User = {
         id: userId,
         email,
         full_name: profileData.full_name,
-        user_type: profileData.user_type,
+        user_type: normalizedUserType,
         location: profileData.location,
         skills: profileData.skills || [],
         bio: profileData.bio,

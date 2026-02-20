@@ -27,6 +27,12 @@ export default function Layout({ children, currentPageName }) {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
 
+  const normalizeUserType = (value) => {
+    if (value === 'coach' || value === 'client') return value;
+    if (value === 'user' || !value) return 'client';
+    return value;
+  };
+
   useEffect(() => {
     loadCurrentUser();
   }, []);
@@ -94,8 +100,9 @@ export default function Layout({ children, currentPageName }) {
         { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle }
       ];
     }
+    const normalizedType = normalizeUserType(currentUser.user_type);
     const base =
-      currentUser.user_type === "coach"
+      normalizedType === "coach"
         ? [
             { title: "Dashboard", url: createPageUrl("CoachDashboard"), icon: Calendar },
             { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle },
@@ -198,7 +205,7 @@ export default function Layout({ children, currentPageName }) {
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 capitalize truncate">
-                    {currentUser?.user_type === 'user' ? 'client' : currentUser?.user_type || 'member'}
+                    {normalizeUserType(currentUser?.user_type) || 'member'}
                   </span>
                   {currentUser?.role && (
                     <span

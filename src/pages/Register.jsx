@@ -19,7 +19,8 @@ export default function Register() {
   const [authMethod, setAuthMethod] = useState('email');
   const [userType, setUserType] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('type') || 'user';
+    const rawType = params.get('type') || 'client';
+    return rawType === 'user' ? 'client' : rawType;
   });
 
   const [formData, setFormData] = useState({
@@ -198,11 +199,11 @@ export default function Register() {
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              variant={userType === 'user' ? 'default' : 'outline'}
-              className={`h-auto py-4 px-4 text-center ${userType === 'user' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+              variant={userType === 'client' ? 'default' : 'outline'}
+              className={`h-auto py-4 px-4 text-center ${userType === 'client' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
               onClick={() => {
-                setUserType('user');
-                setFormData(prev => ({ ...prev, user_type: 'user', coach_profile: undefined }));
+                setUserType('client');
+                setFormData(prev => ({ ...prev, user_type: 'client', coach_profile: undefined }));
               }}
             >
               <div className="flex flex-col items-center gap-2">

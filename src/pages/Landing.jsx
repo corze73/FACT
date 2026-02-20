@@ -21,7 +21,7 @@ export default function Landing() {
       navigate(createPageUrl('FindCoaches'));
     } else {
       // Coaches need to register first
-      const registrationType = userType === 'client' ? 'user' : userType;
+      const registrationType = userType === 'client' ? 'client' : userType;
       navigate(createPageUrl(`Register?type=${registrationType}`));
     }
   };
@@ -59,6 +59,11 @@ export default function Landing() {
     const params = new URLSearchParams(window.location.search);
     const next = params.get('next');
     if (next === 'dashboard') {
+      const normalizeUserType = (value) => {
+        if (value === 'coach' || value === 'client') return value;
+        if (value === 'user' || !value) return 'client';
+        return value;
+      };
       (async () => {
         try {
           // Check localStorage first for cached user data
@@ -110,7 +115,7 @@ export default function Landing() {
               sessionStorage.removeItem('pendingProfileData');
               
               // Redirect based on the user type from registration data
-              if (profileData.user_type === 'coach') {
+              if (normalizeUserType(profileData.user_type) === 'coach') {
                 navigate(createPageUrl("CoachDashboard"), { replace: true });
               } else {
                 navigate(createPageUrl("FindCoaches"), { replace: true });
@@ -126,7 +131,7 @@ export default function Landing() {
           // Normal redirect logic for existing users
           if (me.role === 'admin') {
             navigate(createPageUrl("AdminDashboard"), { replace: true });
-          } else if (me.user_type === 'coach') {
+          } else if (normalizeUserType(me.user_type) === 'coach') {
             navigate(createPageUrl("CoachDashboard"), { replace: true });
           } else {
             navigate(createPageUrl("FindCoaches"), { replace: true });

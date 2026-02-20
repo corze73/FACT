@@ -342,7 +342,7 @@ export async function handler(event) {
               targetId,
               email,
               userData.full_name || '',
-              'user',
+              'client',
               'user',
               userData.avatar_url || null
             ]

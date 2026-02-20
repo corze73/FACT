@@ -235,7 +235,7 @@ export default function AdminUsers() {
                           )}
 
                           {/* Client requirements */}
-                          {(u.user_type === "client" || u.user_type === "user") && u.preferred_coaching_types?.length > 0 && (
+                          {u.user_type === "client" && u.preferred_coaching_types?.length > 0 && (
                             <div className="mt-3">
                               <p className="text-xs text-slate-500 mb-1">Needs:</p>
                               <div className="flex flex-wrap gap-1.5">
