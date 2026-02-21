@@ -69,11 +69,13 @@ export default function AdminDashboard() {
           return;
         }
 
-          console.log('📊 Fetching user stats...');
-          const userStats = await apiClient.getUsers({ stats: '1' });
-
-          console.log('📅 Fetching booking stats...');
-          const bookingStats = await apiClient.getBookingStats();
+          console.log('📊 Fetching dashboard stats and recent data...');
+          const [userStats, bookingStats, recent, pendingReqs] = await Promise.all([
+            apiClient.getUsers({ stats: '1' }),
+            apiClient.getBookingStats(),
+            Booking.list('-created_at', 8),
+            User.listDeletionRequests({ status: 'pending' })
+          ]);
 
           const totalBookings = bookingStats?.total || 0;
           const pending = bookingStats?.pending || 0;
@@ -87,8 +89,6 @@ export default function AdminDashboard() {
           const totalClients = userStats?.total_clients || 0;
           const admins = userStats?.admins || 0;
 
-          console.log('📅 Fetching recent bookings...');
-          const recent = await Booking.list('-created_at', 8);
         const ids = Array.from(new Set(recent.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
         const users = ids.length ? await User.filter({ id: { in: ids } }) : [];
         const umap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
@@ -97,8 +97,6 @@ export default function AdminDashboard() {
         setRecentBookings(recent);
   setUserMap(umap);
 
-  // Load pending account deletion requests
-  const pendingReqs = await User.listDeletionRequests({ status: 'pending' });
   setDeletionRequests(pendingReqs || []);
       } catch (error) {
         console.error('❌ Error loading admin dashboard data:', error);
