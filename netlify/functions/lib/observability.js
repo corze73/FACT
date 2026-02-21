@@ -4,8 +4,14 @@ import * as Sentry from '@sentry/node';
 
 let sentryInitialized = false;
 
-const getRelease = () => process.env.APP_VERSION || process.env.COMMIT_REF || 'dev';
-const getEnvironment = () => process.env.APP_ENV || process.env.CONTEXT || process.env.NODE_ENV || 'development';
+const getRelease = () =>
+  process.env.SENTRY_RELEASE || process.env.APP_VERSION || process.env.COMMIT_REF || 'dev';
+const getEnvironment = () =>
+  process.env.SENTRY_ENVIRONMENT ||
+  process.env.APP_ENV ||
+  process.env.CONTEXT ||
+  process.env.NODE_ENV ||
+  'development';
 
 const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
 

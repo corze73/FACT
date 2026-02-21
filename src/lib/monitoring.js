@@ -2,8 +2,12 @@ import * as Sentry from '@sentry/browser';
 
 let initialized = false;
 
-const getEnvironment = () => import.meta.env.VITE_APP_ENV || import.meta.env.MODE || 'development';
-const getRelease = () => import.meta.env.VITE_APP_VERSION || 'dev';
+const getEnvironment = () =>
+  import.meta.env.VITE_SENTRY_ENVIRONMENT ||
+  import.meta.env.VITE_APP_ENV ||
+  import.meta.env.MODE ||
+  'development';
+const getRelease = () => import.meta.env.VITE_SENTRY_RELEASE || import.meta.env.VITE_APP_VERSION || 'dev';
 
 export function initFrontendMonitoring() {
   if (initialized) return;

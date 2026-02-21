@@ -18,12 +18,14 @@ Evidence:
   - `SENTRY_DSN`
   - `VITE_SENTRY_DSN`
   - `SENTRY_ENVIRONMENT=production`
-  - `SENTRY_RELEASE=af31337`
-- Production deploy completed: `6999f1528418db53c0ada450`
-- Backend test trigger executed (UTC 2026-02-21T17:55Z):
+  - `SENTRY_RELEASE=6999f1528418db53c0ada450`
+  - `VITE_SENTRY_RELEASE=6999f1528418db53c0ada450`
+  - `VITE_SENTRY_ENVIRONMENT=production`
+- Production deploy completed: `6999f2966c04034b2afa1c73`
+- Backend test trigger executed (UTC 2026-02-21T18:00:25Z):
   - `GET https://findacoachtoday.com/.netlify/functions/monitoring-test?throw=1`
   - returned controlled `502` with `Phase 4 monitoring test error`
-- Frontend test trigger executed (UTC 2026-02-21T17:55Z):
+- Frontend test trigger executed (UTC 2026-02-21T18:00Z):
   - opened `https://findacoachtoday.com/?sentry_test=1`
   - page load executes controlled one-time frontend test exception path
 - Post-deploy production health verified:
@@ -34,7 +36,11 @@ Dashboard proof:
 - Capture/attach Sentry dashboard screenshots for:
   - backend test event (route: `monitoring-test`)
   - frontend test event (`sentry_test` path)
-- Ensure screenshot includes tags/filters showing `environment=production` and `release=af31337`.
+- Ensure screenshot includes tags/filters showing `environment=production` and `release=6999f1528418db53c0ada450` (or latest).
+- Store screenshot artifacts in `docs/evidence/phase4/`:
+  - `phase4_sentry_backend_prod_release.png`
+  - `phase4_sentry_frontend_prod_release.png`
+  - `phase4_sentry_release_overview.png` (optional)
 
 ## B) Structured logging (server) — PASS
 
@@ -197,4 +203,4 @@ Current state: MET (code/config/deploy verification complete).
 
 Operational follow-up:
 
-1) Attach Sentry dashboard screenshots to this report for archival proof of backend + frontend captured events.
+1) Attach Sentry dashboard screenshots to this report for archival proof of backend + frontend captured events (files in `docs/evidence/phase4/`).
