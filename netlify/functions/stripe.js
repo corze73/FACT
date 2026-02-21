@@ -4,6 +4,7 @@
 import Stripe from 'stripe'
 import { executeQuery, executeQueryOne } from './lib/db.js'
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js'
+import { withFunctionObservability, captureFunctionError } from './lib/observability.js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
@@ -21,7 +22,7 @@ function json(statusCode, body) {
   }
 }
 
-export async function handler(event) {
+const rawHandler = async (event) => {
   const method = event.httpMethod
   const path = (event.path || '').replace(/^.*\/stripe/, '') || '/'
 
@@ -303,7 +304,14 @@ export async function handler(event) {
 
     return json(404, { error: 'Not found', path, method, hint: 'Valid routes: /webhook, /create-payment-intent, /confirm-payment, /capture-payment, /refund-payment, /process-no-show' })
   } catch (err) {
+    captureFunctionError(err, {
+      route: 'stripe',
+      method: event.httpMethod,
+      path: event.path
+    })
     console.error('Unhandled Stripe function error:', err)
     return json(500, { error: 'Internal Server Error', message: err.message })
   }
 }
+
+export const handler = withFunctionObservability('stripe', rawHandler)

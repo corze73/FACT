@@ -1,0 +1,31 @@
+name: Environment Validation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate-env:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Run check-env in CI mode
+        env:
+          DATABASE_URL: postgresql://user:password@host.neon.tech/db?sslmode=require
+          APP_JWT_SECRET: test-secret-for-ci-only
+          STRIPE_SECRET_KEY: sk_test_ci_only
+          STRIPE_WEBHOOK_SECRET: whsec_ci_only
+          VITE_STRIPE_PUBLISHABLE_KEY: pk_test_ci_only
+          VITE_GOOGLE_CLIENT_ID: ci-client-id.apps.googleusercontent.com
+          SENTRY_DSN_SERVER: https://examplePublicKey@o0.ingest.sentry.io/0
+          VITE_SENTRY_DSN: https://examplePublicKey@o0.ingest.sentry.io/0
+          APP_ENV: ci
+          APP_VERSION: ci-${{ github.sha }}
+        run: npm run check-env:ci

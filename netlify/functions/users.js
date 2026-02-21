@@ -2,6 +2,7 @@
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { getAuthContext, signAuthToken } from './lib/auth.js';
+import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
 
@@ -36,7 +37,7 @@ const getHeaders = (event) => ({
  * - PUT /api/users/:id - Update user
  * - DELETE /api/users/:id - Delete user
  */
-export async function handler(event) {
+const rawHandler = async (event) => {
   const headers = getHeaders(event);
   
   console.log('🔍 Users function called:', {
@@ -85,6 +86,18 @@ export async function handler(event) {
       // Basic UUID allowlist to avoid injection if misused
       const safe = (ctxId || '').match(/^[0-9a-fA-F-]{36}$/) ? ctxId : '';
       return `WITH __ctx AS (SELECT set_config('app.current_user_id', '${safe}', true)) ${query}`;
+    };
+
+    const logAdminAction = async ({ actorId, action, targetUserId, metadata = {} }) => {
+      if (!actorId || !action || !targetUserId) return;
+      await executeQuery(
+        withUserCtx(
+          `INSERT INTO admin_action_logs (actor_user_id, action, target_user_id, metadata, created_at)
+           VALUES ($1, $2, $3, $4::jsonb, NOW())`,
+          actorId
+        ),
+        [actorId, action, targetUserId, JSON.stringify(metadata)]
+      );
     };
 
     switch (httpMethod) {
@@ -373,7 +386,7 @@ export async function handler(event) {
 
         // Normalize and log email
         const email = String(userData.email).trim().toLowerCase();
-        console.log('🔐 Login attempt for:', email);
+        console.log('🔐 Login attempt');
 
         // Generate a new user id for first-time signup and set it as session context
         const newUserId = crypto.randomUUID();
@@ -455,7 +468,7 @@ export async function handler(event) {
         }
 
         const token = signAuthToken({ sub: upsertedUser.id, email: upsertedUser.email, user_type: upsertedUser.user_type });
-        console.log('✅ User upserted/loaded:', email, 'id:', upsertedUser?.id);
+        console.log('✅ User upserted/loaded', { id: upsertedUser?.id });
         return {
           statusCode: 200,
           headers,
@@ -642,6 +655,12 @@ export async function handler(event) {
 
           await executeQuery(withUserCtx('DELETE FROM users WHERE id = $1', currentUserId), [userId]);
           await executeQuery(withUserCtx('DELETE FROM profiles WHERE id = $1', currentUserId), [userId]);
+          await logAdminAction({
+            actorId: currentUserId,
+            action: 'user_hard_delete',
+            targetUserId: userId,
+            metadata: { reason: reason || null }
+          });
           return { statusCode: 204, headers, body: '' };
         }
 
@@ -660,6 +679,13 @@ export async function handler(event) {
           return { statusCode: 404, headers, body: JSON.stringify({ error: 'User not found' }) };
         }
 
+        await logAdminAction({
+          actorId: currentUserId,
+          action: 'user_deactivated',
+          targetUserId: userId,
+          metadata: { reason: reason || null }
+        });
+
         return { statusCode: 200, headers, body: JSON.stringify(deactivated) };
       }
 
@@ -672,6 +698,11 @@ export async function handler(event) {
     }
     
   } catch (error) {
+    captureFunctionError(error, {
+      route: 'users',
+      method: event.httpMethod,
+      path: event.path
+    });
     console.error('Error in users function:', {
       error: error.message,
       stack: error.stack,
@@ -687,4 +718,6 @@ export async function handler(event) {
       })
     };
   }
-}
+};
+
+export const handler = withFunctionObservability('users', rawHandler);

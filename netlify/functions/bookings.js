@@ -2,6 +2,7 @@
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, getLimitByMethod } from './lib/rateLimiter.js';
 import { getAuthContext } from './lib/auth.js';
+import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -40,7 +41,7 @@ const getHeaders = (event) => ({
  * - Pass ?archived=1 to return ONLY archived bookings.
  * - Pass ?include_archived=1 to return both.
  */
-export async function handler(event) {
+const rawHandler = async (event) => {
   const headers = getHeaders(event);
   
   if (event.httpMethod === 'OPTIONS') {
@@ -428,6 +429,11 @@ export async function handler(event) {
         return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
     }
   } catch (error) {
+    captureFunctionError(error, {
+      route: 'bookings',
+      method: event.httpMethod,
+      path: event.path
+    });
     console.error('Error in bookings function:', error);
     return {
       statusCode: 500,
@@ -438,4 +444,6 @@ export async function handler(event) {
       })
     };
   }
-}
+};
+
+export const handler = withFunctionObservability('bookings', rawHandler);

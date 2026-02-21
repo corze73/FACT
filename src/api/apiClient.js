@@ -3,6 +3,8 @@
  * Frontend talks only to Netlify Functions (no direct DB or Supabase access)
  */
 
+import { captureFrontendError } from '@/lib/monitoring.js';
+
 const API_BASE = import.meta.env.DEV 
   ? 'http://localhost:8888/.netlify/functions'  // Local dev with Netlify CLI
   : '/.netlify/functions';                       // Production
@@ -57,11 +59,35 @@ class APIClient {
         const err = new Error(message);
         err.status = response.status;
         err.details = data;
+
+        if (response.status === 401) {
+          try {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+              window.location.href = '/';
+            }
+          } catch {
+            // Ignore localStorage/window access failures
+          }
+        }
+
+        captureFrontendError(err, {
+          source: 'apiClient.request',
+          endpoint,
+          status: response.status,
+          method: options.method || 'GET'
+        });
         throw err;
       }
 
       return data;
     } catch (error) {
+      captureFrontendError(error, {
+        source: 'apiClient.request.catch',
+        endpoint,
+        method: options.method || 'GET'
+      });
       console.error('API request failed:', error);
       throw error;
     }

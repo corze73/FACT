@@ -1,0 +1,33 @@
+name: Health Monitor
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  healthcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe production health endpoint
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          if [ -z "$HEALTHCHECK_URL" ]; then
+            echo "HEALTHCHECK_URL secret is not configured"
+            exit 1
+          fi
+
+          echo "Checking $HEALTHCHECK_URL"
+          code=$(curl -sS -o /tmp/health.json -w "%{http_code}" "$HEALTHCHECK_URL")
+          cat /tmp/health.json
+
+          if [ "$code" != "200" ]; then
+            echo "Health check failed with status $code"
+            exit 1
+          fi
+
+          if ! grep -q '"status"' /tmp/health.json; then
+            echo "Missing status field in health payload"
+            exit 1
+          fi

@@ -2,6 +2,7 @@
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { getAuthContext } from './lib/auth.js';
+import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -10,7 +11,7 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
-export async function handler(event) {
+const rawHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
@@ -86,11 +87,29 @@ export async function handler(event) {
         );
       }
 
+      if (updated?.user_id) {
+        await executeQuery(
+          `INSERT INTO admin_action_logs (actor_user_id, action, target_user_id, metadata, created_at)
+           VALUES ($1, $2, $3, $4::jsonb, NOW())`,
+          [
+            currentUserId,
+            decision === 'approved' ? 'account_deletion_approved' : 'account_deletion_rejected',
+            updated.user_id,
+            JSON.stringify({ request_id: updated.id, decision_reason: decision_reason || null })
+          ]
+        );
+      }
+
       return { statusCode: 200, headers, body: JSON.stringify(updated) };
     }
 
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   } catch (e) {
+    captureFunctionError(e, {
+      route: 'account-deletion-requests',
+      method: event.httpMethod,
+      path: event.path
+    });
     // Gracefully handle missing table by returning empty list for GET
     const msg = String(e?.message || '');
     if (event?.httpMethod === 'GET' && /relation\s+"?account_deletion_requests"?\s+does not exist/i.test(msg)) {
@@ -100,4 +119,6 @@ export async function handler(event) {
     console.error('account-deletion-requests error:', e);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error' }) };
   }
-}
+};
+
+export const handler = withFunctionObservability('account-deletion-requests', rawHandler);

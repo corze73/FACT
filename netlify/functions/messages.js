@@ -2,6 +2,7 @@
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { getAuthContext } from './lib/auth.js';
+import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -29,7 +30,7 @@ const getHeaders = (event) => ({
  * - POST /api/messages - Create message
  * - PUT /api/messages/:id - Mark message as read
  */
-export async function handler(event) {
+const rawHandler = async (event) => {
   const headers = getHeaders(event);
   
   if (event.httpMethod === 'OPTIONS') {
@@ -278,6 +279,11 @@ export async function handler(event) {
         };
     }
   } catch (error) {
+    captureFunctionError(error, {
+      route: 'messages',
+      method: event.httpMethod,
+      path: event.path
+    });
     console.error('Error in messages function:', error);
     return {
       statusCode: 500,
@@ -288,4 +294,6 @@ export async function handler(event) {
       })
     };
   }
-}
+};
+
+export const handler = withFunctionObservability('messages', rawHandler);
