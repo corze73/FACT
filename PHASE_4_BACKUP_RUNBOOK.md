@@ -47,6 +47,7 @@ FACT uses Neon Postgres. Backup strategy combines:
 ## Destructive Action Audit
 
 The following actions are recorded in `admin_action_logs`:
+
 - `user_deactivated`
 - `user_hard_delete`
 - `account_deletion_approved`
@@ -59,4 +60,46 @@ SELECT action, actor_user_id, target_user_id, metadata, created_at
 FROM admin_action_logs
 ORDER BY created_at DESC
 LIMIT 100;
+```
+
+## Executed Restore Test (2026-02-21)
+
+Operator: Cory Charles
+
+Reasoning: Neon branch automation credentials were not present in runtime env (`NEON_API_KEY`/`NEON_PROJECT_ID` missing), so an isolated staging restore was executed on local PostgreSQL 17 to verify end-to-end backup/restore integrity.
+
+Steps executed:
+
+1. Installed PostgreSQL 17 client tooling (`pg_dump`/`pg_restore`).
+2. Created backup from production `DATABASE_URL`:
+    - Artifact: `backups/fact-20260221-162307.dump`
+    - Manifest: `backups/fact-20260221-162307.list`
+3. Restored into isolated staging DB:
+    - Target: `local-postgresql17-staging-db` (`fact_staging_restore`)
+4. Ran integrity queries on restored data:
+    - orphan users/profiles checks
+    - coach count
+    - sample profile fetch
+
+Outcome:
+
+```json
+{
+   "dump_file": "/Users/corycharles/FACT/backups/fact-20260221-162307.dump",
+   "dump_list_file": "/Users/corycharles/FACT/backups/fact-20260221-162307.list",
+   "restore_timestamp_utc": "2026-02-21T16:23:09.647Z",
+   "restore_target": "local-postgresql17-staging-db",
+   "integrity": {
+      "orphan_users": 0,
+      "orphan_profiles": 0,
+      "coach_count": 1
+   },
+   "sample_profile": {
+      "id": "f82bdf6d-d167-4450-a8d1-1f784735ee58",
+      "full_name": "Perf Temp User",
+      "user_type": "client",
+      "country": null,
+      "city": null
+   }
+}
 ```
