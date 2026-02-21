@@ -1,0 +1,162 @@
+;
+; Archive created at 2026-02-21 16:18:05 GMT
+;     dbname: neondb
+;     TOC Entries: 152
+;     Compression: gzip
+;     Dump Version: 1.16-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 17.8 (6108b59)
+;     Dumped by pg_dump version: 17.8 (Homebrew)
+;
+;
+; Selected TOC Entries:
+;
+235; 1255 65568 FUNCTION public current_user_id() neondb_owner
+236; 1255 65569 FUNCTION public is_admin() neondb_owner
+234; 1255 24676 FUNCTION public update_updated_at_column() neondb_owner
+233; 1259 270336 TABLE public admin_action_logs neondb_owner
+228; 1259 98326 TABLE public admin_notifications neondb_owner
+226; 1259 98304 TABLE public auth_logs neondb_owner
+218; 1259 24593 TABLE public bookings neondb_owner
+3598; 0 0 COMMENT public COLUMN bookings.reschedule_requested_by neondb_owner
+3599; 0 0 COMMENT public COLUMN bookings.reschedule_proposed_date neondb_owner
+3600; 0 0 COMMENT public COLUMN bookings.reschedule_status neondb_owner
+229; 1259 122887 TABLE public coach_availability neondb_owner
+3601; 0 0 COMMENT public TABLE coach_availability neondb_owner
+230; 1259 122903 TABLE public coach_recurring_availability neondb_owner
+3602; 0 0 COMMENT public TABLE coach_recurring_availability neondb_owner
+227; 1259 98315 TABLE public email_logs neondb_owner
+219; 1259 24620 TABLE public messages neondb_owner
+223; 1259 73729 TABLE public payments neondb_owner
+222; 1259 73728 SEQUENCE public payments_id_seq neondb_owner
+3603; 0 0 SEQUENCE OWNED BY public payments_id_seq neondb_owner
+232; 1259 262144 TABLE public profile_location_backfill_audit neondb_owner
+217; 1259 24576 TABLE public profiles neondb_owner
+3604; 0 0 COMMENT public COLUMN profiles.avatar_url neondb_owner
+3605; 0 0 COMMENT public COLUMN profiles.video_clip_1 neondb_owner
+3606; 0 0 COMMENT public COLUMN profiles.video_clip_2 neondb_owner
+3607; 0 0 COMMENT public COLUMN profiles.video_clip_3 neondb_owner
+220; 1259 24641 TABLE public reviews neondb_owner
+225; 1259 73745 TABLE public session_disputes neondb_owner
+224; 1259 73744 SEQUENCE public session_disputes_id_seq neondb_owner
+3608; 0 0 SEQUENCE OWNED BY public session_disputes_id_seq neondb_owner
+231; 1259 253952 TABLE public user_type_normalization_audit neondb_owner
+221; 1259 65555 TABLE public users neondb_owner
+3276; 2604 73732 DEFAULT public payments id neondb_owner
+3281; 2604 73748 DEFAULT public session_disputes id neondb_owner
+3590; 0 270336 TABLE DATA public admin_action_logs neondb_owner
+3585; 0 98326 TABLE DATA public admin_notifications neondb_owner
+3583; 0 98304 TABLE DATA public auth_logs neondb_owner
+3575; 0 24593 TABLE DATA public bookings neondb_owner
+3586; 0 122887 TABLE DATA public coach_availability neondb_owner
+3587; 0 122903 TABLE DATA public coach_recurring_availability neondb_owner
+3584; 0 98315 TABLE DATA public email_logs neondb_owner
+3576; 0 24620 TABLE DATA public messages neondb_owner
+3580; 0 73729 TABLE DATA public payments neondb_owner
+3589; 0 262144 TABLE DATA public profile_location_backfill_audit neondb_owner
+3574; 0 24576 TABLE DATA public profiles neondb_owner
+3577; 0 24641 TABLE DATA public reviews neondb_owner
+3582; 0 73745 TABLE DATA public session_disputes neondb_owner
+3588; 0 253952 TABLE DATA public user_type_normalization_audit neondb_owner
+3578; 0 65555 TABLE DATA public users neondb_owner
+3609; 0 0 SEQUENCE SET public payments_id_seq neondb_owner
+3610; 0 0 SEQUENCE SET public session_disputes_id_seq neondb_owner
+3373; 2606 270345 CONSTRAINT public admin_action_logs admin_action_logs_pkey neondb_owner
+3360; 2606 98337 CONSTRAINT public admin_notifications admin_notifications_pkey neondb_owner
+3356; 2606 98314 CONSTRAINT public auth_logs auth_logs_pkey neondb_owner
+3327; 2606 24604 CONSTRAINT public bookings bookings_pkey neondb_owner
+3329; 2606 81921 CONSTRAINT public bookings bookings_reference_code_key neondb_owner
+3362; 2606 122897 CONSTRAINT public coach_availability coach_availability_pkey neondb_owner
+3366; 2606 122912 CONSTRAINT public coach_recurring_availability coach_recurring_availability_pkey neondb_owner
+3358; 2606 98325 CONSTRAINT public email_logs email_logs_pkey neondb_owner
+3342; 2606 24630 CONSTRAINT public messages messages_pkey neondb_owner
+3352; 2606 73738 CONSTRAINT public payments payments_pkey neondb_owner
+3371; 2606 262151 CONSTRAINT public profile_location_backfill_audit profile_location_backfill_audit_pkey neondb_owner
+3323; 2606 24592 CONSTRAINT public profiles profiles_email_key neondb_owner
+3325; 2606 24590 CONSTRAINT public profiles profiles_pkey neondb_owner
+3345; 2606 24651 CONSTRAINT public reviews reviews_pkey neondb_owner
+3354; 2606 73754 CONSTRAINT public session_disputes session_disputes_pkey neondb_owner
+3369; 2606 253959 CONSTRAINT public user_type_normalization_audit user_type_normalization_audit_pkey neondb_owner
+3347; 2606 65567 CONSTRAINT public users users_email_key neondb_owner
+3349; 2606 65565 CONSTRAINT public users users_pkey neondb_owner
+3374; 1259 270348 INDEX public idx_admin_action_logs_action neondb_owner
+3375; 1259 270346 INDEX public idx_admin_action_logs_actor neondb_owner
+3376; 1259 270347 INDEX public idx_admin_action_logs_target neondb_owner
+3330; 1259 24671 INDEX public idx_bookings_client_id neondb_owner
+3331; 1259 24670 INDEX public idx_bookings_coach_id neondb_owner
+3332; 1259 81923 INDEX public idx_bookings_dispute_status neondb_owner
+3333; 1259 57368 INDEX public idx_bookings_payment_status neondb_owner
+3334; 1259 81922 INDEX public idx_bookings_reference_code neondb_owner
+3335; 1259 122918 INDEX public idx_bookings_reschedule_status neondb_owner
+3336; 1259 57369 INDEX public idx_bookings_session_dates neondb_owner
+3337; 1259 24672 INDEX public idx_bookings_status neondb_owner
+3338; 1259 24669 INDEX public idx_bookings_user_id neondb_owner
+3363; 1259 122919 INDEX public idx_coach_availability_coach_id neondb_owner
+3364; 1259 122920 INDEX public idx_coach_availability_dates neondb_owner
+3367; 1259 122921 INDEX public idx_coach_recurring_coach_id neondb_owner
+3339; 1259 24674 INDEX public idx_messages_receiver_id neondb_owner
+3340; 1259 24673 INDEX public idx_messages_sender_id neondb_owner
+3350; 1259 81924 INDEX public idx_payments_status neondb_owner
+3316; 1259 245766 INDEX public idx_profiles_city neondb_owner
+3317; 1259 245765 INDEX public idx_profiles_country neondb_owner
+3318; 1259 245767 INDEX public idx_profiles_country_city neondb_owner
+3319; 1259 24667 INDEX public idx_profiles_email neondb_owner
+3320; 1259 245768 INDEX public idx_profiles_full_name_lower neondb_owner
+3321; 1259 24668 INDEX public idx_profiles_user_type neondb_owner
+3343; 1259 24675 INDEX public idx_reviews_booking_id neondb_owner
+3394; 2620 24678 TRIGGER public bookings update_bookings_updated_at neondb_owner
+3397; 2620 122922 TRIGGER public coach_availability update_coach_availability_updated_at neondb_owner
+3398; 2620 122923 TRIGGER public coach_recurring_availability update_coach_recurring_availability_updated_at neondb_owner
+3395; 2620 24679 TRIGGER public messages update_messages_updated_at neondb_owner
+3393; 2620 24677 TRIGGER public profiles update_profiles_updated_at neondb_owner
+3396; 2620 24680 TRIGGER public reviews update_reviews_updated_at neondb_owner
+3378; 2606 24610 FK CONSTRAINT public bookings bookings_client_id_fkey neondb_owner
+3379; 2606 24615 FK CONSTRAINT public bookings bookings_coach_id_fkey neondb_owner
+3380; 2606 122881 FK CONSTRAINT public bookings bookings_reschedule_requested_by_fkey neondb_owner
+3381; 2606 24605 FK CONSTRAINT public bookings bookings_user_id_fkey neondb_owner
+3391; 2606 122898 FK CONSTRAINT public coach_availability coach_availability_coach_id_fkey neondb_owner
+3392; 2606 122913 FK CONSTRAINT public coach_recurring_availability coach_recurring_availability_coach_id_fkey neondb_owner
+3382; 2606 49152 FK CONSTRAINT public messages messages_booking_id_fkey neondb_owner
+3383; 2606 24636 FK CONSTRAINT public messages messages_receiver_id_fkey neondb_owner
+3384; 2606 24631 FK CONSTRAINT public messages messages_sender_id_fkey neondb_owner
+3388; 2606 73739 FK CONSTRAINT public payments payments_booking_id_fkey neondb_owner
+3377; 2606 245760 FK CONSTRAINT public profiles profiles_id_fkey_users neondb_owner
+3385; 2606 24652 FK CONSTRAINT public reviews reviews_booking_id_fkey neondb_owner
+3386; 2606 24662 FK CONSTRAINT public reviews reviews_reviewee_id_fkey neondb_owner
+3387; 2606 24657 FK CONSTRAINT public reviews reviews_reviewer_id_fkey neondb_owner
+3389; 2606 73755 FK CONSTRAINT public session_disputes session_disputes_booking_id_fkey neondb_owner
+3390; 2606 73760 FK CONSTRAINT public session_disputes session_disputes_initiated_by_fkey neondb_owner
+3545; 0 24593 ROW SECURITY public bookings neondb_owner
+3558; 3256 32791 POLICY public bookings bookings_insert_policy neondb_owner
+3556; 3256 32788 POLICY public bookings bookings_select_policy neondb_owner
+3557; 3256 32789 POLICY public bookings bookings_update_policy neondb_owner
+3551; 0 122887 ROW SECURITY public coach_availability neondb_owner
+3568; 3256 131076 POLICY public coach_availability coach_availability_delete neondb_owner
+3566; 3256 131073 POLICY public coach_availability coach_availability_insert neondb_owner
+3565; 3256 131072 POLICY public coach_availability coach_availability_select neondb_owner
+3567; 3256 131074 POLICY public coach_availability coach_availability_update neondb_owner
+3552; 0 122903 ROW SECURITY public coach_recurring_availability neondb_owner
+3572; 3256 131081 POLICY public coach_recurring_availability coach_recurring_delete neondb_owner
+3570; 3256 131078 POLICY public coach_recurring_availability coach_recurring_insert neondb_owner
+3569; 3256 131077 POLICY public coach_recurring_availability coach_recurring_select neondb_owner
+3571; 3256 131079 POLICY public coach_recurring_availability coach_recurring_update neondb_owner
+3546; 0 24620 ROW SECURITY public messages neondb_owner
+3561; 3256 32795 POLICY public messages messages_insert_policy neondb_owner
+3559; 3256 32792 POLICY public messages messages_select_policy neondb_owner
+3560; 3256 32793 POLICY public messages messages_update_policy neondb_owner
+3549; 0 73729 ROW SECURITY public payments neondb_owner
+3544; 0 24576 ROW SECURITY public profiles neondb_owner
+3573; 3256 221185 POLICY public profiles profiles_delete_policy neondb_owner
+3555; 3256 32787 POLICY public profiles profiles_insert_policy neondb_owner
+3553; 3256 32784 POLICY public profiles profiles_select_policy neondb_owner
+3554; 3256 32785 POLICY public profiles profiles_update_policy neondb_owner
+3547; 0 24641 ROW SECURITY public reviews neondb_owner
+3564; 3256 32799 POLICY public reviews reviews_insert_policy neondb_owner
+3562; 3256 32796 POLICY public reviews reviews_select_policy neondb_owner
+3563; 3256 32797 POLICY public reviews reviews_update_policy neondb_owner
+3550; 0 73745 ROW SECURITY public session_disputes neondb_owner
+3548; 0 65555 ROW SECURITY public users neondb_owner
+2105; 826 16394 DEFAULT ACL public DEFAULT PRIVILEGES FOR SEQUENCES cloud_admin
+2104; 826 16393 DEFAULT ACL public DEFAULT PRIVILEGES FOR TABLES cloud_admin
