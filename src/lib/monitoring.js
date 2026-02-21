@@ -9,6 +9,7 @@ export function initFrontendMonitoring() {
   if (initialized) return;
 
   const dsn = import.meta.env.VITE_SENTRY_DSN;
+  console.log(`Sentry enabled: ${Boolean(dsn)}`);
   if (!dsn) {
     initialized = true;
     return;

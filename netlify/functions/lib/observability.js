@@ -66,6 +66,7 @@ export function initServerMonitoring() {
   if (sentryInitialized) return;
 
   const dsn = process.env.SENTRY_DSN_SERVER || process.env.SENTRY_DSN;
+  console.log(`Sentry enabled: ${Boolean(dsn)}`);
   if (!dsn) {
     sentryInitialized = true;
     return;
