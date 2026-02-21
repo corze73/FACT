@@ -267,6 +267,17 @@ export default function CoachProfile() {
         age_groups: formData.coach_profile?.age_groups || [],
       };
       const validatedCoach = validateAndSanitize(coachProfileSchema, coachData);
+
+      const country = (formData.country || '').trim();
+      const city = (formData.city || '').trim();
+      if (!isViewingAsAdmin && (!country || !city)) {
+        const locationErrors = {};
+        if (!country) locationErrors.country = 'Country is required for coach profiles';
+        if (!city) locationErrors.city = 'City is required for coach profiles';
+        setValidationErrors((prev) => ({ ...prev, ...locationErrors }));
+        alert('Please add both Country and City before saving your coach profile.');
+        return;
+      }
       
       // Merge validated data
       const dataToSave = {
@@ -378,7 +389,11 @@ export default function CoachProfile() {
                           value={formData.country} 
                           onChange={(e) => handleInputChange('country', e.target.value)} 
                           disabled={isViewingAsAdmin}
+                          className={validationErrors.country ? 'border-red-500' : ''}
                         />
+                        {validationErrors.country && (
+                          <p className="text-sm text-red-500 mt-1">{validationErrors.country}</p>
+                        )}
                       </div>
                       <div>
                         <Input 
@@ -387,7 +402,11 @@ export default function CoachProfile() {
                           value={formData.city} 
                           onChange={(e) => handleInputChange('city', e.target.value)} 
                           disabled={isViewingAsAdmin}
+                          className={validationErrors.city ? 'border-red-500' : ''}
                         />
+                        {validationErrors.city && (
+                          <p className="text-sm text-red-500 mt-1">{validationErrors.city}</p>
+                        )}
                       </div>
                     </div>
                     <Input 

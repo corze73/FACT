@@ -222,12 +222,16 @@ export async function handler(event) {
           const conditions = [];
           const params = [];
           const type = queryParams.type || null;
-          const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
+          const q = typeof queryParams.q === 'string'
+            ? queryParams.q.trim()
+            : (typeof queryParams.search === 'string' ? queryParams.search.trim() : '');
 
           if (isPublicCoachList) {
             conditions.push(`user_type = $${params.length + 1}`);
             params.push('coach');
             conditions.push(`COALESCE(is_active, true) = true`);
+            conditions.push(`NULLIF(TRIM(COALESCE(country, '')), '') IS NOT NULL`);
+            conditions.push(`NULLIF(TRIM(COALESCE(city, '')), '') IS NOT NULL`);
           }
 
           if (isAdmin) {
@@ -259,13 +263,18 @@ export async function handler(event) {
             }
           }
 
-          if (search) {
+          if (q) {
             if (isPublicCoachList) {
-              conditions.push(`(full_name ILIKE $${params.length + 1} OR bio ILIKE $${params.length + 1})`);
-              params.push(`%${search}%`);
+              conditions.push(`(
+                full_name ILIKE $${params.length + 1}
+                OR bio ILIKE $${params.length + 1}
+                OR COALESCE(coach_profile->'services_offered', '[]'::jsonb)::text ILIKE $${params.length + 1}
+                OR COALESCE(array_to_string(skills, ' '), '') ILIKE $${params.length + 1}
+              )`);
+              params.push(`%${q}%`);
             } else if (isAdmin) {
               conditions.push(`(full_name ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1})`);
-              params.push(`%${search}%`);
+              params.push(`%${q}%`);
             }
           }
 
@@ -279,6 +288,7 @@ export async function handler(event) {
             params.push(`%${queryParams.city}%`);
           }
 
+          // Legacy fallback only for old clients still sending `location` filter.
           if (isPublicCoachList && queryParams.location) {
             conditions.push(`location ILIKE $${params.length + 1}`);
             params.push(`%${queryParams.location}%`);

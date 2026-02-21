@@ -396,7 +396,7 @@ export default function Register() {
                         placeholder="Country (e.g., United Kingdom)"
                         value={formData.country}
                         onChange={(e) => handleInputChange('country', e.target.value)}
-                        required
+                        required={userType === 'coach'}
                       />
                     </div>
                     <div>
@@ -405,7 +405,7 @@ export default function Register() {
                         placeholder="City (e.g., London)"
                         value={formData.city}
                         onChange={(e) => handleInputChange('city', e.target.value)}
-                        required
+                        required={userType === 'coach'}
                       />
                     </div>
                   </div>

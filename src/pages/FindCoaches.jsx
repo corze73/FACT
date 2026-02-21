@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Filter, Users, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Filter, Users, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { showSuccess, showError, devLog, devError } from "@/utils/notifications";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -28,14 +28,14 @@ export default function FindCoaches() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [debouncedLocation, setDebouncedLocation] = useState('');
+  const [debouncedCountry, setDebouncedCountry] = useState('');
+  const [debouncedCity, setDebouncedCity] = useState('');
   
   const [filters, setFilters] = useState({
     searchTerm: '',
     serviceType: 'all',
     priceRange: 'all',
     rating: 'all',
-    location: '',
     country: '',
     city: ''
   });
@@ -43,8 +43,9 @@ export default function FindCoaches() {
   const effectiveFilters = useMemo(() => ({
     ...filters,
     searchTerm: debouncedSearchTerm,
-    location: debouncedLocation
-  }), [filters, debouncedSearchTerm, debouncedLocation]);
+    country: debouncedCountry,
+    city: debouncedCity
+  }), [filters, debouncedSearchTerm, debouncedCountry, debouncedCity]);
 
   const buildCoachQuery = useCallback(() => {
     const params = {
@@ -53,10 +54,9 @@ export default function FindCoaches() {
       include_total: '1'
     };
 
-    if (effectiveFilters.searchTerm) params.search = effectiveFilters.searchTerm;
+    if (effectiveFilters.searchTerm) params.q = effectiveFilters.searchTerm;
     if (effectiveFilters.country) params.country = effectiveFilters.country;
     if (effectiveFilters.city) params.city = effectiveFilters.city;
-    if (effectiveFilters.location) params.location = effectiveFilters.location;
     if (effectiveFilters.serviceType !== 'all') params.service_type = effectiveFilters.serviceType;
 
     if (effectiveFilters.priceRange !== 'all') {
@@ -76,11 +76,12 @@ export default function FindCoaches() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setDebouncedSearchTerm(filters.searchTerm.trim());
-      setDebouncedLocation(filters.location.trim());
+      setDebouncedCountry(filters.country.trim());
+      setDebouncedCity(filters.city.trim());
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [filters.searchTerm, filters.location]);
+  }, [filters.searchTerm, filters.country, filters.city]);
 
   const fetchCoaches = useCallback(async () => {
     setIsFetching(true);
@@ -132,10 +133,9 @@ export default function FindCoaches() {
     filters.serviceType,
     filters.priceRange,
     filters.rating,
-    filters.country,
-    filters.city,
     debouncedSearchTerm,
-    debouncedLocation
+    debouncedCountry,
+    debouncedCity
   ]);
 
   const handleBookCoach = (coach) => {
@@ -167,7 +167,6 @@ export default function FindCoaches() {
       serviceType: 'all',
       priceRange: 'all',
       rating: 'all',
-      location: '',
       country: '',
       city: ''
     });
@@ -179,7 +178,6 @@ export default function FindCoaches() {
     filters.serviceType !== 'all' || 
     filters.priceRange !== 'all' || 
     filters.rating !== 'all' || 
-    filters.location ||
     filters.country ||
     filters.city;
 
@@ -338,13 +336,19 @@ export default function FindCoaches() {
                   </SelectContent>
                 </Select>
 
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <div>
                   <Input
-                    placeholder="Location"
-                    className="pl-10"
-                    value={filters.location}
-                    onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="Country"
+                    value={filters.country}
+                    onChange={(e) => setFilters(prev => ({ ...prev, country: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <Input
+                    placeholder="City"
+                    value={filters.city}
+                    onChange={(e) => setFilters(prev => ({ ...prev, city: e.target.value }))}
                   />
                 </div>
               </div>
@@ -489,7 +493,8 @@ export default function FindCoaches() {
                   serviceType: 'all',
                   priceRange: 'all',
                   rating: 'all',
-                  location: ''
+                  country: '',
+                  city: ''
                 })}
               >
                 Clear all filters
