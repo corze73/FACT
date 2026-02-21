@@ -2,6 +2,9 @@
   "name": "fact",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "description": "[![Made with React](https://img.shields.io/badge/React-18-blue?logo=react)](https://reactjs.org/) [![Neon](https://img.shields.io/badge/Powered_by-Neon-green?logo=postgresql)](https://neon.tech/) [![Deployed on Bolt](https://img.shields.io/badge/Hosting-Bolt-orange)](https://bolt.new)",
   "main": "add-booking-references.js",
   "directories": {
