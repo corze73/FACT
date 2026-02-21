@@ -21,6 +21,20 @@ window.addEventListener('unhandledrejection', (event) => {
   captureFrontendError(event?.reason || new Error('Unhandled promise rejection'), { source: 'window.unhandledrejection' });
 });
 
+try {
+  const query = new URLSearchParams(window.location.search);
+  const shouldTriggerSentryTest = query.get('sentry_test') === '1';
+  const hasTriggered = sessionStorage.getItem('sentry_test_triggered') === '1';
+  if (shouldTriggerSentryTest && !hasTriggered) {
+    sessionStorage.setItem('sentry_test_triggered', '1');
+    setTimeout(() => {
+      throw new Error('Phase 4 frontend monitoring test error');
+    }, 0);
+  }
+} catch {
+  // Ignore query/sessionStorage access failures
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <QueryClientProvider client={queryClient}>
     <App />
