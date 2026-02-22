@@ -669,6 +669,17 @@ export default function Register() {
                             />
                             Yes
                           </label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={formData.has_background_check === false}
+                              onCheckedChange={(checked) => {
+                                if (checked === true) {
+                                  handleInputChange('has_background_check', false);
+                                }
+                              }}
+                            />
+                            No
+                          </label>
                         </div>
                       </div>
 

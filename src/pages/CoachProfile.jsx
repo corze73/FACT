@@ -595,13 +595,27 @@ export default function CoachProfile() {
 
                     <div className="space-y-2">
                       <Label>Do you have a current background check?</Label>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={formData.has_background_check === true}
-                          onCheckedChange={(checked) => handleInputChange('has_background_check', checked === true)}
-                          disabled={isViewingAsAdmin}
-                        />
-                        <span className="text-sm text-slate-700">Yes</span>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <Checkbox
+                            checked={formData.has_background_check === true}
+                            onCheckedChange={(checked) => handleInputChange('has_background_check', checked === true)}
+                            disabled={isViewingAsAdmin}
+                          />
+                          Yes
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <Checkbox
+                            checked={formData.has_background_check === false}
+                            onCheckedChange={(checked) => {
+                              if (checked === true) {
+                                handleInputChange('has_background_check', false);
+                              }
+                            }}
+                            disabled={isViewingAsAdmin}
+                          />
+                          No
+                        </label>
                       </div>
                     </div>
 
