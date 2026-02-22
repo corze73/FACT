@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Filter, Users, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { showSuccess, showError, devLog, devError } from "@/utils/notifications";
@@ -37,7 +38,8 @@ export default function FindCoaches() {
     priceRange: 'all',
     rating: 'all',
     country: '',
-    city: ''
+    city: '',
+    verifiedBackgroundOnly: false
   });
 
   const effectiveFilters = useMemo(() => ({
@@ -68,6 +70,10 @@ export default function FindCoaches() {
     if (effectiveFilters.rating !== 'all') {
       const minRating = parseFloat(effectiveFilters.rating);
       if (Number.isFinite(minRating)) params.min_rating = minRating;
+    }
+
+    if (effectiveFilters.verifiedBackgroundOnly) {
+      params.verified_background = '1';
     }
 
     return params;
@@ -133,6 +139,7 @@ export default function FindCoaches() {
     filters.serviceType,
     filters.priceRange,
     filters.rating,
+    filters.verifiedBackgroundOnly,
     debouncedSearchTerm,
     debouncedCountry,
     debouncedCity
@@ -168,7 +175,8 @@ export default function FindCoaches() {
       priceRange: 'all',
       rating: 'all',
       country: '',
-      city: ''
+      city: '',
+      verifiedBackgroundOnly: false
     });
     setCurrentPage(1);
   };
@@ -179,7 +187,8 @@ export default function FindCoaches() {
     filters.priceRange !== 'all' || 
     filters.rating !== 'all' || 
     filters.country ||
-    filters.city;
+    filters.city ||
+    filters.verifiedBackgroundOnly;
 
   const handleBookingSubmit = async (bookingData) => {
     try {
@@ -350,6 +359,17 @@ export default function FindCoaches() {
                     value={filters.city}
                     onChange={(e) => setFilters(prev => ({ ...prev, city: e.target.value }))}
                   />
+                </div>
+
+                <div className="lg:col-span-5 flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="verified-background-only"
+                    checked={filters.verifiedBackgroundOnly === true}
+                    onCheckedChange={(checked) => setFilters((prev) => ({ ...prev, verifiedBackgroundOnly: checked === true }))}
+                  />
+                  <label htmlFor="verified-background-only" className="text-sm text-slate-700 cursor-pointer">
+                    Verified background check only
+                  </label>
                 </div>
               </div>
 

@@ -103,6 +103,14 @@ const rawHandler = async (event) => {
     const backgroundCheckFileUrl = cleanUrl(payload.background_check_file_url);
     const backgroundCheckExpiresAt = cleanText(payload.background_check_expires_at, 32);
 
+    if (hasBackgroundCheck && !backgroundCheckFileUrl && !existing.background_check_file_url) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Background check document is required when has_background_check is true' })
+      };
+    }
+
     if (backgroundCheckExpiresAt && Number.isNaN(Date.parse(backgroundCheckExpiresAt))) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid background_check_expires_at date' }) };
     }

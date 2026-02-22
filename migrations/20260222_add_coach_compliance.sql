@@ -51,6 +51,7 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_qualification_status ON profiles(qualification_status);
 CREATE INDEX IF NOT EXISTS idx_profiles_background_check_status ON profiles(background_check_status);
+CREATE INDEX IF NOT EXISTS idx_profiles_background_check_expires_at ON profiles(background_check_expires_at);
 CREATE INDEX IF NOT EXISTS idx_profiles_compliance_pending
   ON profiles(user_type, qualification_status, background_check_status)
   WHERE user_type = 'coach';

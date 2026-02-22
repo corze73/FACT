@@ -207,6 +207,7 @@ const rawHandler = async (event) => {
             country,
             qualification_status,
             background_check_status,
+            background_check_expires_at,
             has_background_check,
             LEFT(COALESCE(NULLIF(TRIM(bio), ''), coach_profile->>'headline', ''), 280) AS bio,
             COALESCE(coach_profile->'services_offered', '[]'::jsonb) AS services_offered,
@@ -313,6 +314,11 @@ const rawHandler = async (event) => {
           if (isPublicCoachList && queryParams.service_type) {
             conditions.push(`(coach_profile->'services_offered') ? $${params.length + 1}`);
             params.push(queryParams.service_type);
+          }
+
+          if (isPublicCoachList && (queryParams.verified_background === '1' || queryParams.verified_background === 'true')) {
+            conditions.push(`background_check_status = 'verified'`);
+            conditions.push(`(background_check_expires_at IS NULL OR background_check_expires_at >= CURRENT_DATE)`);
           }
 
           if (isPublicCoachList && queryParams.min_rate) {

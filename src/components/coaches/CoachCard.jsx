@@ -6,6 +6,7 @@ import { Star, MapPin, Shield, Zap, Target, User, BarChart, Calendar, Eye } from
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { getBackgroundCheckDisplayStatus } from "@/lib/complianceConstants";
 
 function CoachCard({ coach, onBook, isGuest = false }) {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ function CoachCard({ coach, onBook, isGuest = false }) {
   const coachLocation = coach?.location?.address || coach?.location || coach?.city || coach?.country || null;
   const qualificationStatus = coach?.qualification_status || 'incomplete';
   const backgroundStatus = coach?.background_check_status || 'incomplete';
+  const backgroundDisplayStatus = getBackgroundCheckDisplayStatus(backgroundStatus, coach?.background_check_expires_at);
   const getServiceStyle = (service) => {
     const styles = {
       goalkeeping: { icon: User, color: "bg-orange-100 text-orange-800" },
@@ -83,22 +85,25 @@ function CoachCard({ coach, onBook, isGuest = false }) {
             {qualificationStatus === 'verified' && (
               <Badge className="bg-emerald-100 text-emerald-700">Qualifications Verified</Badge>
             )}
-            {backgroundStatus === 'verified' && (
+            {backgroundDisplayStatus === 'verified' && (
               <Badge className="bg-emerald-100 text-emerald-700">Background Check Verified</Badge>
             )}
-            {qualificationStatus !== 'verified' && backgroundStatus !== 'verified' && (
+            {backgroundDisplayStatus !== 'verified' && (
+              <Badge className="bg-slate-100 text-slate-700">Background Check Unverified</Badge>
+            )}
+            {qualificationStatus !== 'verified' && (
               <Badge className={
-                qualificationStatus === 'rejected' || backgroundStatus === 'rejected'
+                qualificationStatus === 'rejected'
                   ? 'bg-red-100 text-red-700'
-                  : qualificationStatus === 'pending' || backgroundStatus === 'pending'
+                  : qualificationStatus === 'pending'
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-slate-100 text-slate-700'
               }>
-                {qualificationStatus === 'rejected' || backgroundStatus === 'rejected'
-                  ? 'Recheck Required'
-                  : qualificationStatus === 'pending' || backgroundStatus === 'pending'
+                {qualificationStatus === 'rejected'
+                  ? 'Qualification Recheck Required'
+                  : qualificationStatus === 'pending'
                     ? 'Pending Verification'
-                    : 'Unverified'}
+                    : 'Qualifications Unverified'}
               </Badge>
             )}
           </div>

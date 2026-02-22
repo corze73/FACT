@@ -171,7 +171,8 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
          AND user_type = 'coach'
        RETURNING id, full_name, qualification_status, background_check_status,
                  verification_notes, verified_at, verified_by,
-                 qualification_file_url, background_check_file_url`,
+                 qualification_file_url, background_check_file_url,
+                 background_check_type, background_check_expires_at`,
       adminId
     ),
     [qualificationStatus ?? null, backgroundStatus ?? null, notes, stampVerification, adminId, coachId]

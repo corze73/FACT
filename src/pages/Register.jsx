@@ -12,11 +12,12 @@ import { Star, ArrowLeft, User, UserCheck, MapPin, Mail, Lock, Eye, EyeOff } fro
 import { motion } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { showSuccess, showError, devError } from "@/utils/notifications";
-
-const BACKGROUND_CHECK_GUIDANCE = {
-  uk: 'https://www.gov.uk/disclosure-barring-service-check',
-  default: 'https://www.interpol.int/en/What-you-can-do/Apply-for-a-certificate-of-no-criminal-conviction'
-};
+import { Badge } from "@/components/ui/badge";
+import {
+  getBackgroundCheckGuidance,
+  getBackgroundCheckLabel,
+  getBackgroundCheckTypeOptions
+} from "@/lib/complianceConstants";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -62,19 +63,24 @@ export default function Register() {
   const [backgroundCheckFile, setBackgroundCheckFile] = useState(null);
 
   const getBackgroundLabel = () => {
-    const country = String(formData.country || '').trim().toLowerCase();
-    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') {
-      return 'DBS';
-    }
-    return 'Background check';
+    return getBackgroundCheckLabel(formData.country);
   };
 
-  const getGuidanceUrl = () => {
-    const country = String(formData.country || '').trim().toLowerCase();
-    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') {
-      return BACKGROUND_CHECK_GUIDANCE.uk;
-    }
-    return BACKGROUND_CHECK_GUIDANCE.default;
+  const guidance = getBackgroundCheckGuidance(formData.country);
+  const backgroundTypeOptions = getBackgroundCheckTypeOptions(formData.country);
+  const selectedBackgroundTypeOption = backgroundTypeOptions.some((option) => option.value === formData.background_check_type)
+    ? formData.background_check_type
+    : (formData.background_check_type ? '__other__' : '');
+
+  const backgroundDraftStatus = !formData.has_background_check
+    ? 'incomplete'
+    : (backgroundCheckFile || formData.background_check_file_url ? 'pending' : 'incomplete');
+
+  const statusTone = (status) => {
+    if (status === 'verified') return 'bg-emerald-100 text-emerald-700';
+    if (status === 'pending') return 'bg-amber-100 text-amber-700';
+    if (status === 'rejected') return 'bg-red-100 text-red-700';
+    return 'bg-slate-100 text-slate-700';
   };
 
   const uploadComplianceFile = async (file, documentType) => {
@@ -106,6 +112,17 @@ export default function Register() {
     if (formData.password.length < 6) {
       showError('Invalid Password', 'Password must be at least 6 characters long');
       return;
+    }
+
+    if (formData.user_type === 'coach' && formData.has_background_check) {
+      if (!formData.background_check_type || !String(formData.background_check_type).trim()) {
+        showError('Background Check Required', `Please select the ${getBackgroundLabel()} type.`);
+        return;
+      }
+      if (!backgroundCheckFile && !formData.background_check_file_url) {
+        showError('Background Check Required', 'Please upload your background check document before continuing.');
+        return;
+      }
     }
     
     setIsLoading(true);
@@ -598,8 +615,13 @@ export default function Register() {
                       <div>
                         <h3 className="font-semibold text-slate-900">Coach Compliance</h3>
                         <p className="text-sm text-slate-600">
-                          Upload your qualification and {getBackgroundLabel()} documents. You can finish now and complete verification later.
+                          Upload your qualification and background check documents. You can finish now and complete verification later.
                         </p>
+                        <div className="mt-2">
+                          <Badge className={statusTone(backgroundDraftStatus)}>
+                            Background Check: {backgroundDraftStatus}
+                          </Badge>
+                        </div>
                       </div>
 
                       <div className="space-y-2">
@@ -638,7 +660,7 @@ export default function Register() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Do you have a current {getBackgroundLabel()}?</Label>
+                        <Label>Do you have a current background check?</Label>
                         <div className="flex items-center gap-4">
                           <label className="flex items-center gap-2 text-sm">
                             <Checkbox
@@ -653,12 +675,46 @@ export default function Register() {
                       {formData.has_background_check ? (
                         <>
                           <div className="space-y-2">
-                            <Label htmlFor="background_check_type">Background Check Type</Label>
-                            <Input
+                            <Label htmlFor="background_check_type">{getBackgroundLabel()} type</Label>
+                            <select
                               id="background_check_type"
-                              value={formData.background_check_type}
-                              placeholder={getBackgroundLabel()}
-                              onChange={(e) => handleInputChange('background_check_type', e.target.value)}
+                              className="w-full border border-slate-300 rounded-md h-10 px-3 bg-white"
+                              value={selectedBackgroundTypeOption}
+                              onChange={(e) => {
+                                const selected = e.target.value;
+                                if (selected === '__other__') {
+                                  handleInputChange('background_check_type', 'Other');
+                                  return;
+                                }
+                                handleInputChange('background_check_type', selected);
+                              }}
+                            >
+                              <option value="">Select type</option>
+                              {backgroundTypeOptions.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {selectedBackgroundTypeOption === '__other__' && (
+                            <div className="space-y-2">
+                              <Label htmlFor="background_check_type_other">Other type</Label>
+                              <Input
+                                id="background_check_type_other"
+                                value={formData.background_check_type || ''}
+                                onChange={(e) => handleInputChange('background_check_type', e.target.value)}
+                                placeholder="Enter background check type"
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            <Label htmlFor="background_check_expires_at">Expiry date (optional)</Label>
+                            <Input
+                              id="background_check_expires_at"
+                              type="date"
+                              value={formData.background_check_expires_at || ''}
+                              onChange={(e) => handleInputChange('background_check_expires_at', e.target.value)}
                             />
                           </div>
 
@@ -679,13 +735,20 @@ export default function Register() {
                           </div>
                         </>
                       ) : (
-                        <p className="text-sm text-slate-600">
-                          Need help getting one?{' '}
-                          <a className="text-blue-600 underline" href={getGuidanceUrl()} target="_blank" rel="noreferrer">
-                            View guidance
-                          </a>
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-sm text-slate-600">{guidance.helpText}</p>
+                          {guidance.linkUrl && (
+                            <a className="text-blue-600 underline text-sm" href={guidance.linkUrl} target="_blank" rel="noreferrer">
+                              {guidance.linkLabel}
+                            </a>
+                          )}
+                          <p className="text-xs text-slate-600">{guidance.note}</p>
+                        </div>
                       )}
+
+                      <p className="text-xs text-slate-600">
+                        By uploading this document you confirm it is valid and accurate. FACT may verify documentation.
+                      </p>
                     </div>
                   </>
                 )}

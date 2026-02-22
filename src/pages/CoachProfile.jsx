@@ -12,14 +12,15 @@ import { Upload, X, Link as LinkIcon } from "lucide-react";
 import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
 import { validateAndSanitize, profileUpdateSchema, coachProfileSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
+import {
+  getBackgroundCheckDisplayStatus,
+  getBackgroundCheckGuidance,
+  getBackgroundCheckLabel,
+  getBackgroundCheckTypeOptions
+} from "@/lib/complianceConstants";
 
 // This component is very similar to UserProfile, but includes coach-specific fields.
 // In a larger app, this could be refactored to reduce duplication.
-
-const BACKGROUND_CHECK_GUIDANCE = {
-  uk: 'https://www.gov.uk/disclosure-barring-service-check',
-  default: 'https://www.interpol.int/en/What-you-can-do/Apply-for-a-certificate-of-no-criminal-conviction'
-};
 
 export default function CoachProfile() {
   const [formData, setFormData] = useState(null);
@@ -258,22 +259,25 @@ export default function CoachProfile() {
   };
 
   const getBackgroundLabel = () => {
-    const country = String(formData?.country || '').trim().toLowerCase();
-    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') return 'DBS';
-    return 'Background check';
+    return getBackgroundCheckLabel(formData?.country);
   };
 
-  const getGuidanceUrl = () => {
-    const country = String(formData?.country || '').trim().toLowerCase();
-    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') return BACKGROUND_CHECK_GUIDANCE.uk;
-    return BACKGROUND_CHECK_GUIDANCE.default;
-  };
+  const guidance = getBackgroundCheckGuidance(formData?.country);
+  const backgroundTypeOptions = getBackgroundCheckTypeOptions(formData?.country);
+  const selectedBackgroundTypeOption = backgroundTypeOptions.some((option) => option.value === formData?.background_check_type)
+    ? formData?.background_check_type
+    : (formData?.background_check_type ? '__other__' : '');
+  const backgroundDisplayStatus = getBackgroundCheckDisplayStatus(
+    formData?.background_check_status,
+    formData?.background_check_expires_at
+  );
 
   const getStatusTone = (status) => {
     switch (status) {
       case 'verified': return 'bg-emerald-100 text-emerald-700';
       case 'pending': return 'bg-amber-100 text-amber-700';
       case 'rejected': return 'bg-red-100 text-red-700';
+      case 'expired': return 'bg-orange-100 text-orange-700';
       default: return 'bg-slate-100 text-slate-700';
     }
   };
@@ -329,6 +333,16 @@ export default function CoachProfile() {
         if (!city) locationErrors.city = 'City is required for coach profiles';
         setValidationErrors((prev) => ({ ...prev, ...locationErrors }));
         alert('Please add both Country and City before saving your coach profile.');
+        return;
+      }
+
+      if (!isViewingAsAdmin && formData.has_background_check && !formData.background_check_file_url) {
+        alert('Please upload your background check document before saving.');
+        return;
+      }
+
+      if (!isViewingAsAdmin && formData.has_background_check && !String(formData.background_check_type || '').trim()) {
+        alert(`Please select your ${getBackgroundLabel()} type before saving.`);
         return;
       }
       
@@ -532,8 +546,8 @@ export default function CoachProfile() {
                         <Badge className={getStatusTone(formData.qualification_status)}>
                           Qualification: {formData.qualification_status || 'incomplete'}
                         </Badge>
-                        <Badge className={getStatusTone(formData.background_check_status)}>
-                          {getBackgroundLabel()}: {formData.background_check_status || 'incomplete'}
+                        <Badge className={getStatusTone(backgroundDisplayStatus)}>
+                          Background Check: {backgroundDisplayStatus || 'incomplete'}
                         </Badge>
                       </div>
                     </div>
@@ -580,7 +594,7 @@ export default function CoachProfile() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Do you have a current {getBackgroundLabel()}?</Label>
+                      <Label>Do you have a current background check?</Label>
                       <div className="flex items-center gap-2">
                         <Checkbox
                           checked={formData.has_background_check === true}
@@ -595,14 +609,39 @@ export default function CoachProfile() {
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="background_check_type">{getBackgroundLabel()} type</Label>
-                          <Input
+                          <select
                             id="background_check_type"
-                            value={formData.background_check_type || ''}
-                            onChange={(e) => handleInputChange('background_check_type', e.target.value)}
+                            className="w-full border border-slate-300 rounded-md h-10 px-3 bg-white"
+                            value={selectedBackgroundTypeOption}
+                            onChange={(e) => {
+                              const selected = e.target.value;
+                              if (selected === '__other__') {
+                                handleInputChange('background_check_type', 'Other');
+                                return;
+                              }
+                              handleInputChange('background_check_type', selected);
+                            }}
                             disabled={isViewingAsAdmin}
-                            placeholder={getBackgroundLabel()}
-                          />
+                          >
+                            <option value="">Select type</option>
+                            {backgroundTypeOptions.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
                         </div>
+
+                        {selectedBackgroundTypeOption === '__other__' && (
+                          <div className="space-y-2">
+                            <Label htmlFor="background_check_type_other">Other type</Label>
+                            <Input
+                              id="background_check_type_other"
+                              value={formData.background_check_type || ''}
+                              onChange={(e) => handleInputChange('background_check_type', e.target.value)}
+                              disabled={isViewingAsAdmin}
+                              placeholder="Enter background check type"
+                            />
+                          </div>
+                        )}
 
                         <div className="space-y-2">
                           <Label htmlFor="background_check_expires_at">Expiry date (optional)</Label>
@@ -644,14 +683,21 @@ export default function CoachProfile() {
                             </a>
                           )}
                         </div>
+
+                        <p className="text-xs text-slate-600">
+                          By uploading this document you confirm it is valid and accurate. FACT may verify documentation.
+                        </p>
                       </>
                     ) : (
-                      <p className="text-sm text-slate-600">
-                        Need help getting one?{' '}
-                        <a className="text-blue-600 underline" href={getGuidanceUrl()} target="_blank" rel="noreferrer">
-                          View guidance
-                        </a>
-                      </p>
+                      <div className="space-y-2">
+                        <p className="text-sm text-slate-600">{guidance.helpText}</p>
+                        {guidance.linkUrl && (
+                          <a className="text-blue-600 underline text-sm" href={guidance.linkUrl} target="_blank" rel="noreferrer">
+                            {guidance.linkLabel}
+                          </a>
+                        )}
+                        <p className="text-xs text-slate-600">{guidance.note}</p>
+                      </div>
                     )}
 
                     {formData.verification_notes && (formData.qualification_status === 'rejected' || formData.background_check_status === 'rejected') && (

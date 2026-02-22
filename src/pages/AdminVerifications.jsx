@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { getBackgroundCheckDisplayStatus } from "@/lib/complianceConstants";
 
 const PAGE_SIZE = 20;
 
@@ -88,6 +89,14 @@ export default function AdminVerifications() {
             ) : (
               rows.map((coach) => (
                 <div key={coach.id} className="border rounded-lg p-4 space-y-3">
+                  {(() => {
+                    const backgroundDisplayStatus = getBackgroundCheckDisplayStatus(
+                      coach.background_check_status,
+                      coach.background_check_expires_at
+                    );
+
+                    return (
+                      <>
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>
                       <p className="font-semibold text-slate-900">{coach.full_name}</p>
@@ -95,7 +104,7 @@ export default function AdminVerifications() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge className={tone(coach.qualification_status)}>Qualification: {coach.qualification_status}</Badge>
-                      <Badge className={tone(coach.background_check_status)}>Background: {coach.background_check_status}</Badge>
+                      <Badge className={tone(backgroundDisplayStatus)}>Background Check: {backgroundDisplayStatus}</Badge>
                     </div>
                   </div>
 
@@ -126,6 +135,8 @@ export default function AdminVerifications() {
 
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-slate-700">Background check document</p>
+                      <p className="text-sm text-slate-600">Type: {coach.background_check_type || 'Not specified'}</p>
+                      <p className="text-sm text-slate-600">Expiry: {coach.background_check_expires_at || 'Not provided'}</p>
                       {coach.background_check_file_url ? (
                         <a
                           className="text-blue-600 underline text-sm"
@@ -157,6 +168,9 @@ export default function AdminVerifications() {
                       placeholder="Add reviewer notes"
                     />
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               ))
             )}
