@@ -14,6 +14,8 @@ function CoachCard({ coach, onBook, isGuest = false }) {
   const totalSessions = Number(coach?.total_reviews ?? coach?.coach_profile?.total_sessions ?? 0);
   const hourlyRate = coach?.hourly_rate ?? coach?.coach_profile?.hourly_rate ?? 0;
   const coachLocation = coach?.location?.address || coach?.location || coach?.city || coach?.country || null;
+  const qualificationStatus = coach?.qualification_status || 'incomplete';
+  const backgroundStatus = coach?.background_check_status || 'incomplete';
   const getServiceStyle = (service) => {
     const styles = {
       goalkeeping: { icon: User, color: "bg-orange-100 text-orange-800" },
@@ -76,6 +78,30 @@ function CoachCard({ coach, onBook, isGuest = false }) {
               <span>{coachLocation}</span>
             </div>
           )}
+
+          <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+            {qualificationStatus === 'verified' && (
+              <Badge className="bg-emerald-100 text-emerald-700">Qualifications Verified</Badge>
+            )}
+            {backgroundStatus === 'verified' && (
+              <Badge className="bg-emerald-100 text-emerald-700">Background Check Verified</Badge>
+            )}
+            {qualificationStatus !== 'verified' && backgroundStatus !== 'verified' && (
+              <Badge className={
+                qualificationStatus === 'rejected' || backgroundStatus === 'rejected'
+                  ? 'bg-red-100 text-red-700'
+                  : qualificationStatus === 'pending' || backgroundStatus === 'pending'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-slate-100 text-slate-700'
+              }>
+                {qualificationStatus === 'rejected' || backgroundStatus === 'rejected'
+                  ? 'Recheck Required'
+                  : qualificationStatus === 'pending' || backgroundStatus === 'pending'
+                    ? 'Pending Verification'
+                    : 'Unverified'}
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         
         <CardContent className="px-6 pb-6">

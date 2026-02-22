@@ -24,9 +24,10 @@ class APIClient {
    */
   async request(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
-    
+
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...options.headers
     };
     const token = this.getAuthToken();
@@ -289,6 +290,38 @@ class APIClient {
     return this.request(`/messages/${messageId}`, {
       method: 'PUT',
       body: JSON.stringify({ is_read: true })
+    });
+  }
+
+  // ========== COMPLIANCE / VERIFICATIONS ==========
+
+  async uploadComplianceFile(file, documentType = 'qualification') {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_type', documentType);
+
+    return this.request('/uploads', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  async updateCompliance(payload = {}) {
+    return this.request('/profile/compliance', {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async getAdminVerifications(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin/verifications?${params}`);
+  }
+
+  async updateAdminVerification(coachId, payload = {}) {
+    return this.request(`/admin/verifications/${coachId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
     });
   }
 }

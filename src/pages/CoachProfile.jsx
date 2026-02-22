@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { Upload, X, Link as LinkIcon } from "lucide-react";
 import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
@@ -15,14 +16,21 @@ import { checkRateLimit } from "@/lib/rateLimiter";
 // This component is very similar to UserProfile, but includes coach-specific fields.
 // In a larger app, this could be refactored to reduce duplication.
 
+const BACKGROUND_CHECK_GUIDANCE = {
+  uk: 'https://www.gov.uk/disclosure-barring-service-check',
+  default: 'https://www.interpol.int/en/What-you-can-do/Apply-for-a-certificate-of-no-criminal-conviction'
+};
+
 export default function CoachProfile() {
   const [formData, setFormData] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [, setCurrentUser] = useState(null); // value not read; only setter used
+  const [currentUser, setCurrentUser] = useState(null);
   const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
   const [, setUploadingImage] = useState(false); // value not read; only setter used
+  const [isUploadingQualification, setIsUploadingQualification] = useState(false);
+  const [isUploadingBackgroundCheck, setIsUploadingBackgroundCheck] = useState(false);
   const fileInputRef = useRef(null);
   // Refs for video URL inputs (for clearing values reliably)
   const videoInputRefs = {
@@ -72,6 +80,15 @@ export default function CoachProfile() {
         video_clip_1: userToLoad.video_clip_1 || '',
         video_clip_2: userToLoad.video_clip_2 || '',
         video_clip_3: userToLoad.video_clip_3 || '',
+        qualification_type: userToLoad.qualification_type || '',
+        qualification_file_url: userToLoad.qualification_file_url || '',
+        qualification_status: userToLoad.qualification_status || 'incomplete',
+        has_background_check: Boolean(userToLoad.has_background_check),
+        background_check_type: userToLoad.background_check_type || '',
+        background_check_file_url: userToLoad.background_check_file_url || '',
+        background_check_status: userToLoad.background_check_status || 'incomplete',
+        background_check_expires_at: userToLoad.background_check_expires_at || '',
+        verification_notes: userToLoad.verification_notes || '',
         coach_profile: {
           hourly_rate: userToLoad.coach_profile?.hourly_rate || 50,
           services_offered: userToLoad.coach_profile?.services_offered || [],
@@ -240,6 +257,42 @@ export default function CoachProfile() {
     }
   };
 
+  const getBackgroundLabel = () => {
+    const country = String(formData?.country || '').trim().toLowerCase();
+    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') return 'DBS';
+    return 'Background check';
+  };
+
+  const getGuidanceUrl = () => {
+    const country = String(formData?.country || '').trim().toLowerCase();
+    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') return BACKGROUND_CHECK_GUIDANCE.uk;
+    return BACKGROUND_CHECK_GUIDANCE.default;
+  };
+
+  const getStatusTone = (status) => {
+    switch (status) {
+      case 'verified': return 'bg-emerald-100 text-emerald-700';
+      case 'pending': return 'bg-amber-100 text-amber-700';
+      case 'rejected': return 'bg-red-100 text-red-700';
+      default: return 'bg-slate-100 text-slate-700';
+    }
+  };
+
+  const uploadComplianceFile = async (file, type) => {
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Only PDF, JPG, JPEG, and PNG files are allowed.');
+      return null;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Maximum file size is 10MB.');
+      return null;
+    }
+
+    const response = await User.uploadComplianceFile(file, type);
+    return response?.data?.url || null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -289,6 +342,16 @@ export default function CoachProfile() {
       
       setIsSaving(true);
       await User.updateMyUserData(dataToSave);
+
+      await User.updateCompliance({
+        qualification_type: formData.qualification_type,
+        qualification_file_url: formData.qualification_file_url,
+        has_background_check: formData.has_background_check,
+        background_check_type: formData.background_check_type,
+        background_check_file_url: formData.background_check_file_url,
+        background_check_expires_at: formData.background_check_expires_at || null
+      });
+
       alert("Profile updated successfully! ✅");
       
     } catch (error) {
@@ -460,6 +523,142 @@ export default function CoachProfile() {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  <div className="space-y-4 border rounded-xl p-4 bg-slate-50/60">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-slate-900">Compliance</h3>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusTone(formData.qualification_status)}>
+                          Qualification: {formData.qualification_status || 'incomplete'}
+                        </Badge>
+                        <Badge className={getStatusTone(formData.background_check_status)}>
+                          {getBackgroundLabel()}: {formData.background_check_status || 'incomplete'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="qualification_type">Qualification type</Label>
+                      <Input
+                        id="qualification_type"
+                        value={formData.qualification_type || ''}
+                        onChange={(e) => handleInputChange('qualification_type', e.target.value)}
+                        disabled={isViewingAsAdmin}
+                        placeholder="UEFA A, FA Level 2, etc."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="qualification_file">Qualification document (PDF/JPG/PNG)</Label>
+                      {!isViewingAsAdmin && (
+                        <Input
+                          id="qualification_file"
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsUploadingQualification(true);
+                            try {
+                              const url = await uploadComplianceFile(file, 'qualification');
+                              if (url) setFormData(prev => ({ ...prev, qualification_file_url: url, qualification_status: 'pending' }));
+                            } catch (error) {
+                              alert(error.message || 'Failed to upload qualification document');
+                            } finally {
+                              setIsUploadingQualification(false);
+                            }
+                          }}
+                        />
+                      )}
+                      {isUploadingQualification && <p className="text-xs text-slate-500">Uploading qualification…</p>}
+                      {formData.qualification_file_url && (!isViewingAsAdmin || currentUser?.user_type === 'admin') && (
+                        <a href={formData.qualification_file_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">
+                          View uploaded qualification document
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Do you have a current {getBackgroundLabel()}?</Label>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={formData.has_background_check === true}
+                          onCheckedChange={(checked) => handleInputChange('has_background_check', checked === true)}
+                          disabled={isViewingAsAdmin}
+                        />
+                        <span className="text-sm text-slate-700">Yes</span>
+                      </div>
+                    </div>
+
+                    {formData.has_background_check ? (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="background_check_type">{getBackgroundLabel()} type</Label>
+                          <Input
+                            id="background_check_type"
+                            value={formData.background_check_type || ''}
+                            onChange={(e) => handleInputChange('background_check_type', e.target.value)}
+                            disabled={isViewingAsAdmin}
+                            placeholder={getBackgroundLabel()}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="background_check_expires_at">Expiry date (optional)</Label>
+                          <Input
+                            id="background_check_expires_at"
+                            type="date"
+                            value={formData.background_check_expires_at || ''}
+                            onChange={(e) => handleInputChange('background_check_expires_at', e.target.value)}
+                            disabled={isViewingAsAdmin}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="background_check_file">{getBackgroundLabel()} document (PDF/JPG/PNG)</Label>
+                          {!isViewingAsAdmin && (
+                            <Input
+                              id="background_check_file"
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setIsUploadingBackgroundCheck(true);
+                                try {
+                                  const url = await uploadComplianceFile(file, 'background_check');
+                                  if (url) setFormData(prev => ({ ...prev, background_check_file_url: url, background_check_status: 'pending' }));
+                                } catch (error) {
+                                  alert(error.message || 'Failed to upload background check document');
+                                } finally {
+                                  setIsUploadingBackgroundCheck(false);
+                                }
+                              }}
+                            />
+                          )}
+                          {isUploadingBackgroundCheck && <p className="text-xs text-slate-500">Uploading {getBackgroundLabel()}…</p>}
+                          {formData.background_check_file_url && (!isViewingAsAdmin || currentUser?.user_type === 'admin') && (
+                            <a href={formData.background_check_file_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">
+                              View uploaded {getBackgroundLabel()} document
+                            </a>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-600">
+                        Need help getting one?{' '}
+                        <a className="text-blue-600 underline" href={getGuidanceUrl()} target="_blank" rel="noreferrer">
+                          View guidance
+                        </a>
+                      </p>
+                    )}
+
+                    {formData.verification_notes && (formData.qualification_status === 'rejected' || formData.background_check_status === 'rejected') && (
+                      <p className="text-sm text-red-700 bg-red-50 rounded-md p-2">
+                        Verification notes: {formData.verification_notes}
+                      </p>
+                    )}
                   </div>
 
                   {!isViewingAsAdmin && (

@@ -172,7 +172,29 @@ export const User = {
       dataToUpdate.location = dataToUpdate.location.address;
     }
 
-    return await this.update(user.id, dataToUpdate);
+    const updated = await this.update(user.id, dataToUpdate);
+
+    const hasComplianceFields = [
+      'qualification_type',
+      'qualification_file_url',
+      'has_background_check',
+      'background_check_type',
+      'background_check_file_url',
+      'background_check_expires_at'
+    ].some((key) => key in dataToUpdate);
+
+    if (hasComplianceFields) {
+      await apiClient.updateCompliance({
+        qualification_type: dataToUpdate.qualification_type,
+        qualification_file_url: dataToUpdate.qualification_file_url,
+        has_background_check: dataToUpdate.has_background_check,
+        background_check_type: dataToUpdate.background_check_type,
+        background_check_file_url: dataToUpdate.background_check_file_url,
+        background_check_expires_at: dataToUpdate.background_check_expires_at
+      });
+    }
+
+    return updated;
   },
 
   async signUpWithEmail(email, password, userData) {
@@ -230,6 +252,14 @@ export const User = {
         preferred_coaching_types: profileData.preferred_coaching_types || [],
         preferred_session_times: profileData.preferred_session_times || [],
         coach_profile: profileData.coach_profile || null,
+        qualification_type: profileData.qualification_type || null,
+        qualification_file_url: profileData.qualification_file_url || null,
+        qualification_status: profileData.qualification_file_url ? 'pending' : 'incomplete',
+        background_check_type: profileData.background_check_type || null,
+        has_background_check: Boolean(profileData.has_background_check),
+        background_check_file_url: profileData.background_check_file_url || null,
+        background_check_status: profileData.background_check_file_url ? 'pending' : 'incomplete',
+        background_check_expires_at: profileData.background_check_expires_at || null,
         is_active: true,
         created_at: now,
         updated_at: now
@@ -240,9 +270,17 @@ export const User = {
         INSERT INTO profiles (
           id, email, full_name, user_type, location, skills, bio, phone, role,
           preferred_coaching_types, preferred_session_times, coach_profile,
+          qualification_type, qualification_file_url, qualification_status,
+          background_check_type, has_background_check, background_check_file_url,
+          background_check_status, background_check_expires_at,
           is_active, created_at, updated_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12,
+          $13, $14, $15,
+          $16, $17, $18,
+          $19, $20,
+          $21, $22, $23
         )
       `, [
         newProfile.id,
@@ -257,6 +295,14 @@ export const User = {
         newProfile.preferred_coaching_types,
         newProfile.preferred_session_times,
         JSON.stringify(newProfile.coach_profile),
+        newProfile.qualification_type,
+        newProfile.qualification_file_url,
+        newProfile.qualification_status,
+        newProfile.background_check_type,
+        newProfile.has_background_check,
+        newProfile.background_check_file_url,
+        newProfile.background_check_status,
+        newProfile.background_check_expires_at,
         newProfile.is_active,
         newProfile.created_at,
         newProfile.updated_at
@@ -489,6 +535,22 @@ User.listDeletionRequests = async function(filters = {}) {
 
 User.decideDeletionRequest = async function(id, decision, decision_reason, admin_id) {
   return await apiClient.decideDeletionRequest(id, decision, decision_reason, admin_id);
+};
+
+User.uploadComplianceFile = async function(file, documentType) {
+  return await apiClient.uploadComplianceFile(file, documentType);
+};
+
+User.updateCompliance = async function(payload) {
+  return await apiClient.updateCompliance(payload);
+};
+
+User.listAdminVerifications = async function(filters = {}) {
+  return await apiClient.getAdminVerifications(filters);
+};
+
+User.updateAdminVerification = async function(coachId, payload = {}) {
+  return await apiClient.updateAdminVerification(coachId, payload);
 };
 
 // Admin restore user (reactivate)

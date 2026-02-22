@@ -11,6 +11,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Star, ArrowLeft, User, UserCheck, MapPin, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { showSuccess, showError, devError } from "@/utils/notifications";
+
+const BACKGROUND_CHECK_GUIDANCE = {
+  uk: 'https://www.gov.uk/disclosure-barring-service-check',
+  default: 'https://www.interpol.int/en/What-you-can-do/Apply-for-a-certificate-of-no-criminal-conviction'
+};
 
 export default function Register() {
   const navigate = useNavigate();
@@ -34,6 +40,12 @@ export default function Register() {
     city: '',
     preferred_coaching_types: [],
     preferred_session_times: [],
+    qualification_type: '',
+    qualification_file_url: '',
+    has_background_check: false,
+    background_check_type: '',
+    background_check_file_url: '',
+    background_check_expires_at: '',
     user_type: userType,
     coach_profile: userType === 'coach' ? {
       credentials: [],
@@ -44,6 +56,44 @@ export default function Register() {
       age_groups: []
     } : undefined
   });
+  const [isUploadingQualification, setIsUploadingQualification] = useState(false);
+  const [isUploadingBackgroundCheck, setIsUploadingBackgroundCheck] = useState(false);
+  const [qualificationFile, setQualificationFile] = useState(null);
+  const [backgroundCheckFile, setBackgroundCheckFile] = useState(null);
+
+  const getBackgroundLabel = () => {
+    const country = String(formData.country || '').trim().toLowerCase();
+    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') {
+      return 'DBS';
+    }
+    return 'Background check';
+  };
+
+  const getGuidanceUrl = () => {
+    const country = String(formData.country || '').trim().toLowerCase();
+    if (country === 'uk' || country === 'united kingdom' || country === 'great britain') {
+      return BACKGROUND_CHECK_GUIDANCE.uk;
+    }
+    return BACKGROUND_CHECK_GUIDANCE.default;
+  };
+
+  const uploadComplianceFile = async (file, documentType) => {
+    if (!file) return null;
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      showError('Invalid file type', 'Only PDF, JPG, JPEG, and PNG files are allowed.');
+      return null;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      showError('File too large', 'Maximum file size is 10MB.');
+      return null;
+    }
+
+    const { User } = await import("@/api/entities.jsx");
+    const response = await User.uploadComplianceFile(file, documentType);
+    return response?.data?.url || null;
+  };
 
   const handleEmailSignUp = async (e) => {
     e.preventDefault();
@@ -65,6 +115,37 @@ export default function Register() {
       
       // Sign up with email and password
       await User.signUpWithEmail(formData.email, formData.password, formData);
+
+      if (formData.user_type === 'coach') {
+        try {
+          let qualificationFileUrl = formData.qualification_file_url || null;
+          let backgroundFileUrl = formData.background_check_file_url || null;
+
+          if (qualificationFile) {
+            setIsUploadingQualification(true);
+            qualificationFileUrl = await uploadComplianceFile(qualificationFile, 'qualification');
+          }
+
+          if (formData.has_background_check && backgroundCheckFile) {
+            setIsUploadingBackgroundCheck(true);
+            backgroundFileUrl = await uploadComplianceFile(backgroundCheckFile, 'background_check');
+          }
+
+          await User.updateCompliance({
+            qualification_type: formData.qualification_type,
+            qualification_file_url: qualificationFileUrl,
+            has_background_check: formData.has_background_check,
+            background_check_type: formData.background_check_type,
+            background_check_file_url: backgroundFileUrl,
+            background_check_expires_at: formData.background_check_expires_at || null
+          });
+        } catch (complianceError) {
+          devError('Compliance save warning:', complianceError);
+        } finally {
+          setIsUploadingQualification(false);
+          setIsUploadingBackgroundCheck(false);
+        }
+      }
       
       showSuccess('Account Created', 'Please check your email to verify your account, then you can log in.');
       navigate(createPageUrl("Landing"));
@@ -203,7 +284,17 @@ export default function Register() {
               className={`h-auto py-4 px-4 text-center ${userType === 'client' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
               onClick={() => {
                 setUserType('client');
-                setFormData(prev => ({ ...prev, user_type: 'client', coach_profile: undefined }));
+                setFormData(prev => ({
+                  ...prev,
+                  user_type: 'client',
+                  coach_profile: undefined,
+                  qualification_type: '',
+                  qualification_file_url: '',
+                  has_background_check: false,
+                  background_check_type: '',
+                  background_check_file_url: '',
+                  background_check_expires_at: ''
+                }));
               }}
             >
               <div className="flex flex-col items-center gap-2">
@@ -227,7 +318,13 @@ export default function Register() {
                     hourly_rate: 50,
                     availability: {},
                     age_groups: []
-                  }
+                  },
+                  qualification_type: prev.qualification_type || '',
+                  qualification_file_url: prev.qualification_file_url || '',
+                  has_background_check: Boolean(prev.has_background_check),
+                  background_check_type: prev.background_check_type || '',
+                  background_check_file_url: prev.background_check_file_url || '',
+                  background_check_expires_at: prev.background_check_expires_at || ''
                 }));
               }}
             >
@@ -327,7 +424,7 @@ export default function Register() {
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                       disabled={isLoading}
                     >
-                      {isLoading ? 'Creating Account...' : 'Create Account'}
+                      {isLoading ? 'Creating Account...' : userType === 'coach' ? 'Save & Continue' : 'Create Account'}
                     </Button>
                   </form>
                 </TabsContent>
@@ -349,7 +446,7 @@ export default function Register() {
                         <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                         <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                       </svg>
-                      {isLoading ? 'Creating Account...' : 'Continue with Google'}
+                      {isLoading ? 'Creating Account...' : userType === 'coach' ? 'Save & Continue with Google' : 'Continue with Google'}
                     </Button>
                   </div>
                 </TabsContent>
@@ -495,6 +592,100 @@ export default function Register() {
                           </div>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="space-y-4 border rounded-xl p-4 bg-slate-50/60">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Coach Compliance</h3>
+                        <p className="text-sm text-slate-600">
+                          Upload your qualification and {getBackgroundLabel()} documents. You can finish now and complete verification later.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="qualification_type">Qualification Type</Label>
+                        <select
+                          id="qualification_type"
+                          className="w-full border border-slate-300 rounded-md h-10 px-3 bg-white"
+                          value={formData.qualification_type || ''}
+                          onChange={(e) => handleInputChange('qualification_type', e.target.value)}
+                        >
+                          <option value="">Select qualification</option>
+                          <option value="UEFA A">UEFA A</option>
+                          <option value="UEFA B">UEFA B</option>
+                          <option value="UEFA C">UEFA C</option>
+                          <option value="FA Level 1">FA Level 1</option>
+                          <option value="FA Level 2">FA Level 2</option>
+                          <option value="Safeguarding">Safeguarding</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="qualification_file">Qualification Document (PDF/JPG/PNG)</Label>
+                        <Input
+                          id="qualification_file"
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                              setQualificationFile(file);
+                          }}
+                        />
+                        {isUploadingQualification && <p className="text-xs text-slate-500">Uploading qualification…</p>}
+                        {qualificationFile && <p className="text-xs text-emerald-700">Selected: {qualificationFile.name}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Do you have a current {getBackgroundLabel()}?</Label>
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={formData.has_background_check === true}
+                              onCheckedChange={(checked) => handleInputChange('has_background_check', checked === true)}
+                            />
+                            Yes
+                          </label>
+                        </div>
+                      </div>
+
+                      {formData.has_background_check ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="background_check_type">Background Check Type</Label>
+                            <Input
+                              id="background_check_type"
+                              value={formData.background_check_type}
+                              placeholder={getBackgroundLabel()}
+                              onChange={(e) => handleInputChange('background_check_type', e.target.value)}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="background_check_file">Background Check Document (PDF/JPG/PNG)</Label>
+                            <Input
+                              id="background_check_file"
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setBackgroundCheckFile(file);
+                              }}
+                            />
+                            {isUploadingBackgroundCheck && <p className="text-xs text-slate-500">Uploading background check…</p>}
+                            {backgroundCheckFile && <p className="text-xs text-emerald-700">Selected: {backgroundCheckFile.name}</p>}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm text-slate-600">
+                          Need help getting one?{' '}
+                          <a className="text-blue-600 underline" href={getGuidanceUrl()} target="_blank" rel="noreferrer">
+                            View guidance
+                          </a>
+                        </p>
+                      )}
                     </div>
                   </>
                 )}

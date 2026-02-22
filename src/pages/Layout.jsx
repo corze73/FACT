@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
-import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut } from "lucide-react";
+import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
@@ -91,6 +91,7 @@ export default function Layout({ children, currentPageName }) {
     if (isAdminUser(currentUser)) {
       return [
         { title: "Admin Dashboard", url: createPageUrl("AdminDashboard"), icon: Star },
+        { title: "Verifications", url: createPageUrl("AdminVerifications"), icon: ShieldCheck },
         { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle }
       ];
     }
