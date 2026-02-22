@@ -11,13 +11,8 @@ jobs:
     steps:
       - name: Probe production health endpoint
         env:
-          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+          HEALTHCHECK_URL: https://findacoachtoday.com/.netlify/functions/health
         run: |
-          if [ -z "$HEALTHCHECK_URL" ]; then
-            echo "HEALTHCHECK_URL secret is not configured"
-            exit 1
-          fi
-
           echo "Checking $HEALTHCHECK_URL"
           code=$(curl -sS -o /tmp/health.json -w "%{http_code}" "$HEALTHCHECK_URL")
           cat /tmp/health.json
