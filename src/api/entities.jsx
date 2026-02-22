@@ -175,14 +175,6 @@ export const User = {
     return await this.update(user.id, dataToUpdate);
   },
 
-  // Email/password auth helpers (dev/local only – use Google OAuth in production)
-  async loginWithRedirect(redirectUrl) {
-    await this.login();
-    if (redirectUrl) {
-      window.location.href = redirectUrl;
-    }
-  },
-
   async signUpWithEmail(email, password, userData) {
     let errorDetails = null;
 
