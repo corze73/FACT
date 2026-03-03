@@ -1,6 +1,6 @@
 import apiClient from './apiClient';
-import { db, auth } from './databaseClient';
-const dbAvailable = !!db && typeof db.query === 'function';
+import { db, auth, sql } from './databaseClient';
+const dbAvailable = !!sql && !!db && typeof db.query === 'function';
 
 /**
  * MIGRATION WRAPPER
@@ -511,14 +511,7 @@ export const User = {
 
 // Extend User with admin delete helper
 User.delete = async function(id, opts = {}) {
-  try {
-    return await apiClient.deleteUser(id, opts);
-  } catch (error) {
-    console.error('API delete user failed:', error);
-    if (!dbAvailable) throw error;
-    // Fallback to direct DB soft-deactivation if API not available (dev only)
-    await db.update('profiles', { where: { id } }, { is_active: false, deactivation_reason: opts.reason || null });
-  }
+  return await apiClient.deleteUser(id, opts);
 };
 
 // Request account deletion (user-initiated)
@@ -555,13 +548,7 @@ User.updateAdminVerification = async function(coachId, payload = {}) {
 
 // Admin restore user (reactivate)
 User.restore = async function(id) {
-  try {
-    return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });
-  } catch (error) {
-    if (!dbAvailable) throw error;
-    // Fallback direct DB (dev only)
-    await db.update('profiles', { where: { id } }, { is_active: true, deactivation_reason: null });
-  }
+  return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });
 };
 
 // ========== BOOKING ENTITY (Migrated to API) ==========
