@@ -654,16 +654,44 @@ const rawHandler = async (event) => {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Cannot hard delete admin users' }) };
           }
 
-          // Hard delete requested. Clean related records first.
-          await executeQuery(withUserCtx('DELETE FROM bookings WHERE user_id = $1 OR client_id = $1 OR coach_id = $1', currentUserId), [userId]);
-          await executeQuery(withUserCtx('DELETE FROM messages WHERE sender_id = $1 OR receiver_id = $1', currentUserId), [userId]);
-          await executeQuery(withUserCtx('DELETE FROM reviews WHERE reviewer_id = $1 OR reviewee_id = $1', currentUserId), [userId]);
+          // Hard delete requested. Clean related records first in FK-safe order.
+          await executeQuery(withUserCtx(`DELETE FROM messages
+            WHERE sender_id = $1
+               OR receiver_id = $1
+               OR booking_id IN (
+                 SELECT id FROM bookings
+                 WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
+               )`, currentUserId), [userId]);
+
+          await executeQuery(withUserCtx(`DELETE FROM reviews
+            WHERE reviewer_id = $1
+               OR reviewee_id = $1
+               OR booking_id IN (
+                 SELECT id FROM bookings
+                 WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
+               )`, currentUserId), [userId]);
+
+          await executeQuery(withUserCtx(`DELETE FROM payments
+            WHERE booking_id IN (
+              SELECT id FROM bookings
+              WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
+            )`, currentUserId), [userId]);
+
           await executeQuery(withUserCtx('DELETE FROM coach_availability WHERE coach_id = $1', currentUserId), [userId]);
           await executeQuery(withUserCtx('DELETE FROM coach_recurring_availability WHERE coach_id = $1', currentUserId), [userId]);
           await executeQuery(withUserCtx('DELETE FROM account_deletion_requests WHERE user_id = $1 OR decided_by = $1', currentUserId), [userId]);
 
+          try {
+            await executeQuery(withUserCtx('DELETE FROM bookings WHERE user_id = $1 OR client_id = $1 OR coach_id = $1 OR reschedule_requested_by = $1', currentUserId), [userId]);
+          } catch (bookingDeleteError) {
+            const message = String(bookingDeleteError?.message || '').toLowerCase();
+            if (!message.includes('reschedule_requested_by') || !message.includes('does not exist')) {
+              throw bookingDeleteError;
+            }
+            await executeQuery(withUserCtx('DELETE FROM bookings WHERE user_id = $1 OR client_id = $1 OR coach_id = $1', currentUserId), [userId]);
+          }
+
           await executeQuery(withUserCtx('DELETE FROM users WHERE id = $1', currentUserId), [userId]);
-          await executeQuery(withUserCtx('DELETE FROM profiles WHERE id = $1', currentUserId), [userId]);
           await logAdminAction({
             actorId: currentUserId,
             action: 'user_hard_delete',
