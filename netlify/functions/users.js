@@ -100,6 +100,11 @@ const rawHandler = async (event) => {
       );
     };
 
+    const tableExists = async (tableName) => {
+      const row = await executeQueryOne('SELECT to_regclass($1) AS table_name', [`public.${tableName}`]);
+      return Boolean(row?.table_name);
+    };
+
     switch (httpMethod) {
       case 'GET':
         if (userId && userId !== 'users') {
@@ -671,15 +676,23 @@ const rawHandler = async (event) => {
                  WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
                )`, currentUserId), [userId]);
 
-          await executeQuery(withUserCtx(`DELETE FROM payments
-            WHERE booking_id IN (
-              SELECT id FROM bookings
-              WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
-            )`, currentUserId), [userId]);
+          if (await tableExists('payments')) {
+            await executeQuery(withUserCtx(`DELETE FROM payments
+              WHERE booking_id IN (
+                SELECT id FROM bookings
+                WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
+              )`, currentUserId), [userId]);
+          }
 
-          await executeQuery(withUserCtx('DELETE FROM coach_availability WHERE coach_id = $1', currentUserId), [userId]);
-          await executeQuery(withUserCtx('DELETE FROM coach_recurring_availability WHERE coach_id = $1', currentUserId), [userId]);
-          await executeQuery(withUserCtx('DELETE FROM account_deletion_requests WHERE user_id = $1 OR decided_by = $1', currentUserId), [userId]);
+          if (await tableExists('coach_availability')) {
+            await executeQuery(withUserCtx('DELETE FROM coach_availability WHERE coach_id = $1', currentUserId), [userId]);
+          }
+          if (await tableExists('coach_recurring_availability')) {
+            await executeQuery(withUserCtx('DELETE FROM coach_recurring_availability WHERE coach_id = $1', currentUserId), [userId]);
+          }
+          if (await tableExists('account_deletion_requests')) {
+            await executeQuery(withUserCtx('DELETE FROM account_deletion_requests WHERE user_id = $1 OR decided_by = $1', currentUserId), [userId]);
+          }
 
           try {
             await executeQuery(withUserCtx('DELETE FROM bookings WHERE user_id = $1 OR client_id = $1 OR coach_id = $1 OR reschedule_requested_by = $1', currentUserId), [userId]);
@@ -751,7 +764,7 @@ const rawHandler = async (event) => {
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: 'Request failed'
+        message: error?.message || 'Request failed'
       })
     };
   }
