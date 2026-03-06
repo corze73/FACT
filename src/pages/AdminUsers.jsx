@@ -39,6 +39,8 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [reason, setReason] = useState("");
   const [hardDelete, setHardDelete] = useState(false);
+  const [confirmationPhrase, setConfirmationPhrase] = useState("");
+  const [secondAdminId, setSecondAdminId] = useState("");
   const [requests, setRequests] = useState([]);
   const [requestActionReason, setRequestActionReason] = useState("");
   const [decidingId, setDecidingId] = useState(null);
@@ -63,6 +65,8 @@ export default function AdminUsers() {
     setSelectedUser(u);
     setReason("");
     setHardDelete(false);
+    setConfirmationPhrase("");
+    setSecondAdminId("");
     setConfirmOpen(true);
   };
 
@@ -86,7 +90,12 @@ export default function AdminUsers() {
       }
 
       setConfirmOpen(false);
-      await User.delete(selectedUser.id, { reason, hard: hardDelete });
+      await User.delete(selectedUser.id, {
+        reason,
+        hard: hardDelete,
+        confirmation_phrase: hardDelete ? confirmationPhrase : undefined,
+        second_admin_id: hardDelete ? secondAdminId : undefined
+      });
     } catch (e) {
       setUsers(previousUsers);
       setTotalUsers(previousTotalUsers);
@@ -312,6 +321,22 @@ export default function AdminUsers() {
                         >
                           <MessageCircle className="w-4 h-4 mr-2" /> Message
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await User.revokeSessions(u.id);
+                              alert('User sessions revoked. They will need to sign in again.');
+                            } catch (err) {
+                              alert('Failed to revoke sessions: ' + err.message);
+                            }
+                          }}
+                          className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                        >
+                          Revoke Sessions
+                        </Button>
                         {u.is_active !== false ? (
                           <Button
                             variant="outline"
@@ -424,8 +449,8 @@ export default function AdminUsers() {
             <DialogTitle>Remove user</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">You&apos;re removing {selectedUser?.full_name || 'this user'}. This is a soft deactivation—they won&apos;t be able to log in. Please provide a reason (visible to admins only).</p>
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for removal (optional)" />
+            <p className="text-sm text-slate-600">You&apos;re removing {selectedUser?.full_name || 'this user'}. This is a soft deactivation unless hard delete is checked. Reason is required for audit/compliance.</p>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for removal (required)" />
             <label className="flex items-start gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -437,9 +462,30 @@ export default function AdminUsers() {
                 Hard delete. This permanently removes the user and related records.
               </span>
             </label>
+            {hardDelete && (
+              <>
+                <Input
+                  value={secondAdminId}
+                  onChange={(e) => setSecondAdminId(e.target.value)}
+                  placeholder="Second admin ID (required for hard delete)"
+                />
+                <Input
+                  value={confirmationPhrase}
+                  onChange={(e) => setConfirmationPhrase(e.target.value)}
+                  placeholder={`Type exactly: HARD DELETE ${selectedUser?.id || ''}`}
+                />
+              </>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
-              <Button className="bg-red-600 hover:bg-red-700" onClick={handleRemove}>
+              <Button
+                className="bg-red-600 hover:bg-red-700"
+                disabled={
+                  !reason.trim() ||
+                  (hardDelete && (!secondAdminId.trim() || !confirmationPhrase.trim()))
+                }
+                onClick={handleRemove}
+              >
                 {hardDelete ? 'Hard delete' : 'Remove user'}
               </Button>
             </div>

@@ -550,6 +550,62 @@ User.listAdminAuditLogs = async function(filters = {}) {
   return await apiClient.getAdminAuditLogs(filters);
 };
 
+User.getAdminOpsOverview = async function() {
+  return await apiClient.getAdminOpsOverview();
+};
+
+User.listAdminUsersOps = async function(filters = {}) {
+  return await apiClient.getAdminUsersOps(filters);
+};
+
+User.updateAdminUserScope = async function(adminUserId, payload = {}) {
+  return await apiClient.updateAdminUserScope(adminUserId, payload);
+};
+
+User.revokeSessions = async function(userId) {
+  return await apiClient.revokeUserSessions(userId);
+};
+
+User.listAdminCases = async function(filters = {}) {
+  return await apiClient.listAdminCases(filters);
+};
+
+User.createAdminCase = async function(payload = {}) {
+  return await apiClient.createAdminCase(payload);
+};
+
+User.updateAdminCase = async function(caseId, payload = {}) {
+  return await apiClient.updateAdminCase(caseId, payload);
+};
+
+User.listBookingDisputes = async function(filters = {}) {
+  return await apiClient.listBookingDisputes(filters);
+};
+
+User.createBookingDispute = async function(payload = {}) {
+  return await apiClient.createBookingDispute(payload);
+};
+
+User.updateBookingDispute = async function(disputeId, payload = {}) {
+  return await apiClient.updateBookingDispute(disputeId, payload);
+};
+
+User.listComplianceExpiring = async function(filters = {}) {
+  return await apiClient.listComplianceExpiring(filters);
+};
+
+User.getWeeklyOpsReport = async function() {
+  return await apiClient.getWeeklyOpsReport();
+};
+
+User.exportAuditLogs = async function(filters = {}) {
+  return await apiClient.exportAuditLogs(filters);
+};
+
+User.listDeletedUserSnapshots = async function(filters = {}) {
+  return await apiClient.listDeletedUserSnapshots(filters);
+};
+
 // Admin restore user (reactivate)
 User.restore = async function(id) {
   return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });

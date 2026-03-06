@@ -225,6 +225,7 @@ const rawHandler = async (event) => {
             full_name,
             email,
             user_type,
+            admin_scope,
             is_active,
             deactivated_at,
             deactivation_reason,
@@ -630,8 +631,10 @@ const rawHandler = async (event) => {
 
         let payload = {};
   try { payload = body ? JSON.parse(body) : {}; } catch { /* ignore parse error */ }
-        const reason = payload.reason || null;
+          const reason = typeof payload.reason === 'string' ? payload.reason.trim() : '';
         const hard = payload.hard === true;
+          const confirmationPhrase = typeof payload.confirmation_phrase === 'string' ? payload.confirmation_phrase.trim() : '';
+          const secondAdminId = typeof payload.second_admin_id === 'string' ? payload.second_admin_id.trim() : '';
 
         if (!currentUserId) {
           return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
@@ -645,7 +648,37 @@ const rawHandler = async (event) => {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin self-delete is not allowed' }) };
         }
 
+        if (!reason) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'A reason is required for admin remove actions' }) };
+        }
+
         if (hard) {
+          const requiredPhrase = `HARD DELETE ${userId}`;
+          if (confirmationPhrase !== requiredPhrase) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: `confirmation_phrase must match: ${requiredPhrase}` })
+            };
+          }
+
+          if (!isUuid(secondAdminId)) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Valid second_admin_id is required for hard delete' }) };
+          }
+
+          if (secondAdminId === currentUserId) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'second_admin_id must be different from acting admin' }) };
+          }
+
+          const secondAdmin = await executeQueryOne(
+            withUserCtx('SELECT id FROM profiles WHERE id = $1 AND user_type = $2', currentUserId),
+            [secondAdminId, 'admin']
+          );
+
+          if (!secondAdmin) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'second_admin_id must reference an existing admin' }) };
+          }
+
           const target = await executeQueryOne(
             withUserCtx('SELECT id, user_type FROM profiles WHERE id = $1', currentUserId),
             [userId]
@@ -657,6 +690,37 @@ const rawHandler = async (event) => {
 
           if (target.user_type === 'admin') {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Cannot hard delete admin users' }) };
+          }
+
+          let snapshotId = null;
+          if (await tableExists('deleted_user_snapshots')) {
+            const profileSnapshot = await executeQueryOne(withUserCtx('SELECT * FROM profiles WHERE id = $1', currentUserId), [userId]);
+            const userSnapshot = await executeQueryOne(withUserCtx('SELECT * FROM users WHERE id = $1', currentUserId), [userId]);
+            const bookingCount = await executeQueryOne(withUserCtx('SELECT COUNT(*)::int AS count FROM bookings WHERE user_id = $1 OR client_id = $1 OR coach_id = $1', currentUserId), [userId]);
+            const messageCount = await executeQueryOne(withUserCtx('SELECT COUNT(*)::int AS count FROM messages WHERE sender_id = $1 OR receiver_id = $1', currentUserId), [userId]);
+            const reviewCount = await executeQueryOne(withUserCtx('SELECT COUNT(*)::int AS count FROM reviews WHERE reviewer_id = $1 OR reviewee_id = $1', currentUserId), [userId]);
+
+            const snapshotPayload = {
+              profile: profileSnapshot,
+              user: userSnapshot,
+              related_counts: {
+                bookings: bookingCount?.count || 0,
+                messages: messageCount?.count || 0,
+                reviews: reviewCount?.count || 0
+              },
+              captured_at: new Date().toISOString()
+            };
+
+            const snapshot = await executeQueryOne(
+              withUserCtx(
+                `INSERT INTO deleted_user_snapshots (user_id, deleted_by, approved_by, reason, snapshot, created_at)
+                 VALUES ($1, $2, $3, $4, $5::jsonb, NOW())
+                 RETURNING id`,
+                currentUserId
+              ),
+              [userId, currentUserId, secondAdminId, reason, JSON.stringify(snapshotPayload)]
+            );
+            snapshotId = snapshot?.id || null;
           }
 
           // Hard delete requested. Clean related records first in FK-safe order.
@@ -709,7 +773,11 @@ const rawHandler = async (event) => {
             actorId: currentUserId,
             action: 'user_hard_delete',
             targetUserId: userId,
-            metadata: { reason: reason || null }
+            metadata: {
+              reason,
+              second_admin_id: secondAdminId,
+              snapshot_id: snapshotId
+            }
           });
           return { statusCode: 204, headers, body: '' };
         }
@@ -733,7 +801,7 @@ const rawHandler = async (event) => {
           actorId: currentUserId,
           action: 'user_deactivated',
           targetUserId: userId,
-          metadata: { reason: reason || null }
+          metadata: { reason }
         });
 
         return { statusCode: 200, headers, body: JSON.stringify(deactivated) };

@@ -178,10 +178,10 @@ class APIClient {
    * Delete user
    */
   async deleteUser(id, options = {}) {
-    const { reason, hard } = options;
+    const { reason, hard, confirmation_phrase, second_admin_id } = options;
     const req = { method: 'DELETE' };
-    if (reason || hard) {
-      req.body = JSON.stringify({ reason, hard });
+    if (reason || hard || confirmation_phrase || second_admin_id) {
+      req.body = JSON.stringify({ reason, hard, confirmation_phrase, second_admin_id });
     }
     return this.request(`/users/${id}`, req);
   }
@@ -328,6 +328,87 @@ class APIClient {
   async getAdminAuditLogs(filters = {}) {
     const params = new URLSearchParams(filters);
     return this.request(`/admin/audit-logs?${params}`);
+  }
+
+  // ========== ADMIN OPS ==========
+
+  async getAdminOpsOverview() {
+    return this.request('/admin-ops/overview');
+  }
+
+  async getAdminUsersOps(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin-ops/admin-users?${params}`);
+  }
+
+  async updateAdminUserScope(adminUserId, payload = {}) {
+    return this.request(`/admin-ops/admin-users/${adminUserId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async revokeUserSessions(userId) {
+    return this.request(`/admin-ops/revoke-session/${userId}`, {
+      method: 'POST'
+    });
+  }
+
+  async listAdminCases(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin-ops/cases?${params}`);
+  }
+
+  async createAdminCase(payload = {}) {
+    return this.request('/admin-ops/cases', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateAdminCase(caseId, payload = {}) {
+    return this.request(`/admin-ops/cases/${caseId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async listBookingDisputes(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin-ops/disputes?${params}`);
+  }
+
+  async createBookingDispute(payload = {}) {
+    return this.request('/admin-ops/disputes', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateBookingDispute(disputeId, payload = {}) {
+    return this.request(`/admin-ops/disputes/${disputeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async listComplianceExpiring(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin-ops/compliance-expiring?${params}`);
+  }
+
+  async getWeeklyOpsReport() {
+    return this.request('/admin-ops/reports/weekly');
+  }
+
+  async exportAuditLogs(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin-ops/audit-export?${params}`);
+  }
+
+  async listDeletedUserSnapshots(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin-ops/snapshots?${params}`);
   }
 }
 

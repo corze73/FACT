@@ -72,9 +72,22 @@ export const getAuthContext = async (event) => {
   if (!payload?.sub) return { userId: null, userType: null, isAdmin: false, payload: null };
 
   const profile = await executeQueryOne(
-    withUserCtx('SELECT user_type, is_active FROM profiles WHERE id = $1', payload.sub),
+    withUserCtx('SELECT user_type, is_active, token_revoked_at FROM profiles WHERE id = $1', payload.sub),
     [payload.sub]
   );
+
+  const revokedAtEpoch = profile?.token_revoked_at ? Math.floor(new Date(profile.token_revoked_at).getTime() / 1000) : null;
+  const tokenIssuedAt = typeof payload.iat === 'number' ? payload.iat : null;
+  if (revokedAtEpoch && tokenIssuedAt && tokenIssuedAt <= revokedAtEpoch) {
+    return {
+      userId: null,
+      userType: null,
+      isAdmin: false,
+      isActive: false,
+      tokenRevoked: true,
+      payload
+    };
+  }
 
   const userType = profile?.user_type || null;
   const isAdmin = userType === 'admin';

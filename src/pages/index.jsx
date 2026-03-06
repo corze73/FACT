@@ -28,6 +28,8 @@ import AdminVerifications from "./AdminVerifications";
 
 import AdminAuditLogs from "./AdminAuditLogs";
 
+import AdminOperations from "./AdminOperations";
+
 import PrivacyPolicy from "./PrivacyPolicy";
 
 import Terms from "./Terms";
@@ -64,6 +66,8 @@ const PAGES = {
     AdminVerifications: AdminVerifications,
 
     AdminAuditLogs: AdminAuditLogs,
+
+    AdminOperations: AdminOperations,
     
     PrivacyPolicy: PrivacyPolicy,
     
@@ -139,6 +143,9 @@ function PagesContent() {
 
                 <Route path="/AdminAuditLogs" element={<AdminAuditLogs />} />
                 <Route path="/adminauditlogs" element={<AdminAuditLogs />} />
+
+                <Route path="/AdminOperations" element={<AdminOperations />} />
+                <Route path="/adminoperations" element={<AdminOperations />} />
                 
                 <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
                 <Route path="/privacypolicy" element={<PrivacyPolicy />} />
