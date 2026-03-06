@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const PAGE_SIZE = 25;
 const ACTION_OPTIONS = [
@@ -41,6 +42,11 @@ const metadataSummary = (metadata) => {
   return JSON.stringify(metadata);
 };
 
+const toCsvCell = (value) => {
+  const str = value === null || value === undefined ? "" : String(value);
+  return `"${str.replace(/"/g, '""')}"`;
+};
+
 export default function AdminAuditLogs() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
@@ -52,10 +58,13 @@ export default function AdminAuditLogs() {
   const [action, setAction] = useState("all");
   const [actorId, setActorId] = useState("");
   const [targetId, setTargetId] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [selectedLog, setSelectedLog] = useState(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
 
-  const load = async ({ showSpinner = false, pageOverride } = {}) => {
+  const load = async ({ showSpinner = false, pageOverride, filtersOverride } = {}) => {
     if (showSpinner) setIsRefreshing(true);
 
     try {
@@ -68,15 +77,26 @@ export default function AdminAuditLogs() {
 
       const activePage = Number.isInteger(pageOverride) ? pageOverride : page;
       const offset = (activePage - 1) * PAGE_SIZE;
+      const activeFilters = {
+        action,
+        actorId,
+        targetId,
+        createdFrom,
+        createdTo,
+        ...(filtersOverride || {})
+      };
+
       const filters = {
         limit: PAGE_SIZE,
         offset,
         include_total: 1
       };
 
-      if (action !== "all") filters.action = action;
-      if (actorId.trim()) filters.actor_user_id = actorId.trim();
-      if (targetId.trim()) filters.target_user_id = targetId.trim();
+      if (activeFilters.action !== "all") filters.action = activeFilters.action;
+      if (activeFilters.actorId.trim()) filters.actor_user_id = activeFilters.actorId.trim();
+      if (activeFilters.targetId.trim()) filters.target_user_id = activeFilters.targetId.trim();
+      if (activeFilters.createdFrom) filters.created_from = activeFilters.createdFrom;
+      if (activeFilters.createdTo) filters.created_to = activeFilters.createdTo;
 
       const response = await User.listAdminAuditLogs(filters);
       setRows(Array.isArray(response?.data) ? response.data : []);
@@ -101,12 +121,63 @@ export default function AdminAuditLogs() {
   };
 
   const clearFilters = async () => {
-    setAction("all");
-    setActorId("");
-    setTargetId("");
+    const resetFilters = {
+      action: "all",
+      actorId: "",
+      targetId: "",
+      createdFrom: "",
+      createdTo: ""
+    };
+    setAction(resetFilters.action);
+    setActorId(resetFilters.actorId);
+    setTargetId(resetFilters.targetId);
+    setCreatedFrom(resetFilters.createdFrom);
+    setCreatedTo(resetFilters.createdTo);
     const nextPage = 1;
     setPage(nextPage);
-    await load({ showSpinner: true, pageOverride: nextPage });
+    await load({ showSpinner: true, pageOverride: nextPage, filtersOverride: resetFilters });
+  };
+
+  const exportCsv = () => {
+    if (rows.length === 0) return;
+
+    const header = [
+      "created_at",
+      "action",
+      "actor_user_id",
+      "actor_name",
+      "target_user_id",
+      "target_name",
+      "reason",
+      "metadata_json",
+      "log_id"
+    ];
+
+    const lines = rows.map((row) => {
+      const reason = row?.metadata?.reason || "";
+      return [
+        row.created_at,
+        row.action,
+        row.actor_user_id,
+        row.actor_name || "",
+        row.target_user_id,
+        row.target_name || "",
+        reason,
+        JSON.stringify(row.metadata || {}),
+        row.id
+      ].map(toCsvCell).join(",");
+    });
+
+    const csvContent = [header.map(toCsvCell).join(","), ...lines].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `admin-audit-logs-page-${page}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   if (loading) return <div className="p-8">Loading audit logs...</div>;
@@ -120,7 +191,7 @@ export default function AdminAuditLogs() {
             <CardTitle>Admin Audit Logs</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-4 gap-3">
+            <div className="grid md:grid-cols-6 gap-3">
               <div>
                 <label className="text-xs text-slate-500">Action</label>
                 <select
@@ -151,10 +222,32 @@ export default function AdminAuditLogs() {
                   onChange={(e) => setTargetId(e.target.value)}
                 />
               </div>
+              <div>
+                <label className="text-xs text-slate-500">Created from</label>
+                <Input
+                  type="date"
+                  value={createdFrom}
+                  onChange={(e) => setCreatedFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Created to</label>
+                <Input
+                  type="date"
+                  value={createdTo}
+                  onChange={(e) => setCreatedTo(e.target.value)}
+                />
+              </div>
               <div className="flex items-end gap-2">
                 <Button onClick={applyFilters} disabled={isRefreshing}>Apply</Button>
                 <Button variant="outline" onClick={clearFilters} disabled={isRefreshing}>Clear</Button>
               </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
+                Export CSV (current page)
+              </Button>
             </div>
 
             {isRefreshing && (
@@ -188,7 +281,12 @@ export default function AdminAuditLogs() {
 
                     <div>
                       <p className="text-slate-500 text-sm">Metadata</p>
-                      <p className="text-sm text-slate-800 break-words">{metadataSummary(row.metadata)}</p>
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <p className="text-sm text-slate-800 break-words">{metadataSummary(row.metadata)}</p>
+                        <Button variant="outline" size="sm" onClick={() => setSelectedLog(row)}>
+                          View details
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -207,6 +305,26 @@ export default function AdminAuditLogs() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={Boolean(selectedLog)} onOpenChange={(open) => !open && setSelectedLog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Audit Log Details</DialogTitle>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600">Action: <span className="text-slate-900 font-medium">{formatAction(selectedLog.action)}</span></p>
+              <p className="text-sm text-slate-600">Created: <span className="text-slate-900">{formatDateTime(selectedLog.created_at)}</span></p>
+              <div>
+                <p className="text-sm text-slate-600 mb-1">Metadata JSON</p>
+                <pre className="max-h-80 overflow-auto rounded-md bg-slate-50 border border-slate-200 p-3 text-xs text-slate-800 whitespace-pre-wrap break-words">
+                  {JSON.stringify(selectedLog.metadata || {}, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -53,6 +53,8 @@ const parseBody = (event) => {
   return JSON.parse(raw);
 };
 
+const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
 const isMissingRelationError = (error, relationName) => {
   const message = String(error?.message || '').toLowerCase();
   return message.includes(`relation \"${relationName}\" does not exist`) || message.includes(`relation '${relationName}' does not exist`);
@@ -202,6 +204,8 @@ const listAuditLogs = async ({ event, headers, adminId }) => {
   const action = typeof q.action === 'string' ? q.action.trim() : '';
   const actorId = typeof q.actor_user_id === 'string' ? q.actor_user_id.trim() : '';
   const targetId = typeof q.target_user_id === 'string' ? q.target_user_id.trim() : '';
+  const createdFrom = typeof q.created_from === 'string' ? q.created_from.trim() : '';
+  const createdTo = typeof q.created_to === 'string' ? q.created_to.trim() : '';
 
   if (limit === null || offset === null) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
@@ -213,6 +217,18 @@ const listAuditLogs = async ({ event, headers, adminId }) => {
 
   if (targetId && !isUuid(targetId)) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid target_user_id format' }) };
+  }
+
+  if (createdFrom && !isIsoDate(createdFrom)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid created_from format. Use YYYY-MM-DD' }) };
+  }
+
+  if (createdTo && !isIsoDate(createdTo)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid created_to format. Use YYYY-MM-DD' }) };
+  }
+
+  if (createdFrom && createdTo && createdFrom > createdTo) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'created_from must be <= created_to' }) };
   }
 
   const params = [];
@@ -231,6 +247,16 @@ const listAuditLogs = async ({ event, headers, adminId }) => {
   if (targetId) {
     conditions.push(`l.target_user_id = $${params.length + 1}::uuid`);
     params.push(targetId);
+  }
+
+  if (createdFrom) {
+    conditions.push(`l.created_at >= $${params.length + 1}::date`);
+    params.push(createdFrom);
+  }
+
+  if (createdTo) {
+    conditions.push(`l.created_at < ($${params.length + 1}::date + INTERVAL '1 day')`);
+    params.push(createdTo);
   }
 
   const query = `
