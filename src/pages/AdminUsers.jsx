@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
-import { createPageUrl, isAdminUser } from "@/utils";
+import { createPageUrl, isAdminUser, canManageUserLifecycle, canHardDeleteUsers } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,7 @@ export default function AdminUsers() {
   const [requestActionReason, setRequestActionReason] = useState("");
   const [decidingId, setDecidingId] = useState(null);
   const [pendingDeleteIds, setPendingDeleteIds] = useState(new Set());
+  const [adminApprovers, setAdminApprovers] = useState([]);
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
@@ -142,8 +143,12 @@ export default function AdminUsers() {
         }
 
         if (currentPage === 1) {
-          const pending = await User.listDeletionRequests({ status: 'pending' });
+          const [pending, approvers] = await Promise.all([
+            User.listDeletionRequests({ status: 'pending' }),
+            User.listAdminUsersOps({ limit: 100, offset: 0 })
+          ]);
           setRequests(pending);
+          setAdminApprovers((approvers?.data || []).filter((a) => a.id !== me.id));
         }
       } catch (e) {
         console.warn('Failed to load users admin list', e);
@@ -165,6 +170,9 @@ export default function AdminUsers() {
 
   if (loading) return <div className="p-8">Loading users...</div>;
   if (!currentUser || !isAdminUser(currentUser)) return null;
+
+  const canLifecycle = canManageUserLifecycle(currentUser);
+  const canHardDelete = canHardDeleteUsers(currentUser);
 
   return (
     <div className="p-6 md:p-8">
@@ -321,23 +329,25 @@ export default function AdminUsers() {
                         >
                           <MessageCircle className="w-4 h-4 mr-2" /> Message
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              await User.revokeSessions(u.id);
-                              alert('User sessions revoked. They will need to sign in again.');
-                            } catch (err) {
-                              alert('Failed to revoke sessions: ' + err.message);
-                            }
-                          }}
-                          className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
-                        >
-                          Revoke Sessions
-                        </Button>
-                        {u.is_active !== false ? (
+                        {canLifecycle && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await User.revokeSessions(u.id);
+                                alert('User sessions revoked. They will need to sign in again.');
+                              } catch (err) {
+                                alert('Failed to revoke sessions: ' + err.message);
+                              }
+                            }}
+                            className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                          >
+                            Revoke Sessions
+                          </Button>
+                        )}
+                        {canLifecycle && (u.is_active !== false ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -373,7 +383,7 @@ export default function AdminUsers() {
                           >
                             Restore
                           </Button>
-                        )}
+                        ))}
                       </div>
                     )}
                   </Card>
@@ -457,6 +467,7 @@ export default function AdminUsers() {
                 className="mt-1"
                 checked={hardDelete}
                 onChange={(e) => setHardDelete(e.target.checked)}
+                disabled={!canHardDelete}
               />
               <span>
                 Hard delete. This permanently removes the user and related records.
@@ -464,11 +475,21 @@ export default function AdminUsers() {
             </label>
             {hardDelete && (
               <>
-                <Input
-                  value={secondAdminId}
-                  onChange={(e) => setSecondAdminId(e.target.value)}
-                  placeholder="Second admin ID (required for hard delete)"
-                />
+                <div>
+                  <label className="text-xs text-slate-500">Second Admin Approver</label>
+                  <select
+                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+                    value={secondAdminId}
+                    onChange={(e) => setSecondAdminId(e.target.value)}
+                  >
+                    <option value="">Select second admin approver</option>
+                    {adminApprovers.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {(a.full_name || a.email || a.id)} ({a.admin_scope || 'full'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <Input
                   value={confirmationPhrase}
                   onChange={(e) => setConfirmationPhrase(e.target.value)}
@@ -481,6 +502,7 @@ export default function AdminUsers() {
               <Button
                 className="bg-red-600 hover:bg-red-700"
                 disabled={
+                  !canLifecycle ||
                   !reason.trim() ||
                   (hardDelete && (!secondAdminId.trim() || !confirmationPhrase.trim()))
                 }

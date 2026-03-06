@@ -64,6 +64,7 @@ const rawHandler = async (event) => {
     const auth = await getAuthContext(event);
     const currentUserId = auth.userId;
     const isAdmin = auth.isAdmin === true;
+    const adminScope = auth.adminScope || 'full';
     console.log('👤 Auth user ID:', currentUserId);
     
     // Parse body if it exists and is base64 encoded
@@ -644,6 +645,10 @@ const rawHandler = async (event) => {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
         }
 
+        if (adminScope === 'read_only' || adminScope === 'compliance') {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope is read-only for user lifecycle actions' }) };
+        }
+
         if (currentUserId === userId) {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin self-delete is not allowed' }) };
         }
@@ -653,6 +658,9 @@ const rawHandler = async (event) => {
         }
 
         if (hard) {
+          if (adminScope !== 'full') {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only full-scope admins can hard delete users' }) };
+          }
           const requiredPhrase = `HARD DELETE ${userId}`;
           if (confirmationPhrase !== requiredPhrase) {
             return {

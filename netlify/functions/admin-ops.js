@@ -74,13 +74,40 @@ const logAdminAction = async ({ actorId, action, targetUserId, metadata = {} }) 
   );
 };
 
+const normalizeAdminScope = (scope) => {
+  const allowed = new Set(['full', 'support', 'compliance', 'ops', 'read_only']);
+  return allowed.has(scope) ? scope : 'full';
+};
+
+const canMutateForScope = (scope) => scope !== 'read_only';
+const canManageRolesForScope = (scope) => scope === 'full';
+const canManageUsersForScope = (scope) => scope === 'full' || scope === 'support' || scope === 'ops';
+const canManageCasesForScope = (scope) => scope === 'full' || scope === 'support' || scope === 'ops';
+const canManageComplianceForScope = (scope) => scope === 'full' || scope === 'compliance' || scope === 'support' || scope === 'ops';
+const canExportPiiForScope = (scope) => scope === 'full' || scope === 'ops' || scope === 'support';
+
 const listAdminUsers = async ({ event, headers, adminId }) => {
   const q = event.queryStringParameters || {};
   const limit = parseLimit(q.limit, 50, 200);
   const offset = parseOffset(q.offset, 0);
   const includeTotal = q.include_total === '1' || q.include_total === 'true';
+  const scopeFilter = typeof q.scope === 'string' ? q.scope.trim() : '';
+  const search = typeof q.search === 'string' ? q.search.trim() : '';
   if (limit === null || offset === null) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
+  }
+
+  const params = [];
+  const conditions = [`user_type = 'admin'`];
+
+  if (scopeFilter) {
+    conditions.push(`admin_scope = $${params.length + 1}`);
+    params.push(scopeFilter);
+  }
+
+  if (search) {
+    conditions.push(`(full_name ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1})`);
+    params.push(`%${search}%`);
   }
 
   const rows = await executeQuery(
@@ -88,11 +115,12 @@ const listAdminUsers = async ({ event, headers, adminId }) => {
       `SELECT id, full_name, email, user_type, admin_scope, is_active, token_revoked_at, updated_at
               ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
        FROM profiles
-       WHERE user_type = 'admin'
+       WHERE ${conditions.join(' AND ')}
        ORDER BY updated_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
       adminId
-    )
+    ),
+    params
   );
 
   if (!includeTotal) {
@@ -445,6 +473,7 @@ const listComplianceExpiring = async ({ event, headers, adminId }) => {
   const safeDays = Number.isFinite(days) && days > 0 && days <= 365 ? days : 30;
   const limit = parseLimit(q.limit, 50, 200);
   const offset = parseOffset(q.offset, 0);
+  const includeTotal = q.include_total === '1' || q.include_total === 'true';
   if (limit === null || offset === null) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
   }
@@ -454,6 +483,7 @@ const listComplianceExpiring = async ({ event, headers, adminId }) => {
       `SELECT id, full_name, email, city, country,
               background_check_status, background_check_expires_at,
               qualification_status, has_background_check
+              ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
        FROM profiles
        WHERE user_type = 'coach'
          AND COALESCE(is_active, true) = true
@@ -467,6 +497,12 @@ const listComplianceExpiring = async ({ event, headers, adminId }) => {
     ),
     [safeDays]
   );
+
+  if (includeTotal) {
+    const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+    const data = rows.map(({ total_count, ...rest }) => rest);
+    return { statusCode: 200, headers, body: JSON.stringify({ data, total, days: safeDays, limit, offset }) };
+  }
 
   return { statusCode: 200, headers, body: JSON.stringify({ data: rows, days: safeDays, limit, offset }) };
 };
@@ -723,6 +759,8 @@ const rawHandler = async (event) => {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
     }
 
+    const adminScope = normalizeAdminScope(auth.adminScope || 'full');
+
     const pathParts = (event.path || '').split('/').filter(Boolean);
     const opsIdx = pathParts.findIndex((part) => part === 'admin-ops');
     const seg1 = opsIdx >= 0 ? pathParts[opsIdx + 1] : null;
@@ -737,10 +775,16 @@ const rawHandler = async (event) => {
     }
 
     if (event.httpMethod === 'PATCH' && seg1 === 'admin-users' && seg2) {
+      if (!canManageRolesForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only full-scope admins can manage admin roles/scopes' }) };
+      }
       return await updateAdminUser({ event, headers, adminId: auth.userId, targetId: seg2 });
     }
 
     if (event.httpMethod === 'POST' && seg1 === 'revoke-session' && seg2) {
+      if (!canManageUsersForScope(adminScope) || !canMutateForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope cannot revoke sessions' }) };
+      }
       return await revokeUserSessions({ headers, adminId: auth.userId, targetId: seg2 });
     }
 
@@ -749,10 +793,16 @@ const rawHandler = async (event) => {
     }
 
     if (event.httpMethod === 'POST' && seg1 === 'cases') {
+      if (!canManageCasesForScope(adminScope) || !canMutateForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope cannot create cases' }) };
+      }
       return await createCase({ event, headers, adminId: auth.userId });
     }
 
     if (event.httpMethod === 'PATCH' && seg1 === 'cases' && seg2) {
+      if (!canManageCasesForScope(adminScope) || !canMutateForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope cannot update cases' }) };
+      }
       return await updateCase({ event, headers, adminId: auth.userId, caseId: seg2 });
     }
 
@@ -761,14 +811,23 @@ const rawHandler = async (event) => {
     }
 
     if (event.httpMethod === 'POST' && seg1 === 'disputes') {
+      if (!canManageCasesForScope(adminScope) || !canMutateForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope cannot create disputes' }) };
+      }
       return await createDispute({ event, headers, adminId: auth.userId });
     }
 
     if (event.httpMethod === 'PATCH' && seg1 === 'disputes' && seg2) {
+      if (!canManageCasesForScope(adminScope) || !canMutateForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope cannot update disputes' }) };
+      }
       return await updateDispute({ event, headers, adminId: auth.userId, disputeId: seg2 });
     }
 
     if (event.httpMethod === 'GET' && seg1 === 'compliance-expiring') {
+      if (!canManageComplianceForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope cannot access compliance monitoring' }) };
+      }
       return await listComplianceExpiring({ event, headers, adminId: auth.userId });
     }
 
@@ -777,6 +836,12 @@ const rawHandler = async (event) => {
     }
 
     if (event.httpMethod === 'GET' && seg1 === 'audit-export') {
+      if (!canExportPiiForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Your admin scope cannot export audit data' }) };
+      }
+      if (adminScope !== 'full' && (event.queryStringParameters?.redaction || '').trim() === 'full') {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only full-scope admins can export full redaction level' }) };
+      }
       return await exportAuditLogs({ event, headers, adminId: auth.userId });
     }
 
