@@ -324,6 +324,11 @@ class APIClient {
       body: JSON.stringify(payload)
     });
   }
+
+  async getAdminAuditLogs(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin/audit-logs?${params}`);
+  }
 }
 
 // Export singleton instance

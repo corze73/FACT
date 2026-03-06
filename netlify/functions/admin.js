@@ -53,6 +53,11 @@ const parseBody = (event) => {
   return JSON.parse(raw);
 };
 
+const isMissingRelationError = (error, relationName) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes(`relation \"${relationName}\" does not exist`) || message.includes(`relation '${relationName}' does not exist`);
+};
+
 const listVerifications = async ({ event, headers, adminId }) => {
   const q = event.queryStringParameters || {};
   const type = q.type || 'coach';
@@ -189,6 +194,94 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
   };
 };
 
+const listAuditLogs = async ({ event, headers, adminId }) => {
+  const q = event.queryStringParameters || {};
+  const limit = parseLimit(q.limit, 20, 100);
+  const offset = parseOffset(q.offset, 0);
+  const includeTotal = q.include_total === '1' || q.include_total === 'true';
+  const action = typeof q.action === 'string' ? q.action.trim() : '';
+  const actorId = typeof q.actor_user_id === 'string' ? q.actor_user_id.trim() : '';
+  const targetId = typeof q.target_user_id === 'string' ? q.target_user_id.trim() : '';
+
+  if (limit === null || offset === null) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
+  }
+
+  if (actorId && !isUuid(actorId)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid actor_user_id format' }) };
+  }
+
+  if (targetId && !isUuid(targetId)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid target_user_id format' }) };
+  }
+
+  const params = [];
+  const conditions = [];
+
+  if (action) {
+    conditions.push(`l.action = $${params.length + 1}`);
+    params.push(action);
+  }
+
+  if (actorId) {
+    conditions.push(`l.actor_user_id = $${params.length + 1}::uuid`);
+    params.push(actorId);
+  }
+
+  if (targetId) {
+    conditions.push(`l.target_user_id = $${params.length + 1}::uuid`);
+    params.push(targetId);
+  }
+
+  const query = `
+    SELECT
+      l.id,
+      l.action,
+      l.actor_user_id,
+      l.target_user_id,
+      l.metadata,
+      l.created_at,
+      actor.full_name AS actor_name,
+      target.full_name AS target_name
+      ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
+    FROM admin_action_logs l
+    LEFT JOIN profiles actor ON actor.id = l.actor_user_id
+    LEFT JOIN profiles target ON target.id = l.target_user_id
+    ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
+    ORDER BY l.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  try {
+    const rows = await executeQuery(withUserCtx(query, adminId), params);
+
+    if (includeTotal) {
+      const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+      const data = rows.map(({ total_count, ...rest }) => rest);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data, total, limit, offset })
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ data: rows, limit, offset })
+    };
+  } catch (error) {
+    if (isMissingRelationError(error, 'admin_action_logs')) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data: [], total: 0, limit, offset })
+      };
+    }
+    throw error;
+  }
+};
+
 const rawHandler = async (event) => {
   const headers = getHeaders(event);
 
@@ -214,14 +307,19 @@ const rawHandler = async (event) => {
     }
 
     const pathParts = (event.path || '').split('/').filter(Boolean);
-    const idx = pathParts.findIndex((part) => part === 'verifications');
-    const coachId = idx >= 0 ? pathParts[idx + 1] : null;
+    const verificationsIdx = pathParts.findIndex((part) => part === 'verifications');
+    const auditLogsIdx = pathParts.findIndex((part) => part === 'audit-logs');
+    const coachId = verificationsIdx >= 0 ? pathParts[verificationsIdx + 1] : null;
 
-    if (event.httpMethod === 'GET' && idx >= 0) {
+    if (event.httpMethod === 'GET' && verificationsIdx >= 0) {
       return await listVerifications({ event, headers, adminId: auth.userId });
     }
 
-    if (event.httpMethod === 'PATCH' && idx >= 0 && coachId) {
+    if (event.httpMethod === 'GET' && auditLogsIdx >= 0) {
+      return await listAuditLogs({ event, headers, adminId: auth.userId });
+    }
+
+    if (event.httpMethod === 'PATCH' && verificationsIdx >= 0 && coachId) {
       return await updateVerification({ event, headers, adminId: auth.userId, coachId });
     }
 

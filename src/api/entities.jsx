@@ -546,6 +546,10 @@ User.updateAdminVerification = async function(coachId, payload = {}) {
   return await apiClient.updateAdminVerification(coachId, payload);
 };
 
+User.listAdminAuditLogs = async function(filters = {}) {
+  return await apiClient.getAdminAuditLogs(filters);
+};
+
 // Admin restore user (reactivate)
 User.restore = async function(id) {
   return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });
