@@ -670,21 +670,25 @@ const rawHandler = async (event) => {
             };
           }
 
-          if (!isUuid(secondAdminId)) {
-            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Valid second_admin_id is required for hard delete' }) };
+          const hasSecondAdmin = !!secondAdminId;
+
+          if (hasSecondAdmin && !isUuid(secondAdminId)) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Valid second_admin_id is required when provided' }) };
           }
 
-          if (secondAdminId === currentUserId) {
+          if (hasSecondAdmin && secondAdminId === currentUserId) {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'second_admin_id must be different from acting admin' }) };
           }
 
-          const secondAdmin = await executeQueryOne(
-            withUserCtx('SELECT id FROM profiles WHERE id = $1 AND user_type = $2', currentUserId),
-            [secondAdminId, 'admin']
-          );
+          if (hasSecondAdmin) {
+            const secondAdmin = await executeQueryOne(
+              withUserCtx('SELECT id FROM profiles WHERE id = $1 AND user_type = $2', currentUserId),
+              [secondAdminId, 'admin']
+            );
 
-          if (!secondAdmin) {
-            return { statusCode: 400, headers, body: JSON.stringify({ error: 'second_admin_id must reference an existing admin' }) };
+            if (!secondAdmin) {
+              return { statusCode: 400, headers, body: JSON.stringify({ error: 'second_admin_id must reference an existing admin' }) };
+            }
           }
 
           const target = await executeQueryOne(
@@ -726,7 +730,7 @@ const rawHandler = async (event) => {
                  RETURNING id`,
                 currentUserId
               ),
-              [userId, currentUserId, secondAdminId, reason, JSON.stringify(snapshotPayload)]
+              [userId, currentUserId, hasSecondAdmin ? secondAdminId : null, reason, JSON.stringify(snapshotPayload)]
             );
             snapshotId = snapshot?.id || null;
           }
@@ -783,7 +787,8 @@ const rawHandler = async (event) => {
             targetUserId: userId,
             metadata: {
               reason,
-              second_admin_id: secondAdminId,
+              second_admin_id: hasSecondAdmin ? secondAdminId : null,
+              approval_mode: hasSecondAdmin ? 'dual_admin' : 'single_admin_full_scope',
               snapshot_id: snapshotId
             }
           });

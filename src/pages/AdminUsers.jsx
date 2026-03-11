@@ -95,7 +95,7 @@ export default function AdminUsers() {
         reason,
         hard: hardDelete,
         confirmation_phrase: hardDelete ? confirmationPhrase : undefined,
-        second_admin_id: hardDelete ? secondAdminId : undefined
+        second_admin_id: hardDelete && secondAdminId.trim() ? secondAdminId : undefined
       });
     } catch (e) {
       setUsers(previousUsers);
@@ -259,14 +259,14 @@ export default function AdminUsers() {
                 <p className="text-xs text-slate-500 mt-2">Updating users...</p>
               )}
             </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
               {paginatedUsers.map((u, idx) => (
-                <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }}>
+                <motion.div key={u.id} className="h-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }}>
                   <Card 
-                    className="border border-slate-200 cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all duration-200 group"
+                    className="border border-slate-200 cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all duration-200 group h-full flex flex-col overflow-hidden"
                     onClick={() => handleCardClick(u)}
                   >
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 flex-1">
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
                           <span className="font-semibold text-slate-600">{u.full_name?.charAt(0) || "U"}</span>
@@ -317,7 +317,7 @@ export default function AdminUsers() {
                       </div>
                     </CardContent>
                     {isAdminUser(currentUser) && u.user_type !== 'admin' && (
-                      <div className="flex justify-end pb-3 pr-3 gap-2">
+                      <div className="flex flex-wrap justify-end gap-2 p-4 pt-3 border-t border-slate-100">
                         <Button
                           variant="outline"
                           size="sm"
@@ -476,7 +476,7 @@ export default function AdminUsers() {
             {hardDelete && (
               <>
                 <div>
-                  <label className="text-xs text-slate-500">Second Admin Approver</label>
+                  <label className="text-xs text-slate-500">Second Admin Approver (optional for full admins)</label>
                   <select
                     className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
                     value={secondAdminId}
@@ -504,7 +504,7 @@ export default function AdminUsers() {
                 disabled={
                   !canLifecycle ||
                   !reason.trim() ||
-                  (hardDelete && (!secondAdminId.trim() || !confirmationPhrase.trim()))
+                  (hardDelete && !confirmationPhrase.trim())
                 }
                 onClick={handleRemove}
               >
