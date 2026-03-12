@@ -45,10 +45,9 @@ export default function UserProfile() {
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('userId');
         
-        // Only redirect admin to dashboard if they're trying to view their own profile without userId
-        // Allow admin to view other users when userId is present
-        if (isAdminUser(me) && !userId) {
-          // Admin trying to view their own user profile - redirect to dashboard
+        // Redirect admin to their own dashboard if they're trying to view their own profile
+        // (with or without their own userId in the URL)
+        if (isAdminUser(me) && (!userId || userId === me.id)) {
           navigate(createPageUrl("AdminDashboard"));
         }
       } catch (error) {
