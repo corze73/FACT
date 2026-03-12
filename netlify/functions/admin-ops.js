@@ -172,6 +172,72 @@ const updateAdminUser = async ({ event, headers, adminId, targetId }) => {
   return { statusCode: 200, headers, body: JSON.stringify({ data: updated }) };
 };
 
+const promoteAdminUser = async ({ event, headers, adminId }) => {
+  const body = parseBody(event);
+  const targetUserId = typeof body.user_id === 'string' ? body.user_id.trim() : '';
+  const targetEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const scope = normalizeAdminScope(typeof body.admin_scope === 'string' ? body.admin_scope.trim() : 'full');
+
+  if (!targetUserId && !targetEmail) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'user_id or email is required' }) };
+  }
+
+  if (targetUserId && !isUuid(targetUserId)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid user_id format' }) };
+  }
+
+  const target = targetUserId
+    ? await executeQueryOne(
+      withUserCtx('SELECT id, email, user_type FROM profiles WHERE id = $1', adminId),
+      [targetUserId]
+    )
+    : await executeQueryOne(
+      withUserCtx('SELECT id, email, user_type FROM profiles WHERE lower(email) = $1', adminId),
+      [targetEmail]
+    );
+
+  if (!target) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Target user not found. Ask them to register first.' }) };
+  }
+
+  const promoted = await executeQueryOne(
+    withUserCtx(
+      `UPDATE profiles
+       SET user_type = 'admin',
+           role = 'admin',
+           admin_scope = $2,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, full_name, email, user_type, role, admin_scope, updated_at`,
+      adminId
+    ),
+    [target.id, scope]
+  );
+
+  await executeQuery(
+    withUserCtx(
+      `UPDATE users
+       SET role = 'admin',
+           updated_at = NOW()
+       WHERE id = $1`,
+      adminId
+    ),
+    [target.id]
+  );
+
+  await logAdminAction({
+    actorId: adminId,
+    action: 'admin_user_promoted',
+    targetUserId: target.id,
+    metadata: {
+      promoted_email: target.email,
+      admin_scope: scope
+    }
+  });
+
+  return { statusCode: 200, headers, body: JSON.stringify({ data: promoted }) };
+};
+
 const revokeUserSessions = async ({ headers, adminId, targetId }) => {
   if (!isUuid(targetId)) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid user id format' }) };
@@ -838,6 +904,13 @@ const rawHandler = async (event) => {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only full-scope admins can manage admin roles/scopes' }) };
       }
       return await updateAdminUser({ event, headers, adminId: auth.userId, targetId: seg2 });
+    }
+
+    if (event.httpMethod === 'POST' && seg1 === 'admin-users' && seg2 === 'promote') {
+      if (!canManageRolesForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only full-scope admins can promote admin users' }) };
+      }
+      return await promoteAdminUser({ event, headers, adminId: auth.userId });
     }
 
     if (event.httpMethod === 'POST' && seg1 === 'revoke-session' && seg2) {

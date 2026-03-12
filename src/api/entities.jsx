@@ -501,6 +501,10 @@ User.updateAdminUserScope = async function(adminUserId, payload = {}) {
   return await apiClient.updateAdminUserScope(adminUserId, payload);
 };
 
+User.promoteAdminUser = async function(payload = {}) {
+  return await apiClient.promoteAdminUser(payload);
+};
+
 User.revokeSessions = async function(userId) {
   return await apiClient.revokeUserSessions(userId);
 };

@@ -376,6 +376,13 @@ class APIClient {
     });
   }
 
+  async promoteAdminUser(payload = {}) {
+    return this.request('/admin-ops/admin-users/promote', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
   async revokeUserSessions(userId) {
     return this.request(`/admin-ops/revoke-session/${userId}`, {
       method: 'POST'

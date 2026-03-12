@@ -34,6 +34,11 @@ export default function AdminOperations() {
   const [adminsLoading, setAdminsLoading] = useState(false);
   const [adminSearch, setAdminSearch] = useState("");
   const [adminScopeFilter, setAdminScopeFilter] = useState("all");
+  const [promoteTarget, setPromoteTarget] = useState("");
+  const [promoteScope, setPromoteScope] = useState("full");
+  const [promoteLoading, setPromoteLoading] = useState(false);
+  const [promoteMessage, setPromoteMessage] = useState("");
+  const [promoteError, setPromoteError] = useState("");
 
   const [cases, setCases] = useState([]);
   const [casesTotal, setCasesTotal] = useState(0);
@@ -311,6 +316,28 @@ export default function AdminOperations() {
     await loadAdmins();
   };
 
+  const promoteToAdmin = async () => {
+    const target = promoteTarget.trim();
+    if (!target) return;
+
+    setPromoteLoading(true);
+    setPromoteError("");
+    setPromoteMessage("");
+    try {
+      const payload = target.includes('@')
+        ? { email: target.toLowerCase(), admin_scope: promoteScope }
+        : { user_id: target, admin_scope: promoteScope };
+      const result = await User.promoteAdminUser(payload);
+      setPromoteMessage(`Promoted ${result?.data?.email || target} to admin (${result?.data?.admin_scope || promoteScope}).`);
+      setPromoteTarget("");
+      await Promise.all([loadAdmins(), loadTopCards()]);
+    } catch (error) {
+      setPromoteError(error.message || 'Failed to promote user to admin');
+    } finally {
+      setPromoteLoading(false);
+    }
+  };
+
   const exportAudit = async (redaction) => {
     const res = await User.exportAuditLogs({ redaction, limit: 1000 });
     const rows = res?.data || [];
@@ -429,6 +456,32 @@ export default function AdminOperations() {
               </select>
               <div className="flex items-center text-xs text-slate-500">{adminsLoading ? "Loading admins..." : `${admins.length} admin records`}</div>
             </div>
+
+            <div className="grid md:grid-cols-4 gap-2 pb-2">
+              <Input
+                value={promoteTarget}
+                onChange={(e) => setPromoteTarget(e.target.value)}
+                placeholder="User email or UUID"
+                disabled={!canRoles || promoteLoading}
+              />
+              <select
+                value={promoteScope}
+                onChange={(e) => setPromoteScope(e.target.value)}
+                disabled={!canRoles || promoteLoading}
+                className="rounded border border-slate-200 px-2 py-2 text-sm"
+              >
+                <option value="full">full (super admin)</option>
+                <option value="support">support</option>
+                <option value="compliance">compliance</option>
+                <option value="ops">ops</option>
+                <option value="read_only">read_only</option>
+              </select>
+              <Button onClick={promoteToAdmin} disabled={!canRoles || promoteLoading || !promoteTarget.trim()}>
+                {promoteLoading ? 'Promoting...' : 'Promote To Admin'}
+              </Button>
+            </div>
+            {promoteMessage && <p className="text-xs text-emerald-700">{promoteMessage}</p>}
+            {promoteError && <p className="text-xs text-red-600">{promoteError}</p>}
 
             {admins.map((a) => (
               <div key={a.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border rounded p-3">
