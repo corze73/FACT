@@ -202,7 +202,7 @@ export const User = {
 
     try {
       const profileData = { ...userData };
-      delete profileData.password; // Do not store raw password
+      delete profileData.password; // Do not forward raw password in the profile spread
 
       // Handle location field
       if (typeof profileData.location === 'object' && profileData.location !== null && 'address' in profileData.location) {
@@ -214,6 +214,7 @@ export const User = {
       const createdUser = await apiClient.createUser({
         auth_mode: 'signup',
         email,
+        password,  // backend hashes this; never stored raw
         full_name: profileData.full_name,
         phone: profileData.phone || null,
         user_type: normalizedUserType,
@@ -297,7 +298,8 @@ export const User = {
 
       const signedInUser = await apiClient.createUser({
         auth_mode: 'signin',
-        email
+        email,
+        password  // backend verifies against stored hash
       });
 
       await auth.setCurrentUser({
@@ -589,6 +591,41 @@ User.acceptAdminInvite = async function(payload = {}) {
 // Admin restore user (reactivate)
 User.restore = async function(id) {
   return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });
+};
+
+// -------------------------------------------------------------------------
+// Password management
+// -------------------------------------------------------------------------
+User.changePassword = async function(currentPassword, newPassword) {
+  const result = await apiClient.changePassword({ currentPassword, newPassword });
+  // Update the stored token so subsequent requests use the refreshed session
+  if (result?.token) {
+    const current = auth.currentUser;
+    if (current) {
+      await auth.setCurrentUser({ ...current, token: result.token });
+    }
+  }
+  return result;
+};
+
+User.forgotPassword = async function(email) {
+  return await apiClient.forgotPassword({ email });
+};
+
+User.resetPassword = async function(token, newPassword) {
+  const result = await apiClient.resetPassword({ token, newPassword });
+  // Auto-login the user after a successful password reset
+  if (result?.token && result?.user) {
+    await auth.setCurrentUser({
+      id: result.user.id,
+      email: result.user.email,
+      full_name: result.user.full_name,
+      user_type: result.user.user_type,
+      role: result.user.role,
+      token: result.token
+    });
+  }
+  return result;
 };
 
 // ========== BOOKING ENTITY (Migrated to API) ==========

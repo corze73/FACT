@@ -32,6 +32,10 @@ import AdminOperations from "./AdminOperations";
 
 import AdminInvite from "./AdminInvite";
 
+import ForgotPassword from "./ForgotPassword";
+
+import ResetPassword from "./ResetPassword";
+
 import PrivacyPolicy from "./PrivacyPolicy";
 
 import Terms from "./Terms";
@@ -73,6 +77,10 @@ const PAGES = {
 
     AdminInvite: AdminInvite,
     
+    ForgotPassword: ForgotPassword,
+    
+    ResetPassword: ResetPassword,
+
     PrivacyPolicy: PrivacyPolicy,
     
     Terms: Terms,
@@ -153,6 +161,12 @@ function PagesContent() {
 
                 <Route path="/AdminInvite" element={<AdminInvite />} />
                 <Route path="/admininvite" element={<AdminInvite />} />
+
+                <Route path="/ForgotPassword" element={<ForgotPassword />} />
+                <Route path="/forgotpassword" element={<ForgotPassword />} />
+
+                <Route path="/ResetPassword" element={<ResetPassword />} />
+                <Route path="/resetpassword" element={<ResetPassword />} />
                 
                 <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
                 <Route path="/privacypolicy" element={<PrivacyPolicy />} />

@@ -5,6 +5,73 @@ import { getAuthContext, signAuthToken } from './lib/auth.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
+import nodemailer from 'nodemailer';
+
+// ---------------------------------------------------------------------------
+// Password helpers (scrypt, no third-party deps)
+// ---------------------------------------------------------------------------
+const hashPassword = (password) => new Promise((resolve, reject) => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  crypto.scrypt(password, salt, 64, (err, buf) => {
+    if (err) reject(err);
+    else resolve(`${salt}:${buf.toString('hex')}`);
+  });
+});
+
+const verifyPassword = (password, stored) => new Promise((resolve, reject) => {
+  const colonIdx = stored.indexOf(':');
+  if (colonIdx === -1) { resolve(false); return; }
+  const salt = stored.slice(0, colonIdx);
+  const hash = stored.slice(colonIdx + 1);
+  crypto.scrypt(password, salt, 64, (err, buf) => {
+    if (err) reject(err);
+    else {
+      try {
+        resolve(crypto.timingSafeEqual(Buffer.from(hash, 'hex'), buf));
+      } catch {
+        resolve(false);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Password reset email
+// ---------------------------------------------------------------------------
+const sendPasswordResetEmail = async (event, email, token) => {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const base = process.env.APP_BASE_URL ||
+    (event?.headers?.origin || 'https://findacoachtoday.com');
+
+  if (!host || !user || !pass) {
+    console.warn('SMTP not configured; password reset email skipped');
+    return { sent: false, reason: 'smtp_not_configured' };
+  }
+
+  const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+  const resetUrl = `${base}/ResetPassword?token=${encodeURIComponent(token)}`;
+  const from = process.env.SMTP_USER || 'support@findacoachtoday.com';
+
+  await transporter.sendMail({
+    from: `"FACT Support" <${from}>`,
+    to: email,
+    subject: 'Reset your FACT password',
+    html: `
+      <p>Hi,</p>
+      <p>We received a request to reset your FACT password.</p>
+      <p><a href="${resetUrl}">Click here to reset your password</a></p>
+      <p>This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+      <p>The FACT Team</p>
+    `,
+    text: `Reset your FACT password:\n${resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.`
+  });
+
+  return { sent: true };
+};
 
 // CORS headers for all responses
 const getAllowedOrigin = (requestOrigin) => {
@@ -401,6 +468,122 @@ const rawHandler = async (event) => {
         }
 
   case 'POST': {
+        // ---------------------------------------------------------------
+        // Sub-route: POST /users/change-password
+        // ---------------------------------------------------------------
+        if (userId === 'change-password') {
+          if (!currentUserId) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+          }
+          let cpBody;
+          try { cpBody = JSON.parse(body || '{}'); } catch {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) };
+          }
+          const { currentPassword, newPassword } = cpBody;
+          if (!currentPassword || !newPassword) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'currentPassword and newPassword are required' }) };
+          }
+          if (typeof newPassword !== 'string' || newPassword.length < 8) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'New password must be at least 8 characters' }) };
+          }
+          const userRow = await executeQueryOne('SELECT password_hash FROM users WHERE id = $1', [currentUserId]);
+          if (!userRow?.password_hash) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'No password set on this account. Use "Forgot Password" to set one.' }) };
+          }
+          const valid = await verifyPassword(currentPassword, userRow.password_hash);
+          if (!valid) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Current password is incorrect' }) };
+          }
+          const newHash = await hashPassword(newPassword);
+          await executeQuery(
+            'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+            [newHash, currentUserId]
+          );
+          // Revoke existing tokens so other sessions are invalidated
+          await executeQuery(
+            withUserCtx('UPDATE profiles SET token_revoked_at = NOW(), updated_at = NOW() WHERE id = $1', currentUserId),
+            [currentUserId]
+          );
+          const profile = await executeQueryOne(withUserCtx('SELECT * FROM profiles WHERE id = $1', currentUserId), [currentUserId]);
+          const newToken = signAuthToken({ sub: profile.id, email: profile.email, user_type: profile.user_type });
+          return { statusCode: 200, headers, body: JSON.stringify({ success: true, token: newToken }) };
+        }
+
+        // ---------------------------------------------------------------
+        // Sub-route: POST /users/forgot-password
+        // ---------------------------------------------------------------
+        if (userId === 'forgot-password') {
+          let fpBody;
+          try { fpBody = JSON.parse(body || '{}'); } catch {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) };
+          }
+          const fpEmail = String(fpBody.email || '').trim().toLowerCase();
+          if (!fpEmail) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Email is required' }) };
+          }
+          // Always return 200 to avoid leaking whether the email exists
+          const fpUser = await executeQueryOne('SELECT id, email FROM users WHERE email = $1', [fpEmail]);
+          if (fpUser) {
+            const rawToken = crypto.randomBytes(32).toString('hex');
+            const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+            await executeQuery(
+              'UPDATE users SET password_reset_token_hash = $1, password_reset_expires_at = $2, updated_at = NOW() WHERE id = $3',
+              [tokenHash, expiresAt, fpUser.id]
+            );
+            try {
+              await sendPasswordResetEmail(event, fpEmail, rawToken);
+            } catch (emailErr) {
+              console.error('Password reset email error:', emailErr.message);
+            }
+          }
+          return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'If that email is registered, a reset link has been sent.' }) };
+        }
+
+        // ---------------------------------------------------------------
+        // Sub-route: POST /users/reset-password
+        // ---------------------------------------------------------------
+        if (userId === 'reset-password') {
+          let rpBody;
+          try { rpBody = JSON.parse(body || '{}'); } catch {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) };
+          }
+          const { token: rawToken, newPassword: rpNewPassword } = rpBody;
+          if (!rawToken || !rpNewPassword) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'token and newPassword are required' }) };
+          }
+          if (typeof rpNewPassword !== 'string' || rpNewPassword.length < 8) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Password must be at least 8 characters' }) };
+          }
+          const tokenHash = crypto.createHash('sha256').update(String(rawToken)).digest('hex');
+          const rpUser = await executeQueryOne(
+            'SELECT id, email FROM users WHERE password_reset_token_hash = $1 AND password_reset_expires_at > NOW()',
+            [tokenHash]
+          );
+          if (!rpUser) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid or expired reset link. Please request a new one.' }) };
+          }
+          const rpHash = await hashPassword(rpNewPassword);
+          await executeQuery(
+            'UPDATE users SET password_hash = $1, password_reset_token_hash = NULL, password_reset_expires_at = NULL, updated_at = NOW() WHERE id = $2',
+            [rpHash, rpUser.id]
+          );
+          // Revoke existing sessions
+          await executeQuery(
+            withUserCtx('UPDATE profiles SET token_revoked_at = NOW(), updated_at = NOW() WHERE id = $1', rpUser.id),
+            [rpUser.id]
+          );
+          const rpProfile = await executeQueryOne(withUserCtx('SELECT * FROM profiles WHERE id = $1', rpUser.id), [rpUser.id]);
+          if (!rpProfile) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'User account not found' }) };
+          }
+          const rpToken = signAuthToken({ sub: rpProfile.id, email: rpProfile.email, user_type: rpProfile.user_type });
+          return { statusCode: 200, headers, body: JSON.stringify({ success: true, token: rpToken, user: rpProfile }) };
+        }
+
+        // ---------------------------------------------------------------
+        // Normal signup / signin flow
+        // ---------------------------------------------------------------
         // Login: Check if user exists, create if not (idempotent)
         if (!body) {
           console.error('❌ No request body provided');
@@ -443,6 +626,16 @@ const rawHandler = async (event) => {
         const safeFullName = normalizedFullName || email.split('@')[0] || 'User';
 
         console.log('🔐 Auth request', { authMode, requestedUserType });
+
+        // Validate password for email-based signup
+        if (authMode === 'signup') {
+          if (!userData.password) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Password is required' }) };
+          }
+          if (typeof userData.password !== 'string' || userData.password.length < 8) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Password must be at least 8 characters' }) };
+          }
+        }
 
         const skills = Array.isArray(userData.skills) ? userData.skills : [];
         const preferredCoachingTypes = Array.isArray(userData.preferred_coaching_types) ? userData.preferred_coaching_types : [];
@@ -489,16 +682,44 @@ const rawHandler = async (event) => {
           };
         }
 
+        // Verify password on signin
+        if (authMode === 'signin') {
+          const signinUserRow = await executeQueryOne(
+            'SELECT password_hash FROM users WHERE email = $1',
+            [email]
+          );
+          if (!signinUserRow?.password_hash) {
+            return {
+              statusCode: 401,
+              headers,
+              body: JSON.stringify({ error: 'No password set for this account. Please use "Forgot Password" to set one.' })
+            };
+          }
+          if (!userData.password) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Password is required' }) };
+          }
+          const signinValid = await verifyPassword(userData.password, signinUserRow.password_hash);
+          if (!signinValid) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid email or password' }) };
+          }
+        }
+
+        // Pre-hash password for signup before INSERT
+        const signupPasswordHash = (authMode === 'signup' && userData.password)
+          ? await hashPassword(userData.password)
+          : null;
+
         let identity = null;
         if (authMode !== 'signin') {
           identity = await executeQueryOne(
-            `INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            `INSERT INTO users (id, email, full_name, role, phone, password_hash, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
              ON CONFLICT (email) DO UPDATE
              SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
+                 password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash),
                  updated_at = NOW()
              RETURNING id, email, full_name, role`,
-            [newUserId, email, safeFullName, 'user', userData.phone || null]
+            [newUserId, email, safeFullName, 'user', userData.phone || null, signupPasswordHash]
           );
         }
 

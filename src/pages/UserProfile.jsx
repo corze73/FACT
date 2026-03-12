@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl, isAdminUser } from "@/utils";
-import { Upload } from "lucide-react";
+import { Upload, Lock, Eye, EyeOff } from "lucide-react";
 import { validateAndSanitize, profileUpdateSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,6 +28,14 @@ export default function UserProfile() {
   const [deletionOpen, setDeletionOpen] = useState(false);
   const [deletionReason, setDeletionReason] = useState("");
   const [pendingDeletion, setPendingDeletion] = useState(null);
+
+  // Change password state (only shown for own profile, non-admin
+  const [cpForm, setCpForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [cpShowCurrent, setCpShowCurrent] = useState(false);
+  const [cpShowNew, setCpShowNew] = useState(false);
+  const [cpLoading, setCpLoading] = useState(false);
+  const [cpError, setCpError] = useState('');
+  const [cpSuccess, setCpSuccess] = useState(false);
 
   // Check if admin is viewing another user's profile
   useEffect(() => {
@@ -117,6 +125,30 @@ export default function UserProfile() {
       alert('Deletion request submitted. An admin will review it shortly.');
     } catch {
       alert('Failed to submit deletion request');
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setCpError('');
+    setCpSuccess(false);
+    if (cpForm.newPassword.length < 8) {
+      setCpError('New password must be at least 8 characters.');
+      return;
+    }
+    if (cpForm.newPassword !== cpForm.confirmPassword) {
+      setCpError('New passwords do not match.');
+      return;
+    }
+    setCpLoading(true);
+    try {
+      await User.changePassword(cpForm.currentPassword, cpForm.newPassword);
+      setCpSuccess(true);
+      setCpForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setCpError(err.message || 'Failed to change password. Please try again.');
+    } finally {
+      setCpLoading(false);
     }
   };
 
@@ -520,6 +552,105 @@ export default function UserProfile() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Change Password — only for own profile, not when admin is viewing someone else */}
+        {!isViewingAsAdmin && !isAdminUser(currentUser) && (
+          <div className="mt-8">
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="w-5 h-5" />
+                  Change Password
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+                  <div className="space-y-2">
+                    <Label htmlFor="cp-current">Current Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <Input
+                        id="cp-current"
+                        type={cpShowCurrent ? 'text' : 'password'}
+                        placeholder="Your current password"
+                        value={cpForm.currentPassword}
+                        onChange={(e) => setCpForm(p => ({ ...p, currentPassword: e.target.value }))}
+                        required
+                        className="pl-9 pr-10"
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                        onClick={() => setCpShowCurrent(!cpShowCurrent)}
+                      >
+                        {cpShowCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cp-new">New Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <Input
+                        id="cp-new"
+                        type={cpShowNew ? 'text' : 'password'}
+                        placeholder="Min. 8 characters"
+                        value={cpForm.newPassword}
+                        onChange={(e) => setCpForm(p => ({ ...p, newPassword: e.target.value }))}
+                        required
+                        minLength={8}
+                        className="pl-9 pr-10"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                        onClick={() => setCpShowNew(!cpShowNew)}
+                      >
+                        {cpShowNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cp-confirm">Confirm New Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <Input
+                        id="cp-confirm"
+                        type="password"
+                        placeholder="Re-enter new password"
+                        value={cpForm.confirmPassword}
+                        onChange={(e) => setCpForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                        required
+                        minLength={8}
+                        className="pl-9"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+
+                  {cpError && (
+                    <p className="text-sm text-red-600">{cpError}</p>
+                  )}
+                  {cpSuccess && (
+                    <p className="text-sm text-green-600 font-medium">Password changed successfully!</p>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={cpLoading}
+                  >
+                    {cpLoading ? 'Updating...' : 'Update Password'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
 

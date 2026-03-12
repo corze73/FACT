@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,7 @@ export default function LoginOptionsModal({
   onGoogleLogin, 
   onEmailLogin 
 }) {
+  const navigate = useNavigate();
   const [view, setView] = useState('options'); // 'options' or 'email'
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
@@ -169,6 +172,19 @@ export default function LoginOptionsModal({
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
+                </div>
+
+                <div className="text-right pt-2">
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    onClick={() => {
+                      onClose();
+                      navigate(createPageUrl('ForgotPassword'));
+                    }}
+                  >
+                    Forgot password?
+                  </button>
                 </div>
 
                 <div className="flex gap-3 pt-4">

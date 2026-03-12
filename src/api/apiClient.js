@@ -481,6 +481,30 @@ class APIClient {
       body: JSON.stringify(payload)
     });
   }
+
+  // -------------------------------------------------------------------------
+  // Password management
+  // -------------------------------------------------------------------------
+  async changePassword(payload = {}) {
+    return this.request('/users/change-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async forgotPassword(payload = {}) {
+    return this.request('/users/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async resetPassword(payload = {}) {
+    return this.request('/users/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
 }
 
 // Export singleton instance
