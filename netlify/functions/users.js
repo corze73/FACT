@@ -440,6 +440,7 @@ const rawHandler = async (event) => {
         const requestedUserType = userData.user_type === 'coach' ? 'coach' : 'client';
         const requestedRole = requestedUserType === 'coach' ? 'coach' : 'user';
         const normalizedFullName = (userData.full_name || '').trim() || null;
+        const safeFullName = normalizedFullName || email.split('@')[0] || 'User';
 
         console.log('🔐 Auth request', { authMode, requestedUserType });
 
@@ -488,15 +489,18 @@ const rawHandler = async (event) => {
           };
         }
 
-        const identity = await executeQueryOne(
-          `INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-           ON CONFLICT (email) DO UPDATE
-           SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
-               updated_at = NOW()
-           RETURNING id, email, full_name, role`,
-          [newUserId, email, normalizedFullName, 'user', userData.phone || null]
-        );
+        let identity = null;
+        if (authMode !== 'signin') {
+          identity = await executeQueryOne(
+            `INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+             ON CONFLICT (email) DO UPDATE
+             SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
+                 updated_at = NOW()
+             RETURNING id, email, full_name, role`,
+            [newUserId, email, safeFullName, 'user', userData.phone || null]
+          );
+        }
 
         if (existing && identity && existing.id !== identity.id) {
           if (authMode === 'signup') {
