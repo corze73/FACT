@@ -688,20 +688,19 @@ const rawHandler = async (event) => {
             'SELECT password_hash FROM users WHERE email = $1',
             [email]
           );
-          if (!signinUserRow?.password_hash) {
-            return {
-              statusCode: 401,
-              headers,
-              body: JSON.stringify({ error: 'No password set for this account. Please use "Forgot Password" to set one.' })
-            };
+          // Support existing users without passwords (pre-password-system accounts)
+          if (signinUserRow?.password_hash) {
+            // User has a password set — require it
+            if (!userData.password) {
+              return { statusCode: 401, headers, body: JSON.stringify({ error: 'Password is required' }) };
+            }
+            const signinValid = await verifyPassword(userData.password, signinUserRow.password_hash);
+            if (!signinValid) {
+              return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid email or password' }) };
+            }
           }
-          if (!userData.password) {
-            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Password is required' }) };
-          }
-          const signinValid = await verifyPassword(userData.password, signinUserRow.password_hash);
-          if (!signinValid) {
-            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid email or password' }) };
-          }
+          // If no password_hash exists, allow backward-compatible signin (legacy user)
+          // They will be prompted to set a password on their first visit
         }
 
         // Pre-hash password for signup before INSERT
