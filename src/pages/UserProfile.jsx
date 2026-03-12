@@ -632,16 +632,15 @@ export default function UserProfile() {
               <CardContent>
                 <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
                   <div className="space-y-2">
-                    <Label htmlFor="cp-current">Current Password</Label>
+                    <Label htmlFor="cp-current">Current Password (leave blank if this is your first set)</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                       <Input
                         id="cp-current"
                         type={cpShowCurrent ? 'text' : 'password'}
-                        placeholder="Your current password"
+                        placeholder="Your current password (optional for first set)"
                         value={cpForm.currentPassword}
                         onChange={(e) => setCpForm(p => ({ ...p, currentPassword: e.target.value }))}
-                        required
                         className="pl-9 pr-10"
                         autoComplete="current-password"
                       />

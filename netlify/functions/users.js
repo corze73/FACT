@@ -480,23 +480,26 @@ const rawHandler = async (event) => {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) };
           }
           const { currentPassword, newPassword } = cpBody;
-          if (!currentPassword || !newPassword) {
-            return { statusCode: 400, headers, body: JSON.stringify({ error: 'currentPassword and newPassword are required' }) };
+          if (!newPassword) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'newPassword is required' }) };
           }
           if (typeof newPassword !== 'string' || newPassword.length < 8) {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'New password must be at least 8 characters' }) };
           }
           const userRow = await executeQueryOne('SELECT password_hash FROM users WHERE id = $1', [currentUserId]);
-          if (!userRow?.password_hash) {
-            return { statusCode: 400, headers, body: JSON.stringify({ error: 'No password set on this account. Use "Forgot Password" to set one.' }) };
-          }
-          const valid = await verifyPassword(currentPassword, userRow.password_hash);
-          if (!valid) {
-            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Current password is incorrect' }) };
+          const hasExistingPassword = Boolean(userRow?.password_hash);
+          if (hasExistingPassword) {
+            if (!currentPassword) {
+              return { statusCode: 400, headers, body: JSON.stringify({ error: 'Current password is required' }) };
+            }
+            const valid = await verifyPassword(currentPassword, userRow.password_hash);
+            if (!valid) {
+              return { statusCode: 400, headers, body: JSON.stringify({ error: 'Current password is incorrect' }) };
+            }
           }
           const newHash = await hashPassword(newPassword);
           await executeQuery(
-            'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+            'UPDATE users SET password_hash = $1, password_reset_token_hash = NULL, password_reset_expires_at = NULL, updated_at = NOW() WHERE id = $2',
             [newHash, currentUserId]
           );
           // Revoke existing tokens so other sessions are invalidated
@@ -506,7 +509,7 @@ const rawHandler = async (event) => {
           );
           const profile = await executeQueryOne(withUserCtx('SELECT * FROM profiles WHERE id = $1', currentUserId), [currentUserId]);
           const newToken = signAuthToken({ sub: profile.id, email: profile.email, user_type: profile.user_type });
-          return { statusCode: 200, headers, body: JSON.stringify({ success: true, token: newToken }) };
+          return { statusCode: 200, headers, body: JSON.stringify({ success: true, token: newToken, initial_password_set: !hasExistingPassword }) };
         }
 
         // ---------------------------------------------------------------
