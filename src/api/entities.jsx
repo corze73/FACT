@@ -553,6 +553,39 @@ User.listAuthLogs = async function(filters = {}) {
   return await apiClient.listAuthLogs(filters);
 };
 
+User.listAdminInvites = async function(filters = {}) {
+  return await apiClient.listAdminInvites(filters);
+};
+
+User.createAdminInvite = async function(payload = {}) {
+  return await apiClient.createAdminInvite(payload);
+};
+
+User.revokeAdminInvite = async function(inviteId) {
+  return await apiClient.revokeAdminInvite(inviteId);
+};
+
+User.verifyAdminInvite = async function(token) {
+  return await apiClient.verifyAdminInvite(token);
+};
+
+User.acceptAdminInvite = async function(payload = {}) {
+  const response = await apiClient.acceptAdminInvite(payload);
+  const acceptedUser = response?.data || response;
+  if (acceptedUser?.id && acceptedUser?.email && acceptedUser?.token) {
+    await auth.setCurrentUser({
+      id: acceptedUser.id,
+      email: acceptedUser.email,
+      full_name: acceptedUser.full_name,
+      user_type: acceptedUser.user_type,
+      role: acceptedUser.role,
+      admin_scope: acceptedUser.admin_scope,
+      token: acceptedUser.token
+    });
+  }
+  return acceptedUser;
+};
+
 // Admin restore user (reactivate)
 User.restore = async function(id) {
   return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });

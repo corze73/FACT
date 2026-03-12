@@ -1,7 +1,9 @@
 /* eslint-env node */
 import { Buffer } from 'buffer';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import { executeQuery, executeQueryOne } from './lib/db.js';
-import { getAuthContext } from './lib/auth.js';
+import { getAuthContext, signAuthToken } from './lib/auth.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 
@@ -85,6 +87,66 @@ const canManageUsersForScope = (scope) => scope === 'full' || scope === 'support
 const canManageCasesForScope = (scope) => scope === 'full' || scope === 'support' || scope === 'ops';
 const canManageComplianceForScope = (scope) => scope === 'full' || scope === 'compliance' || scope === 'support' || scope === 'ops';
 const canExportPiiForScope = (scope) => scope === 'full' || scope === 'ops' || scope === 'support';
+
+const hashInviteToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+
+const getAppBaseUrl = (event) => {
+  const configured = process.env.APP_BASE_URL || process.env.URL || process.env.SITE_URL;
+  if (configured) return configured.replace(/\/$/, '');
+  const origin = event.headers?.origin;
+  if (origin) return String(origin).replace(/\/$/, '');
+  return 'https://findacoachtoday.com';
+};
+
+const createInviteTransport = () => {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !port || !user || !pass) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass }
+  });
+};
+
+const sendAdminInviteEmail = async ({ event, email, token, scope, invitedByName }) => {
+  const transporter = createInviteTransport();
+  if (!transporter) {
+    console.warn('SMTP not configured; admin invite email skipped');
+    return { sent: false, reason: 'smtp_not_configured' };
+  }
+
+  const base = getAppBaseUrl(event);
+  const inviteUrl = `${base}/admininvite?token=${encodeURIComponent(token)}`;
+  const fromAddress = process.env.VITE_SUPPORT_EMAIL || process.env.SMTP_USER || 'support@findacoachtoday.com';
+  const subject = 'FACT admin invitation';
+  const html = `
+    <p>You have been invited to join FACT as an admin.</p>
+    <p><strong>Scope:</strong> ${scope}</p>
+    <p><strong>Invited by:</strong> ${invitedByName || 'FACT admin'}</p>
+    <p>Accept your invite:</p>
+    <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+    <p>This link expires in 72 hours.</p>
+  `;
+
+  await transporter.sendMail({
+    from: `"FACT Support" <${fromAddress}>`,
+    to: email,
+    subject,
+    html,
+    text: `You have been invited to FACT admin (${scope}). Accept here: ${inviteUrl}. This link expires in 72 hours.`
+  });
+
+  return { sent: true };
+};
 
 const listAdminUsers = async ({ event, headers, adminId }) => {
   const q = event.queryStringParameters || {};
@@ -861,6 +923,321 @@ const listAuthLogs = async ({ event, headers, adminId }) => {
   return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit, offset }) };
 };
 
+const listAdminInvites = async ({ event, headers, adminId }) => {
+  if (!(await tableExists('admin_invites'))) {
+    return { statusCode: 200, headers, body: JSON.stringify({ data: [], total: 0, limit: 20, offset: 0 }) };
+  }
+
+  const q = event.queryStringParameters || {};
+  const limit = parseLimit(q.limit, 20, 100);
+  const offset = parseOffset(q.offset, 0);
+  const includeTotal = q.include_total === '1' || q.include_total === 'true';
+  const status = typeof q.status === 'string' ? q.status.trim() : '';
+  const email = typeof q.email === 'string' ? q.email.trim() : '';
+
+  if (limit === null || offset === null) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
+  }
+
+  const params = [];
+  const conditions = [];
+  if (status) {
+    conditions.push(`i.status = $${params.length + 1}`);
+    params.push(status);
+  }
+  if (email) {
+    conditions.push(`i.email ILIKE $${params.length + 1}`);
+    params.push(`%${email}%`);
+  }
+
+  const rows = await executeQuery(
+    withUserCtx(
+      `SELECT i.id, i.email, i.admin_scope, i.status, i.expires_at, i.accepted_at, i.created_at,
+              i.invited_by, inviter.full_name AS invited_by_name,
+              i.accepted_by, accepter.full_name AS accepted_by_name
+              ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
+       FROM admin_invites i
+       LEFT JOIN profiles inviter ON inviter.id = i.invited_by
+       LEFT JOIN profiles accepter ON accepter.id = i.accepted_by
+       ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+       ORDER BY i.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      adminId
+    ),
+    params
+  );
+
+  if (!includeTotal) return { statusCode: 200, headers, body: JSON.stringify({ data: rows, limit, offset }) };
+  const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+  const data = rows.map(({ total_count, ...rest }) => rest);
+  return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit, offset }) };
+};
+
+const createAdminInvite = async ({ event, headers, adminId }) => {
+  if (!(await tableExists('admin_invites'))) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'admin_invites table not found. Run migrations first.' }) };
+  }
+
+  const body = parseBody(event);
+  const email = String(body.email || '').trim().toLowerCase();
+  const scope = normalizeAdminScope(body.admin_scope || 'support');
+  const expiresInHours = Math.max(1, Math.min(168, Number(body.expires_in_hours || 72)));
+
+  if (!email || !email.includes('@')) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Valid email is required' }) };
+  }
+
+  const pending = await executeQueryOne(
+    withUserCtx('SELECT id FROM admin_invites WHERE lower(email) = $1 AND status = $2 LIMIT 1', adminId),
+    [email, 'pending']
+  );
+
+  if (pending) {
+    return { statusCode: 409, headers, body: JSON.stringify({ error: 'A pending invite already exists for this email' }) };
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashInviteToken(token);
+
+  const invite = await executeQueryOne(
+    withUserCtx(
+      `INSERT INTO admin_invites (id, email, admin_scope, token_hash, status, invited_by, expires_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'pending', $5, NOW() + ($6::text || ' hours')::interval, NOW(), NOW())
+       RETURNING id, email, admin_scope, status, expires_at, invited_by, created_at`,
+      adminId
+    ),
+    [crypto.randomUUID(), email, scope, tokenHash, adminId, String(expiresInHours)]
+  );
+
+  const inviter = await executeQueryOne(
+    withUserCtx('SELECT full_name FROM profiles WHERE id = $1', adminId),
+    [adminId]
+  );
+
+  const emailResult = await sendAdminInviteEmail({
+    event,
+    email,
+    token,
+    scope,
+    invitedByName: inviter?.full_name || 'FACT admin'
+  });
+
+  await logAdminAction({
+    actorId: adminId,
+    action: 'admin_invite_created',
+    targetUserId: adminId,
+    metadata: {
+      invite_id: invite.id,
+      invite_email: invite.email,
+      admin_scope: invite.admin_scope,
+      email_sent: emailResult.sent === true
+    }
+  });
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      data: {
+        ...invite,
+        invite_link_preview: `${getAppBaseUrl(event)}/admininvite?token=${token}`
+      },
+      email_delivery: emailResult
+    })
+  };
+};
+
+const revokeAdminInvite = async ({ headers, adminId, inviteId }) => {
+  if (!isUuid(inviteId)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid invite id format' }) };
+  }
+
+  const revoked = await executeQueryOne(
+    withUserCtx(
+      `UPDATE admin_invites
+       SET status = 'revoked',
+           updated_at = NOW()
+       WHERE id = $1 AND status = 'pending'
+       RETURNING id, email, admin_scope, status, updated_at`,
+      adminId
+    ),
+    [inviteId]
+  );
+
+  if (!revoked) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Pending invite not found' }) };
+  }
+
+  await logAdminAction({
+    actorId: adminId,
+    action: 'admin_invite_revoked',
+    targetUserId: adminId,
+    metadata: { invite_id: inviteId, invite_email: revoked.email }
+  });
+
+  return { statusCode: 200, headers, body: JSON.stringify({ data: revoked }) };
+};
+
+const verifyAdminInvite = async ({ event, headers }) => {
+  const q = event.queryStringParameters || {};
+  const token = String(q.token || '').trim();
+  if (!token) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'token is required' }) };
+  }
+
+  const tokenHash = hashInviteToken(token);
+  const invite = await executeQueryOne(
+    `SELECT id, email, admin_scope, status, expires_at, created_at
+     FROM admin_invites
+     WHERE token_hash = $1
+     LIMIT 1`,
+    [tokenHash]
+  );
+
+  if (!invite) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Invite not found' }) };
+  }
+
+  const isExpired = new Date(invite.expires_at).getTime() < Date.now();
+  const effectiveStatus = isExpired && invite.status === 'pending' ? 'expired' : invite.status;
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      data: {
+        id: invite.id,
+        email: invite.email,
+        admin_scope: invite.admin_scope,
+        status: effectiveStatus,
+        expires_at: invite.expires_at,
+        created_at: invite.created_at
+      }
+    })
+  };
+};
+
+const acceptAdminInvite = async ({ event, headers }) => {
+  const body = parseBody(event);
+  const token = String(body.token || '').trim();
+  const fullName = String(body.full_name || '').trim();
+
+  if (!token) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'token is required' }) };
+  }
+  if (!fullName) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'full_name is required' }) };
+  }
+
+  const tokenHash = hashInviteToken(token);
+
+  const invite = await executeQueryOne(
+    `SELECT id, email, admin_scope, invited_by, status, expires_at
+     FROM admin_invites
+     WHERE token_hash = $1
+     LIMIT 1`,
+    [tokenHash]
+  );
+
+  if (!invite) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Invite not found' }) };
+  }
+
+  if (invite.status !== 'pending') {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: `Invite is ${invite.status}` }) };
+  }
+
+  if (new Date(invite.expires_at).getTime() < Date.now()) {
+    await executeQuery(
+      `UPDATE admin_invites
+       SET status = 'expired', updated_at = NOW()
+       WHERE id = $1`,
+      [invite.id]
+    );
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invite has expired' }) };
+  }
+
+  let profile = await executeQueryOne('SELECT id, email FROM profiles WHERE lower(email) = $1 LIMIT 1', [invite.email.toLowerCase()]);
+  const createdUserId = profile?.id || crypto.randomUUID();
+
+  if (!profile) {
+    await executeQuery(
+      `INSERT INTO users (id, email, full_name, role, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       ON CONFLICT (email) DO UPDATE
+       SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
+           role = 'admin',
+           updated_at = NOW()`,
+      [createdUserId, invite.email, fullName, 'admin']
+    );
+
+    await executeQuery(
+      withUserCtx(
+        `INSERT INTO profiles (id, email, full_name, user_type, role, admin_scope, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, 'admin', 'admin', $4, true, NOW(), NOW())
+         ON CONFLICT (email) DO UPDATE
+         SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), profiles.full_name),
+             user_type = 'admin',
+             role = 'admin',
+             admin_scope = EXCLUDED.admin_scope,
+             is_active = true,
+             updated_at = NOW()`,
+        createdUserId
+      ),
+      [createdUserId, invite.email, fullName, invite.admin_scope]
+    );
+  } else {
+    await executeQuery(
+      withUserCtx(
+        `UPDATE profiles
+         SET full_name = COALESCE($2, full_name),
+             user_type = 'admin',
+             role = 'admin',
+             admin_scope = $3,
+             is_active = true,
+             updated_at = NOW()
+         WHERE id = $1`,
+        profile.id
+      ),
+      [profile.id, fullName || null, invite.admin_scope]
+    );
+
+    await executeQuery(
+      `UPDATE users
+       SET full_name = COALESCE($2, full_name),
+           role = 'admin',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [profile.id, fullName || null]
+    );
+  }
+
+  profile = await executeQueryOne('SELECT id, email, full_name, user_type, role, admin_scope FROM profiles WHERE lower(email) = $1 LIMIT 1', [invite.email.toLowerCase()]);
+
+  await executeQuery(
+    `UPDATE admin_invites
+     SET status = 'accepted',
+         accepted_at = NOW(),
+         accepted_by = $2,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [invite.id, profile.id]
+  );
+
+  const authToken = signAuthToken({ sub: profile.id, email: profile.email, user_type: 'admin' });
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      data: {
+        ...profile,
+        token: authToken
+      }
+    })
+  };
+};
+
 const rawHandler = async (event) => {
   const headers = getHeaders(event);
 
@@ -876,6 +1253,19 @@ const rawHandler = async (event) => {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
+    const pathParts = (event.path || '').split('/').filter(Boolean);
+    const opsIdx = pathParts.findIndex((part) => part === 'admin-ops');
+    const seg1 = opsIdx >= 0 ? pathParts[opsIdx + 1] : null;
+    const seg2 = opsIdx >= 0 ? pathParts[opsIdx + 2] : null;
+
+    if (event.httpMethod === 'GET' && seg1 === 'admin-invites' && seg2 === 'verify') {
+      return await verifyAdminInvite({ event, headers });
+    }
+
+    if (event.httpMethod === 'POST' && seg1 === 'admin-invites' && seg2 === 'accept') {
+      return await acceptAdminInvite({ event, headers });
+    }
+
     const auth = await getAuthContext(event);
     if (!auth.userId) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: auth.tokenRevoked ? 'Session revoked. Please login again.' : 'Not authenticated' }) };
@@ -886,13 +1276,26 @@ const rawHandler = async (event) => {
 
     const adminScope = normalizeAdminScope(auth.adminScope || 'full');
 
-    const pathParts = (event.path || '').split('/').filter(Boolean);
-    const opsIdx = pathParts.findIndex((part) => part === 'admin-ops');
-    const seg1 = opsIdx >= 0 ? pathParts[opsIdx + 1] : null;
-    const seg2 = opsIdx >= 0 ? pathParts[opsIdx + 2] : null;
-
     if (event.httpMethod === 'GET' && seg1 === 'overview') {
       return await getOverview({ headers, adminId: auth.userId });
+    }
+
+    if (event.httpMethod === 'GET' && seg1 === 'admin-invites') {
+      return await listAdminInvites({ event, headers, adminId: auth.userId });
+    }
+
+    if (event.httpMethod === 'POST' && seg1 === 'admin-invites') {
+      if (!canManageRolesForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only full-scope admins can create admin invites' }) };
+      }
+      return await createAdminInvite({ event, headers, adminId: auth.userId });
+    }
+
+    if (event.httpMethod === 'PATCH' && seg1 === 'admin-invites' && seg2) {
+      if (!canManageRolesForScope(adminScope)) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only full-scope admins can revoke admin invites' }) };
+      }
+      return await revokeAdminInvite({ headers, adminId: auth.userId, inviteId: seg2 });
     }
 
     if (event.httpMethod === 'GET' && seg1 === 'admin-users') {

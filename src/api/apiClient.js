@@ -450,6 +450,37 @@ class APIClient {
     const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/auth-logs?${params}`);
   }
+
+  async listAdminInvites(filters = {}) {
+    const params = this.buildQueryParams(filters);
+    return this.request(`/admin-ops/admin-invites?${params}`);
+  }
+
+  async createAdminInvite(payload = {}) {
+    return this.request('/admin-ops/admin-invites', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async revokeAdminInvite(inviteId) {
+    return this.request(`/admin-ops/admin-invites/${inviteId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'revoked' })
+    });
+  }
+
+  async verifyAdminInvite(token) {
+    const params = this.buildQueryParams({ token });
+    return this.request(`/admin-ops/admin-invites/verify?${params}`);
+  }
+
+  async acceptAdminInvite(payload = {}) {
+    return this.request('/admin-ops/admin-invites/accept', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
 }
 
 // Export singleton instance

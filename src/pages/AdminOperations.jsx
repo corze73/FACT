@@ -39,6 +39,13 @@ export default function AdminOperations() {
   const [promoteLoading, setPromoteLoading] = useState(false);
   const [promoteMessage, setPromoteMessage] = useState("");
   const [promoteError, setPromoteError] = useState("");
+  const [invites, setInvites] = useState([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteScope, setInviteScope] = useState("support");
+  const [inviteHours, setInviteHours] = useState(72);
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteError, setInviteError] = useState("");
 
   const [cases, setCases] = useState([]);
   const [casesTotal, setCasesTotal] = useState(0);
@@ -277,6 +284,11 @@ export default function AdminOperations() {
     loadSignupAttempts();
   }, [initialized, signupAttemptsPage, signupEmailFilter, signupSuccessFilter]);
 
+  useEffect(() => {
+    if (!initialized) return;
+    loadAdminInvites();
+  }, [initialized]);
+
   const createCase = async () => {
     if (!newCaseTitle.trim()) return;
     await User.createAdminCase({
@@ -335,6 +347,54 @@ export default function AdminOperations() {
       setPromoteError(error.message || 'Failed to promote user to admin');
     } finally {
       setPromoteLoading(false);
+    }
+  };
+
+  const loadAdminInvites = async () => {
+    setInvitesLoading(true);
+    setInviteError("");
+    try {
+      const data = await User.listAdminInvites({ include_total: 1, limit: 20, offset: 0 });
+      setInvites(data?.data || []);
+    } catch (error) {
+      setInviteError(error.message || 'Failed to load admin invites');
+    } finally {
+      setInvitesLoading(false);
+    }
+  };
+
+  const createInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteError("");
+    setInviteMessage("");
+
+    try {
+      const response = await User.createAdminInvite({
+        email: inviteEmail.trim().toLowerCase(),
+        admin_scope: inviteScope,
+        expires_in_hours: Number(inviteHours || 72)
+      });
+
+      const delivered = response?.email_delivery?.sent === true;
+      const preview = response?.data?.invite_link_preview;
+      setInviteMessage(
+        delivered
+          ? `Invite sent to ${inviteEmail.trim().toLowerCase()}.`
+          : `Invite created but email was not sent (SMTP not configured). Link preview: ${preview}`
+      );
+      setInviteEmail("");
+      await loadAdminInvites();
+    } catch (error) {
+      setInviteError(error.message || 'Failed to create admin invite');
+    }
+  };
+
+  const revokeInvite = async (inviteId) => {
+    try {
+      await User.revokeAdminInvite(inviteId);
+      await loadAdminInvites();
+    } catch (error) {
+      setInviteError(error.message || 'Failed to revoke invite');
     }
   };
 
@@ -508,6 +568,73 @@ export default function AdminOperations() {
             {!canRoles && (
               <p className="text-xs text-slate-500">Your scope does not allow role/scope changes.</p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle>Admin Invites (Unregistered Emails)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid md:grid-cols-4 gap-2">
+              <Input
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Invite email"
+                disabled={!canRoles}
+              />
+              <select
+                value={inviteScope}
+                onChange={(e) => setInviteScope(e.target.value)}
+                disabled={!canRoles}
+                className="rounded border border-slate-200 px-2 py-2 text-sm"
+              >
+                <option value="full">full (super admin)</option>
+                <option value="support">support</option>
+                <option value="compliance">compliance</option>
+                <option value="ops">ops</option>
+                <option value="read_only">read_only</option>
+              </select>
+              <Input
+                type="number"
+                min={1}
+                max={168}
+                value={inviteHours}
+                onChange={(e) => setInviteHours(Number(e.target.value || 72))}
+                placeholder="Expires (hours)"
+                disabled={!canRoles}
+              />
+              <Button onClick={createInvite} disabled={!canRoles || !inviteEmail.trim()}>
+                Send Invite
+              </Button>
+            </div>
+
+            {inviteMessage && <p className="text-xs text-emerald-700 break-all">{inviteMessage}</p>}
+            {inviteError && <p className="text-xs text-red-600">{inviteError}</p>}
+
+            {invitesLoading ? (
+              <p className="text-sm text-slate-500">Loading invites...</p>
+            ) : invites.length === 0 ? (
+              <p className="text-sm text-slate-500">No admin invites yet.</p>
+            ) : (
+              invites.map((invite) => (
+                <div key={invite.id} className="border rounded p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{invite.email}</p>
+                    <p className="text-xs text-slate-500">
+                      {invite.admin_scope} • {invite.status} • expires {invite.expires_at ? new Date(invite.expires_at).toLocaleString() : 'n/a'}
+                    </p>
+                  </div>
+                  {invite.status === 'pending' && (
+                    <Button size="sm" variant="outline" onClick={() => revokeInvite(invite.id)} disabled={!canRoles}>
+                      Revoke
+                    </Button>
+                  )}
+                </div>
+              ))
+            )}
+
+            {!canRoles && <p className="text-xs text-slate-500">Only full-scope admins can create/revoke invites.</p>}
           </CardContent>
         </Card>
 
