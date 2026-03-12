@@ -201,14 +201,6 @@ export const User = {
     let errorDetails = null;
 
     try {
-      // Check if user already exists
-      const existingUsers = await db.select('profiles', { where: { email } });
-      if (existingUsers.length > 0) {
-        throw new Error('User already registered');
-      }
-
-      // Create new user profile
-      const userId = crypto.randomUUID();
       const profileData = { ...userData };
       delete profileData.password; // Do not store raw password
 
@@ -217,99 +209,40 @@ export const User = {
         profileData.location = profileData.location.address;
       }
 
-      const profileRole = 'user';
-      const normalizedUserType = profileData.user_type === 'user' ? 'client' : profileData.user_type;
-      const userRole = normalizedUserType === 'coach' ? 'coach' : 'user';
+      const normalizedUserType = normalizeUserType(profileData.user_type);
 
-      const now = new Date().toISOString();
-
-      // Ensure users identity row exists before profiles (FK requirement)
-      await db.query(`
-        INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [
-        userId,
-        email,
-        profileData.full_name,
-        userRole,
-        profileData.phone,
-        now,
-        now
-      ]);
-
-      await db.setUserContext(userId);
-
-      const newProfile = {
-        id: userId,
+      const createdUser = await apiClient.createUser({
+        auth_mode: 'signup',
         email,
         full_name: profileData.full_name,
+        phone: profileData.phone || null,
         user_type: normalizedUserType,
-        location: profileData.location,
-        skills: profileData.skills || [],
-        bio: profileData.bio,
-        phone: profileData.phone,
-        role: profileRole,
-        preferred_coaching_types: profileData.preferred_coaching_types || [],
-        preferred_session_times: profileData.preferred_session_times || [],
+        location: profileData.location || null,
+        country: profileData.country || null,
+        city: profileData.city || null,
+        postcode: profileData.postcode || null,
+        bio: profileData.bio || null,
+        skills: Array.isArray(profileData.skills) ? profileData.skills : [],
+        preferred_coaching_types: Array.isArray(profileData.preferred_coaching_types) ? profileData.preferred_coaching_types : [],
+        preferred_session_times: Array.isArray(profileData.preferred_session_times) ? profileData.preferred_session_times : [],
         coach_profile: profileData.coach_profile || null,
         qualification_type: profileData.qualification_type || null,
         qualification_file_url: profileData.qualification_file_url || null,
-        qualification_status: profileData.qualification_file_url ? 'pending' : 'incomplete',
-        background_check_type: profileData.background_check_type || null,
         has_background_check: Boolean(profileData.has_background_check),
+        background_check_type: profileData.background_check_type || null,
         background_check_file_url: profileData.background_check_file_url || null,
-        background_check_status: profileData.background_check_file_url ? 'pending' : 'incomplete',
-        background_check_expires_at: profileData.background_check_expires_at || null,
-        is_active: true,
-        created_at: now,
-        updated_at: now
-      };
+        background_check_expires_at: profileData.background_check_expires_at || null
+      });
 
-      // Insert profile using direct SQL to handle arrays properly
-      await db.query(`
-        INSERT INTO profiles (
-          id, email, full_name, user_type, location, skills, bio, phone, role,
-          preferred_coaching_types, preferred_session_times, coach_profile,
-          qualification_type, qualification_file_url, qualification_status,
-          background_check_type, has_background_check, background_check_file_url,
-          background_check_status, background_check_expires_at,
-          is_active, created_at, updated_at
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9,
-          $10, $11, $12,
-          $13, $14, $15,
-          $16, $17, $18,
-          $19, $20,
-          $21, $22, $23
-        )
-      `, [
-        newProfile.id,
-        newProfile.email,
-        newProfile.full_name,
-        newProfile.user_type,
-        newProfile.location,
-        newProfile.skills,
-        newProfile.bio,
-        newProfile.phone,
-        newProfile.role,
-        newProfile.preferred_coaching_types,
-        newProfile.preferred_session_times,
-        JSON.stringify(newProfile.coach_profile),
-        newProfile.qualification_type,
-        newProfile.qualification_file_url,
-        newProfile.qualification_status,
-        newProfile.background_check_type,
-        newProfile.has_background_check,
-        newProfile.background_check_file_url,
-        newProfile.background_check_status,
-        newProfile.background_check_expires_at,
-        newProfile.is_active,
-        newProfile.created_at,
-        newProfile.updated_at
-      ]);
-
-      // Mark user as logged in (dev auth)
-      await auth.setCurrentUser({ id: userId, email });
+      // Mark user as logged in and persist token for API auth.
+      await auth.setCurrentUser({
+        id: createdUser.id,
+        email: createdUser.email,
+        full_name: createdUser.full_name,
+        user_type: createdUser.user_type,
+        role: createdUser.role,
+        token: createdUser.token
+      });
 
       // Fire-and-forget notifications
       setTimeout(async () => {
@@ -362,13 +295,19 @@ export const User = {
         throw new Error('Email and password are required');
       }
 
-      const profiles = await db.select('profiles', { where: { email } });
-      if (profiles.length === 0) {
-        throw new Error('Invalid email or password');
-      }
+      const signedInUser = await apiClient.createUser({
+        auth_mode: 'signin',
+        email
+      });
 
-      const user = profiles[0];
-      await auth.setCurrentUser({ id: user.id, email: user.email });
+      await auth.setCurrentUser({
+        id: signedInUser.id,
+        email: signedInUser.email,
+        full_name: signedInUser.full_name,
+        user_type: signedInUser.user_type,
+        role: signedInUser.role,
+        token: signedInUser.token
+      });
 
       setTimeout(async () => {
         try {

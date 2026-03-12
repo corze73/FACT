@@ -402,11 +402,28 @@ const rawHandler = async (event) => {
 
         // Normalize and log email
         const email = String(userData.email).trim().toLowerCase();
-        console.log('🔐 Login attempt');
+        const authMode = userData.auth_mode === 'signin'
+          ? 'signin'
+          : (userData.auth_mode === 'signup' ? 'signup' : 'oauth');
+        const requestedUserType = userData.user_type === 'coach' ? 'coach' : 'client';
+        const requestedRole = requestedUserType === 'coach' ? 'coach' : 'user';
+        const normalizedFullName = (userData.full_name || '').trim() || null;
+
+        console.log('🔐 Auth request', { authMode, requestedUserType });
+
+        const skills = Array.isArray(userData.skills) ? userData.skills : [];
+        const preferredCoachingTypes = Array.isArray(userData.preferred_coaching_types) ? userData.preferred_coaching_types : [];
+        const preferredSessionTimes = Array.isArray(userData.preferred_session_times) ? userData.preferred_session_times : [];
+        const coachProfile = userData.coach_profile && typeof userData.coach_profile === 'object'
+          ? userData.coach_profile
+          : null;
+        const qualificationFileUrl = userData.qualification_file_url || null;
+        const backgroundCheckFileUrl = userData.background_check_file_url || null;
+        const qualificationStatus = qualificationFileUrl ? 'pending' : 'incomplete';
+        const backgroundCheckStatus = backgroundCheckFileUrl ? 'pending' : 'incomplete';
 
         // Generate a new user id for first-time signup and set it as session context
         const newUserId = crypto.randomUUID();
-        const normalizedFullName = (userData.full_name || '').trim() || null;
 
         // Try a safe EXISTS check; if RLS blocks, treat as unknown and fall back to insert
         let existing = null;
@@ -434,6 +451,22 @@ const rawHandler = async (event) => {
           };
         }
 
+        if (authMode === 'signup' && existing) {
+          return {
+            statusCode: 409,
+            headers,
+            body: JSON.stringify({ error: 'User already registered' })
+          };
+        }
+
+        if (authMode === 'signin' && !existing) {
+          return {
+            statusCode: 401,
+            headers,
+            body: JSON.stringify({ error: 'Invalid email or password' })
+          };
+        }
+
         const targetId = existing?.id || identity?.id || newUserId;
 
         let upsertedUser;
@@ -441,8 +474,26 @@ const rawHandler = async (event) => {
           // Insert new user profile with context set to the target id (satisfies RLS insert policy)
           upsertedUser = await executeQueryOne(
             withUserCtx(`
-              INSERT INTO profiles (id, email, full_name, user_type, role, avatar_url, is_active, created_at, updated_at)
-              VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+              INSERT INTO profiles (
+                id, email, full_name, user_type, role, avatar_url, phone,
+                location, country, city, postcode,
+                bio, skills, preferred_coaching_types, preferred_session_times,
+                coach_profile,
+                qualification_type, qualification_file_url, qualification_status,
+                has_background_check, background_check_type, background_check_file_url,
+                background_check_status, background_check_expires_at,
+                is_active, created_at, updated_at
+              )
+              VALUES (
+                $1, $2, $3, $4, $5, $6, $7,
+                $8, $9, $10, $11,
+                $12, $13::text[], $14::text[], $15::text[],
+                $16::jsonb,
+                $17, $18, $19,
+                $20, $21, $22,
+                $23, $24,
+                true, NOW(), NOW()
+              )
               ON CONFLICT (email) DO UPDATE
               SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), profiles.full_name),
                   avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
@@ -453,9 +504,27 @@ const rawHandler = async (event) => {
               targetId,
               email,
               userData.full_name || '',
-              'client',
-              'user',
-              userData.avatar_url || null
+              requestedUserType,
+              requestedRole,
+              userData.avatar_url || null,
+              userData.phone || null,
+              userData.location || null,
+              userData.country || null,
+              userData.city || null,
+              userData.postcode || null,
+              userData.bio || null,
+              skills,
+              preferredCoachingTypes,
+              preferredSessionTimes,
+              JSON.stringify(coachProfile),
+              userData.qualification_type || null,
+              qualificationFileUrl,
+              qualificationStatus,
+              Boolean(userData.has_background_check),
+              userData.background_check_type || null,
+              backgroundCheckFileUrl,
+              backgroundCheckStatus,
+              userData.background_check_expires_at || null
             ]
           );
 
@@ -468,19 +537,26 @@ const rawHandler = async (event) => {
             };
           }
         } else {
-          // Existing user: update a couple of fields with proper context
+          // Existing user: for sign-in keep profile immutable; for oauth, refresh basic info.
           const existingId = existing.id;
-          upsertedUser = await executeQueryOne(
-            withUserCtx(`
-              UPDATE profiles 
-              SET full_name = COALESCE($2, full_name),
-                  avatar_url = COALESCE($3, avatar_url),
-                  updated_at = NOW()
-              WHERE id = $1
-              RETURNING *
-            `, existingId),
-            [existingId, userData.full_name || '', userData.avatar_url || null]
-          );
+          if (authMode === 'signin') {
+            upsertedUser = await executeQueryOne(
+              withUserCtx('SELECT * FROM profiles WHERE id = $1', existingId),
+              [existingId]
+            );
+          } else {
+            upsertedUser = await executeQueryOne(
+              withUserCtx(`
+                UPDATE profiles 
+                SET full_name = COALESCE($2, full_name),
+                    avatar_url = COALESCE($3, avatar_url),
+                    updated_at = NOW()
+                WHERE id = $1
+                RETURNING *
+              `, existingId),
+              [existingId, userData.full_name || '', userData.avatar_url || null]
+            );
+          }
         }
 
         const token = signAuthToken({ sub: upsertedUser.id, email: upsertedUser.email, user_type: upsertedUser.user_type });

@@ -14,7 +14,12 @@ import { calculatePaymentBreakdown, formatCurrency, poundsToPence } from '../../
 
 // Initialize Stripe with guard for missing key
 const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
+const stripePromise = publishableKey
+  ? loadStripe(publishableKey).catch((error) => {
+      console.error('Failed to load Stripe.js', error);
+      return null;
+    })
+  : null;
 
 const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
@@ -122,6 +127,18 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
   };
 
   // legacy helper removed in favor of confirmBackend with fallback
+
+  if (!stripe) {
+    return (
+      <div className="space-y-4">
+        <Alert variant="destructive">
+          <AlertDescription>
+            Unable to initialize Stripe right now. Please refresh and try again.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

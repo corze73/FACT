@@ -701,7 +701,8 @@ const listSnapshots = async ({ event, headers, adminId }) => {
   const limit = parseLimit(q.limit, 20, 100);
   const offset = parseOffset(q.offset, 0);
   const includeTotal = q.include_total === '1' || q.include_total === 'true';
-  const userId = typeof q.user_id === 'string' ? q.user_id.trim() : '';
+  const rawUserId = typeof q.user_id === 'string' ? q.user_id.trim() : '';
+  const userId = (rawUserId === 'undefined' || rawUserId === 'null') ? '' : rawUserId;
   if (limit === null || offset === null) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
   if (userId && !isUuid(userId)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid user_id format' }) };
 

@@ -10,6 +10,30 @@ const API_BASE = import.meta.env.DEV
   : '/.netlify/functions';                       // Production
 
 class APIClient {
+  buildQueryParams(filters = {}) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters || {})) {
+      if (value === undefined || value === null) continue;
+
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed || trimmed === 'undefined' || trimmed === 'null') continue;
+        params.append(key, trimmed);
+        continue;
+      }
+
+      params.append(key, String(value));
+    }
+    return params;
+  }
+
+  shouldCaptureError(error) {
+    const message = String(error?.message || '');
+    if (error?.status === 401) return false;
+    if (/not authenticated/i.test(message)) return false;
+    return true;
+  }
+
   getAuthToken() {
     try {
       return localStorage.getItem('authToken');
@@ -73,22 +97,26 @@ class APIClient {
           }
         }
 
-        captureFrontendError(err, {
-          source: 'apiClient.request',
-          endpoint,
-          status: response.status,
-          method: options.method || 'GET'
-        });
+        if (this.shouldCaptureError(err)) {
+          captureFrontendError(err, {
+            source: 'apiClient.request',
+            endpoint,
+            status: response.status,
+            method: options.method || 'GET'
+          });
+        }
         throw err;
       }
 
       return data;
     } catch (error) {
-      captureFrontendError(error, {
-        source: 'apiClient.request.catch',
-        endpoint,
-        method: options.method || 'GET'
-      });
+      if (this.shouldCaptureError(error)) {
+        captureFrontendError(error, {
+          source: 'apiClient.request.catch',
+          endpoint,
+          method: options.method || 'GET'
+        });
+      }
       console.error('API request failed:', error);
       throw error;
     }
@@ -111,7 +139,7 @@ class APIClient {
       const query = filters ? `?${filters}` : '?role=coach';
       return this.request(`/users${query}`);
     }
-    const params = new URLSearchParams({ role: 'coach', ...filters });
+    const params = this.buildQueryParams({ role: 'coach', ...filters });
     return this.request(`/users?${params}`);
   }
 
@@ -131,7 +159,7 @@ class APIClient {
   }
 
   async listDeletionRequests(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/account-deletion-requests?${params}`);
   }
 
@@ -150,7 +178,7 @@ class APIClient {
       const query = filters ? `?${filters}` : '';
       return this.request(`/users${query}`);
     }
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/users?${params}`);
   }
 
@@ -210,7 +238,7 @@ class APIClient {
       const query = filters ? `?${filters}` : '';
       return this.request(`/bookings${query}`);
     }
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/bookings?${params}`);
   }
 
@@ -314,7 +342,7 @@ class APIClient {
   }
 
   async getAdminVerifications(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin/verifications?${params}`);
   }
 
@@ -326,7 +354,7 @@ class APIClient {
   }
 
   async getAdminAuditLogs(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin/audit-logs?${params}`);
   }
 
@@ -337,7 +365,7 @@ class APIClient {
   }
 
   async getAdminUsersOps(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/admin-users?${params}`);
   }
 
@@ -355,7 +383,7 @@ class APIClient {
   }
 
   async listAdminCases(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/cases?${params}`);
   }
 
@@ -374,7 +402,7 @@ class APIClient {
   }
 
   async listBookingDisputes(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/disputes?${params}`);
   }
 
@@ -393,7 +421,7 @@ class APIClient {
   }
 
   async listComplianceExpiring(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/compliance-expiring?${params}`);
   }
 
@@ -402,12 +430,12 @@ class APIClient {
   }
 
   async exportAuditLogs(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/audit-export?${params}`);
   }
 
   async listDeletedUserSnapshots(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/snapshots?${params}`);
   }
 }
