@@ -316,6 +316,20 @@ export default function UserProfile() {
 
   if (isLoading || !formData) return <div>Loading...</div>;
 
+  // Admin-only accounts should not see the generic end-user profile editor.
+  // Promoted admins with real end-user profile fields still see this card.
+  const hasEndUserProfileData = Boolean(
+    formData.phone ||
+    formData.location?.address ||
+    formData.country ||
+    formData.city ||
+    formData.bio ||
+    formData.avatar_url ||
+    (Array.isArray(formData.preferred_coaching_types) && formData.preferred_coaching_types.length > 0) ||
+    (Array.isArray(formData.preferred_session_times) && formData.preferred_session_times.length > 0)
+  );
+  const showEndUserProfileCard = formData.user_type !== 'admin' || hasEndUserProfileData;
+
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-6xl mx-auto">
@@ -328,6 +342,7 @@ export default function UserProfile() {
           </p>
         </motion.div>
 
+        {showEndUserProfileCard && (
         <Card>
           <CardHeader><CardTitle>{isViewingAsAdmin ? 'View Profile' : 'Edit Profile'}</CardTitle></CardHeader>
           <CardContent>
@@ -522,6 +537,7 @@ export default function UserProfile() {
             </form>
           </CardContent>
         </Card>
+        )}
 
         {formData.user_type === 'admin' && (
           <div className="mt-8">
@@ -530,6 +546,10 @@ export default function UserProfile() {
                 <CardTitle>Admin Account Details</CardTitle>
               </CardHeader>
               <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500">Full Name</p>
+                  <p className="font-medium text-slate-900">{formData.full_name || 'N/A'}</p>
+                </div>
                 <div>
                   <p className="text-slate-500">Email</p>
                   <p className="font-medium text-slate-900 break-all">{formData.email || 'N/A'}</p>
