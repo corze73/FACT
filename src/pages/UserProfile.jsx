@@ -29,7 +29,7 @@ export default function UserProfile() {
   const [deletionReason, setDeletionReason] = useState("");
   const [pendingDeletion, setPendingDeletion] = useState(null);
 
-  // Change password state (only shown for own profile, non-admin
+  // Change password state (shown for own profile)
   const [cpForm, setCpForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [cpShowCurrent, setCpShowCurrent] = useState(false);
   const [cpShowNew, setCpShowNew] = useState(false);
@@ -45,9 +45,9 @@ export default function UserProfile() {
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('userId');
         
-        // Redirect admin to their own dashboard if they're trying to view their own profile
-        // (with or without their own userId in the URL)
-        if (isAdminUser(me) && (!userId || userId === me.id)) {
+        // Redirect admin to dashboard only when no explicit userId is requested.
+        // If userId is present (including self), allow profile view.
+        if (isAdminUser(me) && !userId) {
           navigate(createPageUrl("AdminDashboard"));
         }
       } catch (error) {
@@ -90,6 +90,13 @@ export default function UserProfile() {
       
       setFormData({
         id: userToLoad.id,
+        email: userToLoad.email || '',
+        user_type: userToLoad.user_type || 'client',
+        role: userToLoad.role || 'user',
+        admin_scope: userToLoad.admin_scope || null,
+        is_active: typeof userToLoad.is_active === 'boolean' ? userToLoad.is_active : true,
+        created_at: userToLoad.created_at || null,
+        updated_at: userToLoad.updated_at || null,
         full_name: userToLoad.full_name || '',
         phone: userToLoad.phone || '',
         location: { address: userToLoad.location?.address || userToLoad.location || '' },
@@ -515,6 +522,43 @@ export default function UserProfile() {
             </form>
           </CardContent>
         </Card>
+
+        {formData.user_type === 'admin' && (
+          <div className="mt-8">
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Admin Account Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500">Email</p>
+                  <p className="font-medium text-slate-900 break-all">{formData.email || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Admin Scope</p>
+                  <p className="font-medium text-slate-900">{formData.admin_scope || 'full'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Role</p>
+                  <p className="font-medium text-slate-900">{formData.role || 'admin'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Status</p>
+                  <p className="font-medium text-slate-900">{formData.is_active ? 'Active' : 'Inactive'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Created</p>
+                  <p className="font-medium text-slate-900">{formData.created_at ? new Date(formData.created_at).toLocaleString() : 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Last Updated</p>
+                  <p className="font-medium text-slate-900">{formData.updated_at ? new Date(formData.updated_at).toLocaleString() : 'N/A'}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Account deletion request (self-service, requires admin approval) */}
         {!isViewingAsAdmin && !isAdminUser(currentUser) && (
           <div className="mt-8">
@@ -553,7 +597,7 @@ export default function UserProfile() {
         </Dialog>
 
         {/* Change Password — only for own profile, not when admin is viewing someone else */}
-        {!isViewingAsAdmin && !isAdminUser(currentUser) && (
+        {!isViewingAsAdmin && (
           <div className="mt-8">
             <Card className="border-0 shadow-lg">
               <CardHeader>

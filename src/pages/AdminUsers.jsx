@@ -58,8 +58,8 @@ export default function AdminUsers() {
     if (user.user_type === "coach") {
       navigate(`${createPageUrl("CoachProfile")}?userId=${user.id}`);
     } else if (user.user_type === "admin") {
-      // Admin accounts don't have a user-facing profile page; go to Operations
-      navigate(createPageUrl("AdminOperations"));
+      // Admin accounts use UserProfile with an explicit userId for admin-specific details
+      navigate(`${createPageUrl("UserProfile")}?userId=${user.id}`);
     } else {
       navigate(`${createPageUrl("UserProfile")}?userId=${user.id}`);
     }
