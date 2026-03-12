@@ -78,9 +78,12 @@ export default function UserProfile() {
       let userToLoad = loggedInUser;
       
       if (userId && isAdminUser(loggedInUser)) {
-        // Admin viewing another user's profile
-        console.log('Admin viewing another user profile, loading user:', userId);
-        setIsViewingAsAdmin(true);
+        // Admin can view other profiles; keep self-profile in editable mode.
+        const isSelfProfile = userId === loggedInUser.id;
+        console.log('Admin profile navigation:', { userId, isSelfProfile });
+        if (!isSelfProfile) {
+          setIsViewingAsAdmin(true);
+        }
         const targetUser = await User.get(userId);
         userToLoad = targetUser;
         console.log('Loaded user:', userToLoad.full_name);
