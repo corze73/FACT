@@ -68,6 +68,14 @@ export default function AdminOperations() {
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
   const [snapshotsError, setSnapshotsError] = useState("");
 
+  const [signupAttempts, setSignupAttempts] = useState([]);
+  const [signupAttemptsTotal, setSignupAttemptsTotal] = useState(0);
+  const [signupAttemptsPage, setSignupAttemptsPage] = useState(1);
+  const [signupEmailFilter, setSignupEmailFilter] = useState("");
+  const [signupSuccessFilter, setSignupSuccessFilter] = useState("all");
+  const [signupAttemptsLoading, setSignupAttemptsLoading] = useState(false);
+  const [signupAttemptsError, setSignupAttemptsError] = useState("");
+
   const adminScope = useMemo(() => getAdminScope(currentUser), [currentUser]);
   const canRoles = useMemo(() => canManageAdminRoles(currentUser), [currentUser]);
   const canCasesDisputes = useMemo(() => canManageCasesAndDisputes(currentUser), [currentUser]);
@@ -78,6 +86,7 @@ export default function AdminOperations() {
   const totalDisputesPages = Math.max(1, Math.ceil(disputesTotal / PAGE_SIZE));
   const totalExpiringPages = Math.max(1, Math.ceil(expiringTotal / PAGE_SIZE));
   const totalSnapshotsPages = Math.max(1, Math.ceil(snapshotsTotal / PAGE_SIZE));
+  const totalSignupAttemptsPages = Math.max(1, Math.ceil(signupAttemptsTotal / PAGE_SIZE));
 
   const loadTopCards = async () => {
     setOverviewLoading(true);
@@ -187,6 +196,27 @@ export default function AdminOperations() {
     }
   };
 
+  const loadSignupAttempts = async () => {
+    setSignupAttemptsLoading(true);
+    setSignupAttemptsError("");
+    try {
+      const authData = await User.listAuthLogs({
+        include_total: 1,
+        limit: PAGE_SIZE,
+        offset: (signupAttemptsPage - 1) * PAGE_SIZE,
+        event_type: 'signup',
+        user_email: signupEmailFilter.trim() || undefined,
+        success: signupSuccessFilter !== 'all' ? signupSuccessFilter : undefined
+      });
+      setSignupAttempts(authData?.data || []);
+      setSignupAttemptsTotal(Number(authData?.total || 0));
+    } catch (error) {
+      setSignupAttemptsError(error.message || 'Failed to load signup attempts');
+    } finally {
+      setSignupAttemptsLoading(false);
+    }
+  };
+
   const bootstrap = async () => {
     try {
       const me = await User.me();
@@ -236,6 +266,11 @@ export default function AdminOperations() {
     if (!initialized) return;
     loadSnapshots();
   }, [initialized, snapshotsPage, snapshotUserFilter]);
+
+  useEffect(() => {
+    if (!initialized) return;
+    loadSignupAttempts();
+  }, [initialized, signupAttemptsPage, signupEmailFilter, signupSuccessFilter]);
 
   const createCase = async () => {
     if (!newCaseTitle.trim()) return;
@@ -612,6 +647,63 @@ export default function AdminOperations() {
               <Button variant="outline" disabled={snapshotsPage <= 1} onClick={() => setSnapshotsPage((p) => Math.max(1, p - 1))}>Previous</Button>
               <span className="text-sm text-slate-600">Page {snapshotsPage} of {totalSnapshotsPages}</span>
               <Button variant="outline" disabled={snapshotsPage >= totalSnapshotsPages} onClick={() => setSnapshotsPage((p) => Math.min(totalSnapshotsPages, p + 1))}>Next</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle>Signup Attempts</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid md:grid-cols-4 gap-2 pb-2">
+              <Input
+                value={signupEmailFilter}
+                onChange={(e) => {
+                  setSignupEmailFilter(e.target.value);
+                  setSignupAttemptsPage(1);
+                }}
+                placeholder="Filter by user email"
+              />
+              <select
+                value={signupSuccessFilter}
+                onChange={(e) => {
+                  setSignupSuccessFilter(e.target.value);
+                  setSignupAttemptsPage(1);
+                }}
+                className="rounded border border-slate-200 px-2 py-2 text-sm"
+              >
+                <option value="all">All attempts</option>
+                <option value="true">Success only</option>
+                <option value="false">Failed only</option>
+              </select>
+              <div className="flex items-center text-xs text-slate-500">{signupAttemptsLoading ? "Loading..." : `${signupAttemptsTotal} total`}</div>
+            </div>
+            {signupAttemptsError && <p className="text-xs text-red-600">{signupAttemptsError}</p>}
+            {signupAttempts.length === 0 ? (
+              <p className="text-slate-500">No signup attempts logged yet.</p>
+            ) : (
+              signupAttempts.map((attempt) => (
+                <div key={attempt.id} className="border rounded p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium">{attempt.user_email || 'unknown'}</p>
+                    <Badge className={attempt.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
+                      {attempt.success ? 'success' : 'failed'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {new Date(attempt.timestamp || attempt.created_at).toLocaleString()} • {attempt.event_type}
+                  </p>
+                  {!attempt.success && attempt.error_details && (
+                    <p className="text-xs text-red-600 mt-1 break-all">{String(attempt.error_details)}</p>
+                  )}
+                </div>
+              ))
+            )}
+            <div className="flex items-center justify-between">
+              <Button variant="outline" disabled={signupAttemptsPage <= 1} onClick={() => setSignupAttemptsPage((p) => Math.max(1, p - 1))}>Previous</Button>
+              <span className="text-sm text-slate-600">Page {signupAttemptsPage} of {totalSignupAttemptsPages}</span>
+              <Button variant="outline" disabled={signupAttemptsPage >= totalSignupAttemptsPages} onClick={() => setSignupAttemptsPage((p) => Math.min(totalSignupAttemptsPages, p + 1))}>Next</Button>
             </div>
           </CardContent>
         </Card>

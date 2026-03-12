@@ -545,6 +545,10 @@ User.listDeletedUserSnapshots = async function(filters = {}) {
   return await apiClient.listDeletedUserSnapshots(filters);
 };
 
+User.listAuthLogs = async function(filters = {}) {
+  return await apiClient.listAuthLogs(filters);
+};
+
 // Admin restore user (reactivate)
 User.restore = async function(id) {
   return await apiClient.updateUser(id, { is_active: true, deactivated_at: null, deactivation_reason: null });

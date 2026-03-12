@@ -95,7 +95,7 @@ export const EmailService = {
 
   // Admin notification for signup events
   async notifyAdminOfSignup(userEmail, userType, success, errorDetails = null) {
-    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'admin@findacoachtoday.co.uk';
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'support@findacoachtoday.com';
     
     const subject = success 
       ? `✅ New ${userType} Registration: ${userEmail}`

@@ -438,6 +438,11 @@ class APIClient {
     const params = this.buildQueryParams(filters);
     return this.request(`/admin-ops/snapshots?${params}`);
   }
+
+  async listAuthLogs(filters = {}) {
+    const params = this.buildQueryParams(filters);
+    return this.request(`/admin-ops/auth-logs?${params}`);
+  }
 }
 
 // Export singleton instance

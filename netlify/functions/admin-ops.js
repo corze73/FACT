@@ -737,6 +737,64 @@ const listSnapshots = async ({ event, headers, adminId }) => {
   return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit, offset }) };
 };
 
+const listAuthLogs = async ({ event, headers, adminId }) => {
+  if (!(await tableExists('auth_logs'))) {
+    return { statusCode: 200, headers, body: JSON.stringify({ data: [], total: 0, limit: 20, offset: 0 }) };
+  }
+
+  const q = event.queryStringParameters || {};
+  const limit = parseLimit(q.limit, 20, 100);
+  const offset = parseOffset(q.offset, 0);
+  const includeTotal = q.include_total === '1' || q.include_total === 'true';
+  const eventType = typeof q.event_type === 'string' ? q.event_type.trim() : '';
+  const userEmail = typeof q.user_email === 'string' ? q.user_email.trim() : '';
+  const successRaw = typeof q.success === 'string' ? q.success.trim().toLowerCase() : '';
+
+  if (limit === null || offset === null) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
+  }
+
+  if (successRaw && !['true', 'false', '1', '0'].includes(successRaw)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid success filter value' }) };
+  }
+
+  const params = [];
+  const conditions = [];
+
+  if (eventType) {
+    conditions.push(`event_type = $${params.length + 1}`);
+    params.push(eventType);
+  }
+
+  if (userEmail) {
+    conditions.push(`user_email ILIKE $${params.length + 1}`);
+    params.push(`%${userEmail}%`);
+  }
+
+  if (successRaw) {
+    conditions.push(`success = $${params.length + 1}`);
+    params.push(successRaw === 'true' || successRaw === '1');
+  }
+
+  const rows = await executeQuery(
+    withUserCtx(
+      `SELECT id, event_type, user_email, success, error_details, user_agent, ip_address, timestamp, created_at
+              ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
+       FROM auth_logs
+       ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+       ORDER BY COALESCE(timestamp, created_at) DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      adminId
+    ),
+    params
+  );
+
+  if (!includeTotal) return { statusCode: 200, headers, body: JSON.stringify({ data: rows, limit, offset }) };
+  const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+  const data = rows.map(({ total_count, ...rest }) => rest);
+  return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit, offset }) };
+};
+
 const rawHandler = async (event) => {
   const headers = getHeaders(event);
 
@@ -848,6 +906,10 @@ const rawHandler = async (event) => {
 
     if (event.httpMethod === 'GET' && seg1 === 'snapshots') {
       return await listSnapshots({ event, headers, adminId: auth.userId });
+    }
+
+    if (event.httpMethod === 'GET' && seg1 === 'auth-logs') {
+      return await listAuthLogs({ event, headers, adminId: auth.userId });
     }
 
     return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };

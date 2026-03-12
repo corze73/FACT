@@ -106,6 +106,38 @@ const rawHandler = async (event) => {
       return Boolean(row?.table_name);
     };
 
+    const logAuthEvent = async ({ eventType, userEmail, success, errorDetails = null, contextUserId = null }) => {
+      try {
+        if (!(await tableExists('auth_logs'))) return;
+
+        const userAgent = requestHeaders?.['user-agent'] || requestHeaders?.['User-Agent'] || '';
+        const forwardedFor = requestHeaders?.['x-forwarded-for'] || requestHeaders?.['X-Forwarded-For'] || '';
+        const ipAddress = String(forwardedFor).split(',')[0]?.trim() || 'unknown';
+        const now = new Date().toISOString();
+
+        await executeQuery(
+          withUserCtx(
+            `INSERT INTO auth_logs (id, event_type, user_email, success, error_details, user_agent, ip_address, timestamp, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            contextUserId || currentUserId || ''
+          ),
+          [
+            crypto.randomUUID(),
+            eventType,
+            userEmail,
+            success,
+            errorDetails ? JSON.stringify(errorDetails) : null,
+            userAgent,
+            ipAddress,
+            now,
+            now
+          ]
+        );
+      } catch (logError) {
+        console.warn('Auth event logging skipped:', logError?.message || logError);
+      }
+    };
+
     switch (httpMethod) {
       case 'GET':
         if (userId && userId !== 'users') {
@@ -433,25 +465,14 @@ const rawHandler = async (event) => {
           console.warn('⚠️ Email lookup blocked by RLS, proceeding with insert-only flow');
         }
 
-        const identity = await executeQueryOne(
-          `INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-           ON CONFLICT (email) DO UPDATE
-           SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
-               updated_at = NOW()
-           RETURNING id, email, full_name, role`,
-          [newUserId, email, normalizedFullName, 'user', userData.phone || null]
-        );
-
-        if (existing && identity && existing.id !== identity.id) {
-          return {
-            statusCode: 409,
-            headers,
-            body: JSON.stringify({ error: 'Email already mapped to a different user id', email })
-          };
-        }
-
         if (authMode === 'signup' && existing) {
+          await logAuthEvent({
+            eventType: 'signup',
+            userEmail: email,
+            success: false,
+            errorDetails: { reason: 'User already registered' },
+            contextUserId: existing.id
+          });
           return {
             statusCode: 409,
             headers,
@@ -464,6 +485,33 @@ const rawHandler = async (event) => {
             statusCode: 401,
             headers,
             body: JSON.stringify({ error: 'Invalid email or password' })
+          };
+        }
+
+        const identity = await executeQueryOne(
+          `INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+           ON CONFLICT (email) DO UPDATE
+           SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
+               updated_at = NOW()
+           RETURNING id, email, full_name, role`,
+          [newUserId, email, normalizedFullName, 'user', userData.phone || null]
+        );
+
+        if (existing && identity && existing.id !== identity.id) {
+          if (authMode === 'signup') {
+            await logAuthEvent({
+              eventType: 'signup',
+              userEmail: email,
+              success: false,
+              errorDetails: { reason: 'Email already mapped to a different user id' },
+              contextUserId: existing.id
+            });
+          }
+          return {
+            statusCode: 409,
+            headers,
+            body: JSON.stringify({ error: 'Email already mapped to a different user id', email })
           };
         }
 
@@ -530,6 +578,15 @@ const rawHandler = async (event) => {
 
           if (!upsertedUser) {
             // Another session created the user; ask client to fetch by id if known
+            if (authMode === 'signup') {
+              await logAuthEvent({
+                eventType: 'signup',
+                userEmail: email,
+                success: false,
+                errorDetails: { reason: 'User already exists' },
+                contextUserId: targetId
+              });
+            }
             return {
               statusCode: 409,
               headers,
@@ -560,6 +617,14 @@ const rawHandler = async (event) => {
         }
 
         const token = signAuthToken({ sub: upsertedUser.id, email: upsertedUser.email, user_type: upsertedUser.user_type });
+        if (authMode === 'signup') {
+          await logAuthEvent({
+            eventType: 'signup',
+            userEmail: email,
+            success: true,
+            contextUserId: upsertedUser.id
+          });
+        }
         console.log('✅ User upserted/loaded', { id: upsertedUser?.id });
         return {
           statusCode: 200,

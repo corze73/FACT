@@ -103,7 +103,7 @@ async function testNotificationSystem() {
     console.log('📋 Test 1: Successful Coach Signup');
     await TestNotificationService.logAuthEvent('signup', 'test.coach@example.com', true);
     await TestNotificationService.logEmailNotification('test.coach@example.com', 'Welcome to FACT - Coach Account Created!');
-    await TestNotificationService.logEmailNotification(process.env.VITE_ADMIN_EMAIL || 'admin@findacoachtoday.co.uk', 'New Coach Registration: test.coach@example.com');
+    await TestNotificationService.logEmailNotification(process.env.VITE_ADMIN_EMAIL || 'support@findacoachtoday.com', 'New Coach Registration: test.coach@example.com');
     
     console.log('');
 
@@ -114,7 +114,7 @@ async function testNotificationSystem() {
       code: '23514'
     });
     await TestNotificationService.logEmailNotification('failed.user@example.com', 'Registration Issue - We\'re On It!');
-    await TestNotificationService.logEmailNotification(process.env.VITE_ADMIN_EMAIL || 'admin@findacoachtoday.co.uk', 'Failed Registration: failed.user@example.com');
+    await TestNotificationService.logEmailNotification(process.env.VITE_ADMIN_EMAIL || 'support@findacoachtoday.com', 'Failed Registration: failed.user@example.com');
     await TestNotificationService.createAdminNotification(
       'signup_failure', 
       'User Signup Failed', 
