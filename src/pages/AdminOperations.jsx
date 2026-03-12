@@ -39,6 +39,7 @@ export default function AdminOperations() {
   const [promoteLoading, setPromoteLoading] = useState(false);
   const [promoteMessage, setPromoteMessage] = useState("");
   const [promoteError, setPromoteError] = useState("");
+  const [adminActionLoadingId, setAdminActionLoadingId] = useState("");
   const [invites, setInvites] = useState([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -328,6 +329,39 @@ export default function AdminOperations() {
     await loadAdmins();
   };
 
+  const deactivateAdmin = async (adminUser) => {
+    if (!adminUser?.id) return;
+    const reason = window.prompt(`Reason for deactivating ${adminUser.full_name || adminUser.email}:`);
+    if (!reason || !reason.trim()) return;
+
+    setAdminActionLoadingId(adminUser.id);
+    try {
+      await User.delete(adminUser.id, {
+        reason: reason.trim(),
+        hard: false
+      });
+      await Promise.all([loadAdmins(), loadTopCards()]);
+    } catch (error) {
+      alert(error.message || 'Failed to deactivate admin');
+    } finally {
+      setAdminActionLoadingId("");
+    }
+  };
+
+  const restoreAdmin = async (adminUser) => {
+    if (!adminUser?.id) return;
+
+    setAdminActionLoadingId(adminUser.id);
+    try {
+      await User.restore(adminUser.id);
+      await Promise.all([loadAdmins(), loadTopCards()]);
+    } catch (error) {
+      alert(error.message || 'Failed to restore admin');
+    } finally {
+      setAdminActionLoadingId("");
+    }
+  };
+
   const promoteToAdmin = async () => {
     const target = promoteTarget.trim();
     if (!target) return;
@@ -562,6 +596,29 @@ export default function AdminOperations() {
                     <option value="ops">ops</option>
                     <option value="read_only">read_only</option>
                   </select>
+                  {a.id !== currentUser?.id && (
+                    a.is_active === false ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canRoles || adminActionLoadingId === a.id}
+                        onClick={() => restoreAdmin(a)}
+                        className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                      >
+                        Restore
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canRoles || adminActionLoadingId === a.id}
+                        onClick={() => deactivateAdmin(a)}
+                        className="text-red-700 hover:text-red-800 hover:bg-red-50"
+                      >
+                        Deactivate
+                      </Button>
+                    )
+                  )}
                 </div>
               </div>
             ))}
