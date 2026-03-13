@@ -73,6 +73,60 @@ const sendPasswordResetEmail = async (event, email, token) => {
   return { sent: true };
 };
 
+// ---------------------------------------------------------------------------
+// Admin notification email for signup events
+// ---------------------------------------------------------------------------
+const sendAdminSignupNotification = async ({ event, email, userType, success, errorDetails = null }) => {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || 'support@findacoachtoday.com';
+
+  if (!host || !user || !pass) {
+    console.warn('SMTP not configured; admin signup notification skipped');
+    return { sent: false, reason: 'smtp_not_configured' };
+  }
+
+  const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+  const from = process.env.SMTP_USER || 'support@findacoachtoday.com';
+  const subject = success
+    ? `New ${userType || 'user'} signup: ${email}`
+    : `Signup failed for ${email}`;
+
+  const html = success
+    ? `
+      <p>A new user signed up on FACT.</p>
+      <ul>
+        <li><strong>Email:</strong> ${email}</li>
+        <li><strong>User type:</strong> ${userType || 'client'}</li>
+        <li><strong>Timestamp:</strong> ${new Date().toISOString()}</li>
+      </ul>
+    `
+    : `
+      <p>A signup attempt failed on FACT.</p>
+      <ul>
+        <li><strong>Email:</strong> ${email}</li>
+        <li><strong>User type:</strong> ${userType || 'client'}</li>
+        <li><strong>Timestamp:</strong> ${new Date().toISOString()}</li>
+      </ul>
+      <pre>${errorDetails ? JSON.stringify(errorDetails, null, 2) : 'No details provided'}</pre>
+    `;
+
+  await transporter.sendMail({
+    from: `"FACT Support" <${from}>`,
+    to: adminEmail,
+    subject,
+    html,
+    text: success
+      ? `New signup: ${email} (${userType || 'client'})`
+      : `Signup failed: ${email} (${userType || 'client'}) - ${JSON.stringify(errorDetails || {})}`
+  });
+
+  return { sent: true };
+};
+
 // CORS headers for all responses
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -670,6 +724,17 @@ const rawHandler = async (event) => {
             errorDetails: { reason: 'User already registered' },
             contextUserId: existing.id
           });
+          try {
+            await sendAdminSignupNotification({
+              event,
+              email,
+              userType: requestedUserType,
+              success: false,
+              errorDetails: { reason: 'User already registered' }
+            });
+          } catch (notifyError) {
+            console.warn('Admin signup notification failed:', notifyError?.message || notifyError);
+          }
           return {
             statusCode: 409,
             headers,
@@ -734,6 +799,17 @@ const rawHandler = async (event) => {
               errorDetails: { reason: 'Email already mapped to a different user id' },
               contextUserId: existing.id
             });
+            try {
+              await sendAdminSignupNotification({
+                event,
+                email,
+                userType: requestedUserType,
+                success: false,
+                errorDetails: { reason: 'Email already mapped to a different user id' }
+              });
+            } catch (notifyError) {
+              console.warn('Admin signup notification failed:', notifyError?.message || notifyError);
+            }
           }
           return {
             statusCode: 409,
@@ -813,6 +889,17 @@ const rawHandler = async (event) => {
                 errorDetails: { reason: 'User already exists' },
                 contextUserId: targetId
               });
+              try {
+                await sendAdminSignupNotification({
+                  event,
+                  email,
+                  userType: requestedUserType,
+                  success: false,
+                  errorDetails: { reason: 'User already exists' }
+                });
+              } catch (notifyError) {
+                console.warn('Admin signup notification failed:', notifyError?.message || notifyError);
+              }
             }
             return {
               statusCode: 409,
@@ -851,6 +938,16 @@ const rawHandler = async (event) => {
             success: true,
             contextUserId: upsertedUser.id
           });
+          try {
+            await sendAdminSignupNotification({
+              event,
+              email,
+              userType: requestedUserType,
+              success: true
+            });
+          } catch (notifyError) {
+            console.warn('Admin signup notification failed:', notifyError?.message || notifyError);
+          }
         }
         console.log('✅ User upserted/loaded', { id: upsertedUser?.id });
         return {
