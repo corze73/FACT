@@ -63,6 +63,20 @@ const tableExists = async (tableName) => {
   return Boolean(row?.table_name);
 };
 
+const columnExists = async (tableName, columnName) => {
+  const row = await executeQueryOne(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = $1
+         AND column_name = $2
+     ) AS exists`,
+    [tableName, columnName]
+  );
+  return Boolean(row?.exists);
+};
+
 const logAdminAction = async ({ actorId, action, targetUserId, metadata = {} }) => {
   if (!actorId || !action || !targetUserId) return;
   if (!(await tableExists('admin_action_logs'))) return;
@@ -877,6 +891,7 @@ const listAuthLogs = async ({ event, headers, adminId }) => {
   const eventType = typeof q.event_type === 'string' ? q.event_type.trim() : '';
   const userEmail = typeof q.user_email === 'string' ? q.user_email.trim() : '';
   const successRaw = typeof q.success === 'string' ? q.success.trim().toLowerCase() : '';
+  const signupSource = typeof q.signup_source === 'string' ? q.signup_source.trim().toLowerCase() : '';
 
   if (limit === null || offset === null) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
@@ -884,6 +899,10 @@ const listAuthLogs = async ({ event, headers, adminId }) => {
 
   if (successRaw && !['true', 'false', '1', '0'].includes(successRaw)) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid success filter value' }) };
+  }
+
+  if (signupSource && !['email', 'oauth', 'invite', 'unknown'].includes(signupSource)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid signup_source filter value' }) };
   }
 
   const params = [];
@@ -904,9 +923,20 @@ const listAuthLogs = async ({ event, headers, adminId }) => {
     params.push(successRaw === 'true' || successRaw === '1');
   }
 
+  const hasSignupSourceColumn = await columnExists('auth_logs', 'signup_source');
+  if (signupSource) {
+    if (!hasSignupSourceColumn) {
+      return { statusCode: 200, headers, body: JSON.stringify({ data: [], total: 0, limit, offset }) };
+    }
+    conditions.push(`COALESCE(signup_source, 'unknown') = $${params.length + 1}`);
+    params.push(signupSource);
+  }
+
   const rows = await executeQuery(
     withUserCtx(
-      `SELECT id, event_type, user_email, success, error_details, user_agent, ip_address, timestamp, created_at
+      `SELECT id, event_type, user_email, success, error_details, user_agent, ip_address,
+              ${hasSignupSourceColumn ? 'signup_source' : "NULL::text AS signup_source"},
+              timestamp, created_at
               ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
        FROM auth_logs
        ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}

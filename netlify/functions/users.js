@@ -227,7 +227,21 @@ const rawHandler = async (event) => {
       return Boolean(row?.table_name);
     };
 
-    const logAuthEvent = async ({ eventType, userEmail, success, errorDetails = null, contextUserId = null }) => {
+    const columnExists = async (tableName, columnName) => {
+      const row = await executeQueryOne(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = $1
+             AND column_name = $2
+         ) AS exists`,
+        [tableName, columnName]
+      );
+      return Boolean(row?.exists);
+    };
+
+    const logAuthEvent = async ({ eventType, userEmail, success, errorDetails = null, contextUserId = null, signupSource = null }) => {
       try {
         if (!(await tableExists('auth_logs'))) return;
 
@@ -236,24 +250,47 @@ const rawHandler = async (event) => {
         const ipAddress = String(forwardedFor).split(',')[0]?.trim() || 'unknown';
         const now = new Date().toISOString();
 
-        await executeQuery(
-          withUserCtx(
-            `INSERT INTO auth_logs (id, event_type, user_email, success, error_details, user_agent, ip_address, timestamp, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            contextUserId || currentUserId || ''
-          ),
-          [
-            crypto.randomUUID(),
-            eventType,
-            userEmail,
-            success,
-            errorDetails ? JSON.stringify(errorDetails) : null,
-            userAgent,
-            ipAddress,
-            now,
-            now
-          ]
-        );
+        const hasSignupSourceColumn = await columnExists('auth_logs', 'signup_source');
+        if (hasSignupSourceColumn) {
+          await executeQuery(
+            withUserCtx(
+              `INSERT INTO auth_logs (id, event_type, user_email, success, error_details, user_agent, ip_address, signup_source, timestamp, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+              contextUserId || currentUserId || ''
+            ),
+            [
+              crypto.randomUUID(),
+              eventType,
+              userEmail,
+              success,
+              errorDetails ? JSON.stringify(errorDetails) : null,
+              userAgent,
+              ipAddress,
+              signupSource,
+              now,
+              now
+            ]
+          );
+        } else {
+          await executeQuery(
+            withUserCtx(
+              `INSERT INTO auth_logs (id, event_type, user_email, success, error_details, user_agent, ip_address, timestamp, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              contextUserId || currentUserId || ''
+            ),
+            [
+              crypto.randomUUID(),
+              eventType,
+              userEmail,
+              success,
+              errorDetails ? JSON.stringify(errorDetails) : null,
+              userAgent,
+              ipAddress,
+              now,
+              now
+            ]
+          );
+        }
       } catch (logError) {
         console.warn('Auth event logging skipped:', logError?.message || logError);
       }
@@ -722,7 +759,8 @@ const rawHandler = async (event) => {
             userEmail: email,
             success: false,
             errorDetails: { reason: 'User already registered' },
-            contextUserId: existing.id
+            contextUserId: existing.id,
+            signupSource: 'email'
           });
           try {
             await sendAdminSignupNotification({
@@ -797,7 +835,8 @@ const rawHandler = async (event) => {
               userEmail: email,
               success: false,
               errorDetails: { reason: 'Email already mapped to a different user id' },
-              contextUserId: existing.id
+              contextUserId: existing.id,
+              signupSource: 'email'
             });
             try {
               await sendAdminSignupNotification({
@@ -887,7 +926,8 @@ const rawHandler = async (event) => {
                 userEmail: email,
                 success: false,
                 errorDetails: { reason: 'User already exists' },
-                contextUserId: targetId
+                contextUserId: targetId,
+                signupSource: 'email'
               });
               try {
                 await sendAdminSignupNotification({
@@ -931,12 +971,15 @@ const rawHandler = async (event) => {
         }
 
         const token = signAuthToken({ sub: upsertedUser.id, email: upsertedUser.email, user_type: upsertedUser.user_type });
-        if (authMode === 'signup') {
+        const shouldLogSignupSuccess = authMode === 'signup' || (authMode === 'oauth' && !existing);
+        if (shouldLogSignupSuccess) {
+          const signupSource = authMode === 'oauth' ? 'oauth' : 'email';
           await logAuthEvent({
             eventType: 'signup',
             userEmail: email,
             success: true,
-            contextUserId: upsertedUser.id
+            contextUserId: upsertedUser.id,
+            signupSource
           });
           try {
             await sendAdminSignupNotification({

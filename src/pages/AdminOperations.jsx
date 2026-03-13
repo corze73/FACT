@@ -86,6 +86,7 @@ export default function AdminOperations() {
   const [signupAttemptsPage, setSignupAttemptsPage] = useState(1);
   const [signupEmailFilter, setSignupEmailFilter] = useState("");
   const [signupSuccessFilter, setSignupSuccessFilter] = useState("all");
+  const [signupSourceFilter, setSignupSourceFilter] = useState("all");
   const [signupAttemptsLoading, setSignupAttemptsLoading] = useState(false);
   const [signupAttemptsError, setSignupAttemptsError] = useState("");
 
@@ -219,7 +220,8 @@ export default function AdminOperations() {
         offset: (signupAttemptsPage - 1) * PAGE_SIZE,
         event_type: 'signup',
         user_email: signupEmailFilter.trim() || undefined,
-        success: signupSuccessFilter !== 'all' ? signupSuccessFilter : undefined
+        success: signupSuccessFilter !== 'all' ? signupSuccessFilter : undefined,
+        signup_source: signupSourceFilter !== 'all' ? signupSourceFilter : undefined
       });
       setSignupAttempts(authData?.data || []);
       setSignupAttemptsTotal(Number(authData?.total || 0));
@@ -283,7 +285,7 @@ export default function AdminOperations() {
   useEffect(() => {
     if (!initialized) return;
     loadSignupAttempts();
-  }, [initialized, signupAttemptsPage, signupEmailFilter, signupSuccessFilter]);
+  }, [initialized, signupAttemptsPage, signupEmailFilter, signupSuccessFilter, signupSourceFilter]);
 
   useEffect(() => {
     if (!initialized) return;
@@ -914,6 +916,20 @@ export default function AdminOperations() {
                 <option value="true">Success only</option>
                 <option value="false">Failed only</option>
               </select>
+              <select
+                value={signupSourceFilter}
+                onChange={(e) => {
+                  setSignupSourceFilter(e.target.value);
+                  setSignupAttemptsPage(1);
+                }}
+                className="rounded border border-slate-200 px-2 py-2 text-sm"
+              >
+                <option value="all">All sources</option>
+                <option value="email">Email</option>
+                <option value="oauth">OAuth</option>
+                <option value="invite">Invite</option>
+                <option value="unknown">Unknown</option>
+              </select>
               <div className="flex items-center text-xs text-slate-500">{signupAttemptsLoading ? "Loading..." : `${signupAttemptsTotal} total`}</div>
             </div>
             {signupAttemptsError && <p className="text-xs text-red-600">{signupAttemptsError}</p>}
@@ -930,6 +946,9 @@ export default function AdminOperations() {
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
                     {new Date(attempt.timestamp || attempt.created_at).toLocaleString()} • {attempt.event_type}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    source: {attempt.signup_source || 'unknown'}
                   </p>
                   {!attempt.success && attempt.error_details && (
                     <p className="text-xs text-red-600 mt-1 break-all">{String(attempt.error_details)}</p>
