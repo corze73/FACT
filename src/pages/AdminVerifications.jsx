@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getBackgroundCheckDisplayStatus } from "@/lib/complianceConstants";
+import { showError, showSuccess } from "@/utils/notifications";
 
 const PAGE_SIZE = 20;
 
@@ -23,6 +24,7 @@ export default function AdminVerifications() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeAction, setActiveAction] = useState(null);
   const [notesByCoach, setNotesByCoach] = useState({});
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -58,16 +60,19 @@ export default function AdminVerifications() {
     load();
   }, [page]);
 
-  const applyDecision = async (coachId, payload) => {
+  const applyDecision = async (coachId, payload, label) => {
     setIsSaving(true);
+    setActiveAction(`${coachId}:${label}`);
     try {
       const notes = notesByCoach[coachId] || '';
       await User.updateAdminVerification(coachId, { ...payload, verification_notes: notes || null });
       await load();
+      showSuccess('Verification Updated', `${label} updated successfully.`);
     } catch (error) {
-      alert(error.message || 'Failed to update verification');
+      showError('Verification Update Failed', error.message || 'Failed to update verification');
     } finally {
       setIsSaving(false);
+      setActiveAction(null);
     }
   };
 
@@ -124,11 +129,20 @@ export default function AdminVerifications() {
                         <p className="text-sm text-slate-500">No file uploaded</p>
                       )}
                       <div className="flex gap-2">
-                        <Button size="sm" disabled={isSaving} onClick={() => applyDecision(coach.id, { qualification_status: 'verified' })}>
-                          Approve
+                        <Button
+                          size="sm"
+                          disabled={isSaving}
+                          onClick={() => applyDecision(coach.id, { qualification_status: 'verified' }, 'Qualification approval')}
+                        >
+                          {activeAction === `${coach.id}:Qualification approval` ? 'Saving...' : 'Approve'}
                         </Button>
-                        <Button size="sm" variant="outline" disabled={isSaving} onClick={() => applyDecision(coach.id, { qualification_status: 'rejected' })}>
-                          Reject
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isSaving}
+                          onClick={() => applyDecision(coach.id, { qualification_status: 'rejected' }, 'Qualification rejection')}
+                        >
+                          {activeAction === `${coach.id}:Qualification rejection` ? 'Saving...' : 'Reject'}
                         </Button>
                       </div>
                     </div>
@@ -150,11 +164,20 @@ export default function AdminVerifications() {
                         <p className="text-sm text-slate-500">No file uploaded</p>
                       )}
                       <div className="flex gap-2">
-                        <Button size="sm" disabled={isSaving} onClick={() => applyDecision(coach.id, { background_check_status: 'verified' })}>
-                          Approve
+                        <Button
+                          size="sm"
+                          disabled={isSaving}
+                          onClick={() => applyDecision(coach.id, { background_check_status: 'verified' }, 'Background check approval')}
+                        >
+                          {activeAction === `${coach.id}:Background check approval` ? 'Saving...' : 'Approve'}
                         </Button>
-                        <Button size="sm" variant="outline" disabled={isSaving} onClick={() => applyDecision(coach.id, { background_check_status: 'rejected' })}>
-                          Reject
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isSaving}
+                          onClick={() => applyDecision(coach.id, { background_check_status: 'rejected' }, 'Background check rejection')}
+                        >
+                          {activeAction === `${coach.id}:Background check rejection` ? 'Saving...' : 'Reject'}
                         </Button>
                       </div>
                     </div>
