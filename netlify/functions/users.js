@@ -715,7 +715,8 @@ const rawHandler = async (event) => {
           ? 'signin'
           : (userData.auth_mode === 'signup' ? 'signup' : 'oauth');
         const requestedUserType = userData.user_type === 'coach' ? 'coach' : 'client';
-        const requestedRole = requestedUserType === 'coach' ? 'coach' : 'user';
+        // role is permission tier (user/admin); coach/client lives in user_type.
+        const requestedRole = 'user';
         const normalizedFullName = (userData.full_name || '').trim() || null;
         const safeFullName = normalizedFullName || email.split('@')[0] || 'User';
 
