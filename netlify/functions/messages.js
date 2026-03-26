@@ -56,7 +56,15 @@ const rawHandler = async (event) => {
 
     const withUserCtx = (query, ctxId) => {
       const safe = (ctxId || '').match(/^[0-9a-fA-F-]{36}$/) ? ctxId : '';
-      return `WITH __ctx AS (SELECT set_config('app.current_user_id', '${safe}', true)) ${query}`;
+      const ctxCte = `__ctx AS (SELECT set_config('app.current_user_id', '${safe}', true))`;
+      const trimmed = String(query || '').trimStart();
+
+      // If the query already starts with a CTE, prepend __ctx as the first CTE.
+      if (/^WITH\b/i.test(trimmed)) {
+        return trimmed.replace(/^WITH\s+/i, `WITH ${ctxCte}, `);
+      }
+
+      return `WITH ${ctxCte} ${trimmed}`;
     };
 
     switch (event.httpMethod) {

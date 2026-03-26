@@ -21,7 +21,7 @@ export default function Messages() {
                 // Admin: see conversations across all bookings (platform-wide) + direct threads
                 if (isAdminUser(currentUser)) {
                     const [allBookings, directThreads] = await Promise.all([
-                        Booking.list('-updated_date', 200),
+                        Booking.list('-updated_date', 50),
                         apiClient.getDirectThreads()
                     ]);
 
