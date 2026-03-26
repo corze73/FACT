@@ -17,6 +17,8 @@ import { checkRateLimit } from "@/lib/rateLimiter";
 export default function Conversation() {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const [failedMessageData, setFailedMessageData] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
     const [otherUser, setOtherUser] = useState(null);
     const [participants, setParticipants] = useState(null); // {client, coach} for admin
@@ -119,6 +121,46 @@ export default function Conversation() {
     };
 
     useEffect(scrollToBottom, [messages]);
+
+    const isTransientNetworkError = (error) => {
+        const message = String(error?.message || '').toLowerCase();
+        return error instanceof TypeError && (
+            message.includes('load failed') ||
+            message.includes('failed to fetch') ||
+            message.includes('networkerror')
+        );
+    };
+
+    const sendPreparedMessage = async (preparedMessage, shouldClearInput = false) => {
+        setIsSending(true);
+        setValidationError('');
+
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+            try {
+                const sentMessage = await Message.create(preparedMessage);
+                setMessages(prev => [...prev, sentMessage]);
+                setFailedMessageData(null);
+
+                if (shouldClearInput) {
+                    setNewMessage('');
+                }
+                setIsSending(false);
+                return;
+            } catch (error) {
+                const shouldRetry = attempt === 1 && isTransientNetworkError(error);
+                if (shouldRetry) {
+                    await new Promise((resolve) => setTimeout(resolve, 300));
+                    continue;
+                }
+
+                console.error('Failed to send message:', error);
+                setFailedMessageData(preparedMessage);
+                setValidationError('Failed to send message. Please try again or tap Retry send.');
+                setIsSending(false);
+                return;
+            }
+        }
+    };
     
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -143,12 +185,14 @@ export default function Conversation() {
 
         if (!receiverId) return;
 
+        const draftMessage = newMessage;
+
         // Prepare message data for validation
         const messageData = {
             booking_id: mode === 'booking' ? booking.id : null,
             sender_id: currentUser.id,
             receiver_id: receiverId,
-            content: newMessage
+            content: draftMessage
         };
 
         try {
@@ -161,20 +205,20 @@ export default function Conversation() {
                 ...validatedData,
                 is_read: false
             };
-
-            setNewMessage('');
-            const sentMessage = await Message.create(sanitizedMessageData);
-            setMessages(prev => [...prev, sentMessage]);
+            await sendPreparedMessage(sanitizedMessageData, true);
         } catch (error) {
             if (error && error.errors) {
                 const errors = formatValidationErrors(error);
                 const firstError = Object.values(errors)[0];
+                setFailedMessageData(null);
                 setValidationError(firstError || 'Invalid message content');
-            } else {
-                console.error('Failed to send message:', error);
-                setValidationError('Failed to send message. Please try again.');
             }
         }
+    };
+
+    const handleRetrySend = async () => {
+        if (!failedMessageData || isSending) return;
+        await sendPreparedMessage(failedMessageData, false);
     };
 
     if (isLoading) return <div className="h-screen flex items-center justify-center">Loading conversation...</div>;
@@ -240,9 +284,17 @@ export default function Conversation() {
 
             {/* Input Form */}
             <footer className="bg-white p-4 border-t border-slate-200 sticky bottom-0">
+                {isSending && (
+                    <div className="mb-2 text-xs text-slate-500">Sending message...</div>
+                )}
                 {validationError && (
-                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
-                        {validationError}
+                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600 flex items-center justify-between gap-3">
+                        <span>{validationError}</span>
+                        {failedMessageData && (
+                            <Button type="button" variant="outline" size="sm" onClick={handleRetrySend} disabled={isSending}>
+                                Retry send
+                            </Button>
+                        )}
                     </div>
                 )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-3">
@@ -253,8 +305,9 @@ export default function Conversation() {
                         className={`flex-1 ${validationError ? 'border-red-500' : ''}`}
                         autoComplete="off"
                         maxLength={5000}
+                        disabled={isSending}
                     />
-                    <Button type="submit" size="icon" disabled={!newMessage.trim()}>
+                    <Button type="submit" size="icon" disabled={!newMessage.trim() || isSending}>
                         <Send className="w-5 h-5" />
                     </Button>
                 </form>

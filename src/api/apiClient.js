@@ -48,6 +48,8 @@ class APIClient {
    */
   async request(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
+    const method = String(options.method || 'GET').toUpperCase();
+    const maxAttempts = method === 'GET' ? 2 : 1;
 
     const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers = {
@@ -59,67 +61,82 @@ class APIClient {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers
-      });
-
-      // Handle empty responses (204 No Content)
-      if (response.status === 204) {
-        return null;
-      }
-
-      let data;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        data = await response.json();
-      } catch {
-        // Non-JSON response
-        data = { error: `API error: ${response.status}` };
-      }
+        const response = await fetch(url, {
+          ...options,
+          headers
+        });
 
-      if (!response.ok) {
-        // Propagate underlying error details when available for easier debugging
-        const message = data.message || data.error || `API error: ${response.status}`;
-        const err = new Error(message);
-        err.status = response.status;
-        err.details = data;
-
-        if (response.status === 401) {
-          try {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('currentUser');
-            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-              window.location.href = '/';
-            }
-          } catch {
-            // Ignore localStorage/window access failures
-          }
+        // Handle empty responses (204 No Content)
+        if (response.status === 204) {
+          return null;
         }
 
-        if (this.shouldCaptureError(err)) {
-          captureFrontendError(err, {
-            source: 'apiClient.request',
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          // Non-JSON response
+          data = { error: `API error: ${response.status}` };
+        }
+
+        if (!response.ok) {
+          // Propagate underlying error details when available for easier debugging
+          const message = data.message || data.error || `API error: ${response.status}`;
+          const err = new Error(message);
+          err.status = response.status;
+          err.details = data;
+
+          if (response.status === 401) {
+            try {
+              localStorage.removeItem('authToken');
+              localStorage.removeItem('currentUser');
+              if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+                window.location.href = '/';
+              }
+            } catch {
+              // Ignore localStorage/window access failures
+            }
+          }
+
+          if (this.shouldCaptureError(err)) {
+            captureFrontendError(err, {
+              source: 'apiClient.request',
+              endpoint,
+              status: response.status,
+              method
+            });
+          }
+          throw err;
+        }
+
+        return data;
+      } catch (error) {
+        const errorMessage = String(error?.message || '').toLowerCase();
+        const isNetworkLoadFailure =
+          error instanceof TypeError &&
+          (errorMessage.includes('load failed') || errorMessage.includes('failed to fetch') || errorMessage.includes('networkerror'));
+        const shouldRetry = isNetworkLoadFailure && attempt < maxAttempts;
+
+        if (shouldRetry) {
+          await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+          continue;
+        }
+
+        if (this.shouldCaptureError(error)) {
+          captureFrontendError(error, {
+            source: 'apiClient.request.catch',
             endpoint,
-            status: response.status,
-            method: options.method || 'GET'
+            method
           });
         }
-        throw err;
+        console.error('API request failed:', error);
+        throw error;
       }
-
-      return data;
-    } catch (error) {
-      if (this.shouldCaptureError(error)) {
-        captureFrontendError(error, {
-          source: 'apiClient.request.catch',
-          endpoint,
-          method: options.method || 'GET'
-        });
-      }
-      console.error('API request failed:', error);
-      throw error;
     }
+
+    throw new Error('Unexpected request retry failure');
   }
 
   // ========== USER OPERATIONS ==========

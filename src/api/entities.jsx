@@ -47,9 +47,17 @@ export const User = {
         ...normalizeUserRecord(profile)
       };
     } catch (apiError) {
-      // If API fails, clear invalid cached user and surface a clean state in production
-  console.warn('API fetch failed for cached user; clearing session:', apiError?.message || apiError);
-  try { await auth.setCurrentUser(null); } catch { /* no-op */ }
+      const status = Number(apiError?.status || 0);
+      const message = String(apiError?.message || '').toLowerCase();
+      const isAuthFailure = status === 401 || message.includes('not authenticated') || message.includes('unauthorized');
+
+      // Clear local auth only for explicit auth failures; keep session on transient network/API errors.
+      if (isAuthFailure) {
+        console.warn('API fetch failed with auth error; clearing session:', apiError?.message || apiError);
+        try { await auth.setCurrentUser(null); } catch { /* no-op */ }
+      } else {
+        console.warn('API fetch failed for current user; keeping session:', apiError?.message || apiError);
+      }
 
       if (!dbAvailable) {
         throw apiError;
