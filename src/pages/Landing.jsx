@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
+import { showSuccess } from "@/utils/notifications";
 import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 
@@ -106,14 +107,37 @@ export default function Landing() {
           if (pendingData) {
             try {
               const profileData = JSON.parse(pendingData);
+              const sanitizedProfileData = { ...profileData };
+              const isCoachSignup = normalizeUserType(profileData.user_type) === 'coach';
+
+              // OAuth redirect cannot preserve local File objects; if uploaded document URLs are not
+              // already present, skip replaying compliance fields and let the coach finish them post-login.
+              const missingQualificationUpload = !sanitizedProfileData.qualification_file_url;
+              const missingBackgroundUpload = sanitizedProfileData.has_background_check && !sanitizedProfileData.background_check_file_url;
+              const requiresPostLoginCompliance = isCoachSignup && (missingQualificationUpload || missingBackgroundUpload);
+
+              if (requiresPostLoginCompliance) {
+                delete sanitizedProfileData.qualification_type;
+                delete sanitizedProfileData.qualification_file_url;
+                delete sanitizedProfileData.has_background_check;
+                delete sanitizedProfileData.background_check_type;
+                delete sanitizedProfileData.background_check_file_url;
+                delete sanitizedProfileData.background_check_expires_at;
+              }
+
               // Update user profile with registration data
-              await User.updateMyUserData(profileData);
+              await User.updateMyUserData(sanitizedProfileData);
               // Clear the stored data
               sessionStorage.removeItem('pendingProfileData');
               
               // Redirect based on the user type from registration data
-              if (normalizeUserType(profileData.user_type) === 'coach') {
-                navigate(createPageUrl("CoachDashboard"), { replace: true });
+              if (isCoachSignup) {
+                if (requiresPostLoginCompliance) {
+                  showSuccess('Coach account created', 'Complete your compliance uploads in your coach profile to enter the verification queue.');
+                  navigate(createPageUrl("CoachProfile"), { replace: true });
+                } else {
+                  navigate(createPageUrl("CoachDashboard"), { replace: true });
+                }
               } else {
                 navigate(createPageUrl("FindCoaches"), { replace: true });
               }
