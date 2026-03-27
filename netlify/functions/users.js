@@ -1064,6 +1064,9 @@ const rawHandler = async (event) => {
           };
         }
 
+        // user_type may only transition to 'coach' or 'client'; 'admin' is never settable here.
+        const newUserType = ['coach', 'client'].includes(updateData.user_type) ? updateData.user_type : null;
+
         // When restoring (is_active === true), clear deactivation fields
         const updatedUser = await executeQueryOne(
           withUserCtx(`UPDATE profiles 
@@ -1083,6 +1086,7 @@ const rawHandler = async (event) => {
                city = COALESCE($18, city),
                postcode = COALESCE($19, postcode),
                coach_profile = COALESCE($20::jsonb, coach_profile),
+               user_type = COALESCE($21, user_type),
                updated_at = NOW()
            WHERE id = $7
            RETURNING *`, userId),
@@ -1110,7 +1114,8 @@ const rawHandler = async (event) => {
             updateData.country,
             updateData.city,
             updateData.postcode,
-            updateData.coach_profile || null
+            updateData.coach_profile || null,
+            newUserType   // $21 — null keeps existing; 'coach'/'client' transitions the account type
           ]
         );
 
