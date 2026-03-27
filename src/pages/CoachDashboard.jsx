@@ -45,14 +45,13 @@ export default function CoachDashboard() {
 
       console.log('Coach loading data for user:', user.id, user.full_name);
 
-      // Get all bookings and filter for this coach
-      const allBookings = await Booking.list('-created_at', 1000);
-      console.log('All bookings loaded:', allBookings.length);
-      
-      const coachBookings = allBookings.filter(booking => 
-        booking.coach_id === user.id || 
-        (booking.user_id === user.id && booking.coach_id === user.id)
-      );
+      // Fetch only this coach's bookings; API limit is capped at 50 per request.
+      const coachBookings = await Booking.list({
+        orderBy: '-created_at',
+        limit: 50,
+        coach_id: user.id
+      });
+      console.log('Coach bookings loaded:', coachBookings.length);
       
       console.log('Coach bookings filtered:', coachBookings.length, coachBookings);
       

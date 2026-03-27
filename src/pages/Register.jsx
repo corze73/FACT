@@ -109,8 +109,8 @@ export default function Register() {
       return;
     }
     
-    if (formData.password.length < 6) {
-      showError('Invalid Password', 'Password must be at least 6 characters long');
+    if (formData.password.length < 8) {
+      showError('Invalid Password', 'Password must be at least 8 characters long');
       return;
     }
 
@@ -179,6 +179,17 @@ export default function Register() {
   };
 
   const handleGoogleSignUp = async () => {
+    if (formData.user_type === 'coach' && formData.has_background_check) {
+      if (!formData.background_check_type || !String(formData.background_check_type).trim()) {
+        showError('Background Check Required', `Please select the ${getBackgroundLabel()} type.`);
+        return;
+      }
+      if (!backgroundCheckFile && !formData.background_check_file_url) {
+        showError('Background Check Required', 'Please upload your background check document before continuing.');
+        return;
+      }
+    }
+
     setIsLoading(true);
     
     try {

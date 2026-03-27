@@ -651,7 +651,12 @@ export const Booking = {
 
       const filters = { ...options.filters };
       if (options.orderBy) filters.orderBy = options.orderBy;
-      if (options.limit) filters.limit = options.limit;
+      if (options.limit) {
+        const parsedLimit = Number(options.limit);
+        if (Number.isInteger(parsedLimit) && parsedLimit > 0) {
+          filters.limit = Math.min(parsedLimit, 50);
+        }
+      }
       if (options.offset !== null && options.offset !== undefined) filters.offset = options.offset;
       if (options.includeTotal) filters.include_total = '1';
       if (options.status) filters.status = options.status;

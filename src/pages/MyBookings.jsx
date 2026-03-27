@@ -73,11 +73,10 @@ export default function MyBookings() {
       // Get bookings where user is either client or coach
       const clientBookings = await Booking.filter({ client_id: user.id }, '-created_at');
       const coachBookings = await Booking.filter({ coach_id: user.id }, '-created_at');
-      const userBookings = await Booking.filter({ user_id: user.id }, '-created_at');
       
       // Combine and deduplicate bookings
       const allBookingsMap = new Map();
-      [...clientBookings, ...coachBookings, ...userBookings].forEach(booking => {
+      [...clientBookings, ...coachBookings].forEach(booking => {
         allBookingsMap.set(booking.id, booking);
       });
       const allBookings = Array.from(allBookingsMap.values());

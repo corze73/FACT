@@ -106,14 +106,9 @@ export default function Messages() {
                 
                 const bookingIds = combinedBookings.map(b => b.id);
                 console.log('Booking IDs for messages:', bookingIds);
-                if (bookingIds.length === 0) {
-                    console.log('No bookings found for user');
-                    setConversations([]);
-                    setIsLoading(false);
-                    return;
-                }
-
-                const messages = await Message.filter({ booking_id: { in: bookingIds }}, '-created_date');
+                const messages = bookingIds.length
+                    ? await Message.filter({ booking_id: { in: bookingIds }}, '-created_date')
+                    : [];
                 console.log('Messages loaded:', messages.length);
 
                 const lastMessages = {};
