@@ -140,7 +140,8 @@ export default function Layout({ children, currentPageName }) {
         { title: "Verifications", url: createPageUrl("AdminVerifications"), icon: ShieldCheck, showDot: adminIndicators.hasPendingVerifications },
         { title: "Audit Logs", url: createPageUrl("AdminAuditLogs"), icon: ScrollText },
         { title: "Operations", url: createPageUrl("AdminOperations"), icon: BriefcaseBusiness },
-        { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: adminIndicators.hasUnreadMessages }
+        { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: adminIndicators.hasUnreadMessages },
+        { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
       ];
     }
     const normalizedType = normalizeUserType(currentUser.user_type);
