@@ -522,6 +522,58 @@ class APIClient {
       body: JSON.stringify(payload)
     });
   }
+
+  // ========== HELP CONTENT (FAQ CRUD) ==========
+
+  async getFaqEntries(options = {}) {
+    const params = this.buildQueryParams(options);
+    const qs = params.toString() ? `?${params}` : '';
+    return this.request(`/help-content${qs}`);
+  }
+
+  async createFaqEntry(data) {
+    return this.request('/help-content', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updateFaqEntry(id, data) {
+    return this.request(`/help-content?id=${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deleteFaqEntry(id) {
+    return this.request(`/help-content?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // ========== HELP ANALYTICS ==========
+
+  /**
+   * Fire-and-forget: record a help engagement event.
+   * Never throws — any failure is silently swallowed.
+   */
+  async recordHelpEvent(data) {
+    try {
+      await this.request('/help-analytics', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+    } catch {
+      // Intentionally silent
+    }
+  }
+
+  /**
+   * Admin only: fetch aggregated help analytics.
+   */
+  async getHelpInsights(days = 30) {
+    return this.request(`/help-analytics?days=${encodeURIComponent(days)}`);
+  }
 }
 
 // Export singleton instance
