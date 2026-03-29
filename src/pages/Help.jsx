@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { User } from "@/api/entities.jsx";
 import { createPageUrl, normalizeUserType } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,228 +6,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Mail, MessageCircle, Search } from "lucide-react";
+import faqData from "@/data/helpFaq.json";
 
-const faqItems = [
-  {
-    id: "coach-verification-flow",
-    role: "coach",
-    category: "verification",
-    q: "How does coach verification work?",
-    a: "Upload your qualification and background-check documentation in your coach profile. Once submitted, your documents move to pending and are reviewed by admin.",
-    keywords: ["verification", "compliance", "admin", "approval"]
-  },
-  {
-    id: "coach-awaiting-approval",
-    role: "coach",
-    category: "verification",
-    q: "What does 'Awaiting Approval' mean?",
-    a: "It means your documents are in the admin verification queue. You can still access your account while review is in progress, but final verification actions depend on admin review.",
-    keywords: ["pending", "approval", "status"]
-  },
-  {
-    id: "coach-no-bookings",
-    role: "coach",
-    category: "bookings",
-    q: "Why do I not see bookings yet?",
-    a: "Bookings only appear after clients create sessions with you. New coaches will often see an empty list at first.",
-    keywords: ["empty", "dashboard", "my bookings"]
-  },
-  {
-    id: "coach-direct-messages",
-    role: "coach",
-    category: "messaging",
-    q: "Can I message users without a booking?",
-    a: "Yes. Admin/support messages can be direct messages that are not tied to a booking.",
-    keywords: ["admin", "support", "direct", "conversation"]
-  },
-  {
-    id: "coach-background-required",
-    role: "coach",
-    category: "verification",
-    q: "Do I need a background-check file if I select yes?",
-    a: "Yes. If you mark that you have a background check, you must upload the supporting document before compliance can be submitted successfully.",
-    keywords: ["background", "document", "required"]
-  },
-  {
-    id: "coach-rejected-docs",
-    role: "coach",
-    category: "verification",
-    q: "What happens if a document is rejected?",
-    a: "You will see rejection status and admin notes in your coach profile. Upload an updated document and save again to return it to pending review.",
-    keywords: ["rejected", "notes", "resubmit"]
-  },
-  {
-    id: "coach-edit-profile-visibility",
-    role: "coach",
-    category: "onboarding",
-    q: "Which parts of my profile are visible to clients?",
-    a: "Your public coaching profile fields, services, and media can be visible to clients. Keep contact and qualification details accurate and professional.",
-    keywords: ["public", "profile", "visibility"]
-  },
-  {
-    id: "coach-cancel-session",
-    role: "coach",
-    category: "bookings",
-    q: "How do I cancel a confirmed booking?",
-    a: "Use your dashboard booking actions to cancel and include a reason where prompted. The booking status updates and appears in cancelled history.",
-    keywords: ["cancel", "confirmed", "reason"]
-  },
-  {
-    id: "coach-session-status",
-    role: "coach",
-    category: "bookings",
-    q: "What are session statuses like pending, confirmed, completed?",
-    a: "Pending means awaiting action, confirmed means accepted/scheduled, completed means session finished, and cancelled means the booking was cancelled.",
-    keywords: ["status", "pending", "confirmed", "completed", "cancelled"]
-  },
-  {
-    id: "coach-payout-question",
-    role: "coach",
-    category: "payments",
-    q: "Who do I contact about payment issues?",
-    a: "Use in-app messages or support email with your booking reference and date so support can investigate quickly.",
-    keywords: ["payments", "payout", "support"]
-  },
-  {
-    id: "client-find-coach",
-    role: "client",
-    category: "onboarding",
-    q: "How do I find the right coach?",
-    a: "Use filters for service type, location, and profile details, then compare coach profiles and reviews before booking.",
-    keywords: ["find", "filter", "search", "coach"]
-  },
-  {
-    id: "client-my-bookings",
-    role: "client",
-    category: "bookings",
-    q: "Where are my bookings?",
-    a: "Open My Bookings to see upcoming, past, and cancelled sessions.",
-    keywords: ["upcoming", "past", "cancelled"]
-  },
-  {
-    id: "client-messaging",
-    role: "client",
-    category: "messaging",
-    q: "How does messaging work?",
-    a: "Messages can be tied to a booking, and you may also receive direct support/admin messages.",
-    keywords: ["chat", "conversation", "support"]
-  },
-  {
-    id: "client-support",
-    role: "client",
-    category: "support",
-    q: "Who do I contact for support?",
-    a: "Use in-app messages for support contact or email support@findacoachtoday.com.",
-    keywords: ["help", "support", "contact"]
-  },
-  {
-    id: "client-booking-create",
-    role: "client",
-    category: "bookings",
-    q: "How do I create a booking?",
-    a: "Open a coach profile, choose a service/session option, and submit your booking request. You can then track status in My Bookings.",
-    keywords: ["create", "new booking", "request"]
-  },
-  {
-    id: "client-reschedule",
-    role: "client",
-    category: "bookings",
-    q: "Can I reschedule a session?",
-    a: "Yes, where reschedule options are available. Submit a reschedule request from booking actions and wait for confirmation.",
-    keywords: ["reschedule", "change date", "booking actions"]
-  },
-  {
-    id: "client-cancel",
-    role: "client",
-    category: "bookings",
-    q: "How do I cancel a booking?",
-    a: "Use the cancel action in booking details, provide context if requested, and check the cancelled tab afterward.",
-    keywords: ["cancel booking", "cancelled tab"]
-  },
-  {
-    id: "client-review",
-    role: "client",
-    category: "onboarding",
-    q: "When can I leave a review?",
-    a: "Reviews are typically submitted after completed sessions. Open the relevant booking and use the review option when available.",
-    keywords: ["review", "feedback", "completed"]
-  },
-  {
-    id: "client-security",
-    role: "client",
-    category: "security",
-    q: "What should I do if I suspect unauthorized account access?",
-    a: "Change your password, revoke active sessions, and contact support with the approximate time and affected actions.",
-    keywords: ["unauthorized", "security", "revoke sessions"]
-  },
-  {
-    id: "client-payment-proof",
-    role: "client",
-    category: "payments",
-    q: "What should I include in a payment support request?",
-    a: "Include booking reference, date/time, amount, and screenshots of any error so support can verify transaction records faster.",
-    keywords: ["payment", "receipt", "amount", "support"]
-  },
-  {
-    id: "admin-verification-dot",
-    role: "admin",
-    category: "verification",
-    q: "When does the red dot appear on Verifications?",
-    a: "The red indicator appears when there are pending coach verification items in the admin queue.",
-    keywords: ["admin", "red dot", "verifications"]
-  },
-  {
-    id: "admin-messages-dot",
-    role: "admin",
-    category: "messaging",
-    q: "When does the red dot appear on Messages?",
-    a: "The red indicator appears when unread direct message threads exist for the admin account.",
-    keywords: ["admin", "messages", "unread", "red dot"]
-  },
-  {
-    id: "admin-verification-process",
-    role: "admin",
-    category: "verification",
-    q: "How should admin review coach compliance files?",
-    a: "Open the verification queue, review uploaded qualification/background files, leave notes where needed, and set approve/reject statuses accordingly.",
-    keywords: ["admin", "review", "approve", "reject"]
-  },
-  {
-    id: "admin-direct-message",
-    role: "admin",
-    category: "messaging",
-    q: "Are admin messages always tied to bookings?",
-    a: "No. Admin/support can message users directly without a booking, and those conversations appear as direct threads.",
-    keywords: ["direct", "booking_id", "support"]
-  },
-  {
-    id: "admin-audit",
-    role: "admin",
-    category: "security",
-    q: "Where do I check key admin actions?",
-    a: "Use Admin Audit Logs and Operations pages to inspect critical actions, account events, and platform activity.",
-    keywords: ["audit", "operations", "logs"]
-  },
-  {
-    id: "both-booking-reference",
-    role: "both",
-    category: "bookings",
-    q: "What is a booking reference used for?",
-    a: "Your booking reference helps support quickly locate session details and investigate booking or payment queries.",
-    keywords: ["reference", "support", "booking id"]
-  },
-  {
-    id: "both-account-security",
-    role: "both",
-    category: "security",
-    q: "What should I do if account details look wrong?",
-    a: "Update your profile immediately and revoke sessions from account tools if needed, then message support so we can review account activity.",
-    keywords: ["security", "revoke sessions", "account"]
-  }
-];
+const HELP_ANALYTICS_KEY = "help_analytics_v1";
 
 const categoryLabels = {
   all: "All",
@@ -241,10 +24,14 @@ const categoryLabels = {
 };
 
 export default function Help() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [userType, setUserType] = useState("client");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [openFaqIds, setOpenFaqIds] = useState([]);
+  const [helpMetrics, setHelpMetrics] = useState({ faqViews: {}, searches: {}, categories: {} });
   const lastTrackedRef = useRef("");
+  const lastOpenedRef = useRef([]);
 
   const roleLabel = userType === "coach" ? "coach" : userType === "admin" ? "admin" : "client";
 
@@ -258,16 +45,64 @@ export default function Help() {
     }
   };
 
+  const readMetrics = () => {
+    try {
+      const raw = localStorage.getItem(HELP_ANALYTICS_KEY);
+      if (!raw) return { faqViews: {}, searches: {}, categories: {} };
+      const parsed = JSON.parse(raw);
+      return {
+        faqViews: parsed?.faqViews || {},
+        searches: parsed?.searches || {},
+        categories: parsed?.categories || {}
+      };
+    } catch {
+      return { faqViews: {}, searches: {}, categories: {} };
+    }
+  };
+
+  const writeMetrics = (nextMetrics) => {
+    try {
+      localStorage.setItem(
+        HELP_ANALYTICS_KEY,
+        JSON.stringify({ ...nextMetrics, updatedAt: new Date().toISOString() })
+      );
+    } catch {
+      // Ignore localStorage write failures
+    }
+  };
+
+  const incrementMetric = (kind, key) => {
+    if (!key) return;
+    setHelpMetrics((prev) => {
+      const updated = {
+        ...prev,
+        [kind]: {
+          ...(prev[kind] || {}),
+          [key]: ((prev[kind] || {})[key] || 0) + 1
+        }
+      };
+      writeMetrics(updated);
+      return updated;
+    });
+  };
+
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       try {
         const me = await User.me();
         if (isMounted) {
-          setUserType(normalizeUserType(me?.user_type) || "client");
+          const role = me?.role === "admin" || me?.user_type === "admin"
+            ? "admin"
+            : (normalizeUserType(me?.user_type) || "client");
+          setUserType(role);
+          setHelpMetrics(readMetrics());
         }
       } catch {
-        if (isMounted) setUserType("client");
+        if (isMounted) {
+          setUserType("client");
+          setHelpMetrics(readMetrics());
+        }
       }
     };
     load();
@@ -277,13 +112,41 @@ export default function Help() {
   }, []);
 
   const roleScopedFaq = useMemo(() => {
-    return faqItems.filter((item) => item.role === "both" || item.role === roleLabel);
+    return faqData.filter((item) => item.role === "both" || item.role === roleLabel);
   }, [roleLabel]);
 
   const categories = useMemo(() => {
     const unique = ["all", ...new Set(roleScopedFaq.map((item) => item.category))];
     return unique;
   }, [roleScopedFaq]);
+
+  useEffect(() => {
+    const requestedCategory = searchParams.get("category");
+    if (!requestedCategory) return;
+    if (categories.includes(requestedCategory) && activeCategory !== requestedCategory) {
+      setActiveCategory(requestedCategory);
+      return;
+    }
+    if (!categories.includes(requestedCategory)) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("category");
+        return next;
+      }, { replace: true });
+    }
+  }, [activeCategory, categories, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (activeCategory === "all") {
+        next.delete("category");
+      } else {
+        next.set("category", activeCategory);
+      }
+      return next;
+    }, { replace: true });
+  }, [activeCategory, setSearchParams]);
 
   const filteredFaq = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -321,6 +184,40 @@ export default function Help() {
     }
   }, [activeCategory, filteredFaq.length, roleLabel, searchTerm]);
 
+  useEffect(() => {
+    const newlyOpened = openFaqIds.filter((id) => !lastOpenedRef.current.includes(id));
+    if (newlyOpened.length > 0) {
+      newlyOpened.forEach((faqId) => {
+        incrementMetric("faqViews", faqId);
+        trackHelpEvent("help_faq_open", { faq_id: faqId });
+      });
+    }
+    lastOpenedRef.current = openFaqIds;
+  }, [openFaqIds]);
+
+  const topSearched = useMemo(() => {
+    return Object.entries(helpMetrics.searches || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [helpMetrics.searches]);
+
+  const topViewedFaq = useMemo(() => {
+    return Object.entries(helpMetrics.faqViews || {})
+      .map(([id, count]) => {
+        const item = faqData.find((faq) => faq.id === id);
+        return item ? { id, q: item.q, count } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [helpMetrics.faqViews]);
+
+  const topCategories = useMemo(() => {
+    return Object.entries(helpMetrics.categories || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [helpMetrics.categories]);
+
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -341,7 +238,14 @@ export default function Help() {
               <Input
                 placeholder="Search topics, e.g. verification, messages, bookings..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSearchTerm(value);
+                  const trimmed = value.trim().toLowerCase();
+                  if (trimmed) {
+                    incrementMetric("searches", trimmed);
+                  }
+                }}
                 className="pl-9"
               />
             </div>
@@ -356,6 +260,7 @@ export default function Help() {
                   onClick={() => {
                     setActiveCategory(category);
                     trackHelpEvent("help_category_select", { category });
+                    incrementMetric("categories", category);
                   }}
                 >
                   {categoryLabels[category] || category}
@@ -364,6 +269,54 @@ export default function Help() {
             </div>
           </CardContent>
         </Card>
+
+        {roleLabel === "admin" && (
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle>Help Insights</CardTitle>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-3 gap-6 text-sm">
+              <div>
+                <p className="font-semibold text-slate-900 mb-2">Top Searches</p>
+                {topSearched.length === 0 ? (
+                  <p className="text-slate-500">No search data yet.</p>
+                ) : (
+                  <ul className="space-y-1 text-slate-700">
+                    {topSearched.map(([term, count]) => (
+                      <li key={term}>{term} ({count})</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div>
+                <p className="font-semibold text-slate-900 mb-2">Most Viewed FAQs</p>
+                {topViewedFaq.length === 0 ? (
+                  <p className="text-slate-500">No FAQ views yet.</p>
+                ) : (
+                  <ul className="space-y-1 text-slate-700">
+                    {topViewedFaq.map((item) => (
+                      <li key={item.id}>{item.q} ({item.count})</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div>
+                <p className="font-semibold text-slate-900 mb-2">Top Categories</p>
+                {topCategories.length === 0 ? (
+                  <p className="text-slate-500">No category data yet.</p>
+                ) : (
+                  <ul className="space-y-1 text-slate-700">
+                    {topCategories.map(([cat, count]) => (
+                      <li key={cat}>{categoryLabels[cat] || cat} ({count})</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-0 shadow-lg">
           <CardHeader>
@@ -375,7 +328,7 @@ export default function Help() {
                 No FAQ entries matched your search. Try a broader term or switch category.
               </p>
             ) : (
-              <Accordion type="multiple" className="w-full">
+              <Accordion type="multiple" className="w-full" value={openFaqIds} onValueChange={setOpenFaqIds}>
                 {filteredFaq.map((item) => (
                   <AccordionItem key={item.id} value={item.id}>
                     <AccordionTrigger>{item.q}</AccordionTrigger>

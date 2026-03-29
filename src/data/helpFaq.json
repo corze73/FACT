@@ -1,0 +1,218 @@
+[
+  {
+    "id": "coach-verification-flow",
+    "role": "coach",
+    "category": "verification",
+    "q": "How does coach verification work?",
+    "a": "Upload your qualification and background-check documentation in your coach profile. Once submitted, your documents move to pending and are reviewed by admin.",
+    "keywords": ["verification", "compliance", "admin", "approval"]
+  },
+  {
+    "id": "coach-awaiting-approval",
+    "role": "coach",
+    "category": "verification",
+    "q": "What does 'Awaiting Approval' mean?",
+    "a": "It means your documents are in the admin verification queue. You can still access your account while review is in progress, but final verification actions depend on admin review.",
+    "keywords": ["pending", "approval", "status"]
+  },
+  {
+    "id": "coach-no-bookings",
+    "role": "coach",
+    "category": "bookings",
+    "q": "Why do I not see bookings yet?",
+    "a": "Bookings only appear after clients create sessions with you. New coaches will often see an empty list at first.",
+    "keywords": ["empty", "dashboard", "my bookings"]
+  },
+  {
+    "id": "coach-direct-messages",
+    "role": "coach",
+    "category": "messaging",
+    "q": "Can I message users without a booking?",
+    "a": "Yes. Admin/support messages can be direct messages that are not tied to a booking.",
+    "keywords": ["admin", "support", "direct", "conversation"]
+  },
+  {
+    "id": "coach-background-required",
+    "role": "coach",
+    "category": "verification",
+    "q": "Do I need a background-check file if I select yes?",
+    "a": "Yes. If you mark that you have a background check, you must upload the supporting document before compliance can be submitted successfully.",
+    "keywords": ["background", "document", "required"]
+  },
+  {
+    "id": "coach-rejected-docs",
+    "role": "coach",
+    "category": "verification",
+    "q": "What happens if a document is rejected?",
+    "a": "You will see rejection status and admin notes in your coach profile. Upload an updated document and save again to return it to pending review.",
+    "keywords": ["rejected", "notes", "resubmit"]
+  },
+  {
+    "id": "coach-edit-profile-visibility",
+    "role": "coach",
+    "category": "onboarding",
+    "q": "Which parts of my profile are visible to clients?",
+    "a": "Your public coaching profile fields, services, and media can be visible to clients. Keep contact and qualification details accurate and professional.",
+    "keywords": ["public", "profile", "visibility"]
+  },
+  {
+    "id": "coach-cancel-session",
+    "role": "coach",
+    "category": "bookings",
+    "q": "How do I cancel a confirmed booking?",
+    "a": "Use your dashboard booking actions to cancel and include a reason where prompted. The booking status updates and appears in cancelled history.",
+    "keywords": ["cancel", "confirmed", "reason"]
+  },
+  {
+    "id": "coach-session-status",
+    "role": "coach",
+    "category": "bookings",
+    "q": "What are session statuses like pending, confirmed, completed?",
+    "a": "Pending means awaiting action, confirmed means accepted/scheduled, completed means session finished, and cancelled means the booking was cancelled.",
+    "keywords": ["status", "pending", "confirmed", "completed", "cancelled"]
+  },
+  {
+    "id": "coach-payout-question",
+    "role": "coach",
+    "category": "payments",
+    "q": "Who do I contact about payment issues?",
+    "a": "Use in-app messages or support email with your booking reference and date so support can investigate quickly.",
+    "keywords": ["payments", "payout", "support"]
+  },
+  {
+    "id": "client-find-coach",
+    "role": "client",
+    "category": "onboarding",
+    "q": "How do I find the right coach?",
+    "a": "Use filters for service type, location, and profile details, then compare coach profiles and reviews before booking.",
+    "keywords": ["find", "filter", "search", "coach"]
+  },
+  {
+    "id": "client-my-bookings",
+    "role": "client",
+    "category": "bookings",
+    "q": "Where are my bookings?",
+    "a": "Open My Bookings to see upcoming, past, and cancelled sessions.",
+    "keywords": ["upcoming", "past", "cancelled"]
+  },
+  {
+    "id": "client-messaging",
+    "role": "client",
+    "category": "messaging",
+    "q": "How does messaging work?",
+    "a": "Messages can be tied to a booking, and you may also receive direct support/admin messages.",
+    "keywords": ["chat", "conversation", "support"]
+  },
+  {
+    "id": "client-support",
+    "role": "client",
+    "category": "support",
+    "q": "Who do I contact for support?",
+    "a": "Use in-app messages for support contact or email support@findacoachtoday.com.",
+    "keywords": ["help", "support", "contact"]
+  },
+  {
+    "id": "client-booking-create",
+    "role": "client",
+    "category": "bookings",
+    "q": "How do I create a booking?",
+    "a": "Open a coach profile, choose a service/session option, and submit your booking request. You can then track status in My Bookings.",
+    "keywords": ["create", "new booking", "request"]
+  },
+  {
+    "id": "client-reschedule",
+    "role": "client",
+    "category": "bookings",
+    "q": "Can I reschedule a session?",
+    "a": "Yes, where reschedule options are available. Submit a reschedule request from booking actions and wait for confirmation.",
+    "keywords": ["reschedule", "change date", "booking actions"]
+  },
+  {
+    "id": "client-cancel",
+    "role": "client",
+    "category": "bookings",
+    "q": "How do I cancel a booking?",
+    "a": "Use the cancel action in booking details, provide context if requested, and check the cancelled tab afterward.",
+    "keywords": ["cancel booking", "cancelled tab"]
+  },
+  {
+    "id": "client-review",
+    "role": "client",
+    "category": "onboarding",
+    "q": "When can I leave a review?",
+    "a": "Reviews are typically submitted after completed sessions. Open the relevant booking and use the review option when available.",
+    "keywords": ["review", "feedback", "completed"]
+  },
+  {
+    "id": "client-security",
+    "role": "client",
+    "category": "security",
+    "q": "What should I do if I suspect unauthorized account access?",
+    "a": "Change your password, revoke active sessions, and contact support with the approximate time and affected actions.",
+    "keywords": ["unauthorized", "security", "revoke sessions"]
+  },
+  {
+    "id": "client-payment-proof",
+    "role": "client",
+    "category": "payments",
+    "q": "What should I include in a payment support request?",
+    "a": "Include booking reference, date/time, amount, and screenshots of any error so support can verify transaction records faster.",
+    "keywords": ["payment", "receipt", "amount", "support"]
+  },
+  {
+    "id": "admin-verification-dot",
+    "role": "admin",
+    "category": "verification",
+    "q": "When does the red dot appear on Verifications?",
+    "a": "The red indicator appears when there are pending coach verification items in the admin queue.",
+    "keywords": ["admin", "red dot", "verifications"]
+  },
+  {
+    "id": "admin-messages-dot",
+    "role": "admin",
+    "category": "messaging",
+    "q": "When does the red dot appear on Messages?",
+    "a": "The red indicator appears when unread direct message threads exist for the admin account.",
+    "keywords": ["admin", "messages", "unread", "red dot"]
+  },
+  {
+    "id": "admin-verification-process",
+    "role": "admin",
+    "category": "verification",
+    "q": "How should admin review coach compliance files?",
+    "a": "Open the verification queue, review uploaded qualification/background files, leave notes where needed, and set approve/reject statuses accordingly.",
+    "keywords": ["admin", "review", "approve", "reject"]
+  },
+  {
+    "id": "admin-direct-message",
+    "role": "admin",
+    "category": "messaging",
+    "q": "Are admin messages always tied to bookings?",
+    "a": "No. Admin/support can message users directly without a booking, and those conversations appear as direct threads.",
+    "keywords": ["direct", "booking_id", "support"]
+  },
+  {
+    "id": "admin-audit",
+    "role": "admin",
+    "category": "security",
+    "q": "Where do I check key admin actions?",
+    "a": "Use Admin Audit Logs and Operations pages to inspect critical actions, account events, and platform activity.",
+    "keywords": ["audit", "operations", "logs"]
+  },
+  {
+    "id": "both-booking-reference",
+    "role": "both",
+    "category": "bookings",
+    "q": "What is a booking reference used for?",
+    "a": "Your booking reference helps support quickly locate session details and investigate booking or payment queries.",
+    "keywords": ["reference", "support", "booking id"]
+  },
+  {
+    "id": "both-account-security",
+    "role": "both",
+    "category": "security",
+    "q": "What should I do if account details look wrong?",
+    "a": "Update your profile immediately and revoke sessions from account tools if needed, then message support so we can review account activity.",
+    "keywords": ["security", "revoke sessions", "account"]
+  }
+]
