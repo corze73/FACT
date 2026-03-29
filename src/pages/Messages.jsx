@@ -118,25 +118,22 @@ export default function Messages() {
                     }
                 });
 
-                const otherUserIds = combinedBookings.map(b => b.client_id === currentUser.id ? b.coach_id : b.client_id).filter(Boolean);
-                console.log('Other user IDs:', otherUserIds);
-                const otherUsersList = otherUserIds.length
-                    ? await User.filter({ id: { in: otherUserIds }})
-                    : [];
-                console.log('Other users loaded:', otherUsersList.length);
-                const otherUsersMap = otherUsersList.reduce((acc, u) => ({...acc, [u.id]: u }), {});
-                
                 const convos = combinedBookings.map(booking => {
-                    const otherUserId = booking.client_id === currentUser.id ? booking.coach_id : booking.client_id;
-                    const otherUser = otherUsersMap[otherUserId];
                     const lastMessage = lastMessages[booking.id];
+                    const isClientView = booking.client_id === currentUser.id;
+                    const otherName = isClientView
+                        ? (booking.coach_name || 'Coach')
+                        : (booking.client_name || 'Client');
+                    const otherAvatar = isClientView
+                        ? booking.coach_avatar
+                        : booking.client_avatar;
 
-                    console.log('Processing booking:', booking.id, 'Other user:', otherUser?.full_name, 'Last message:', lastMessage?.content);
+                    console.log('Processing booking:', booking.id, 'Other user:', otherName, 'Last message:', lastMessage?.content);
 
                     return {
                         booking_id: booking.id,
-                        other_user_name: otherUser?.full_name || 'Unknown User',
-                        other_user_avatar: otherUser?.profile_picture,
+                        other_user_name: otherName,
+                        other_user_avatar: otherAvatar,
                         last_message: lastMessage?.content || 'Start a conversation',
                         last_message_date: lastMessage?.created_date || booking.created_at,
                         is_read: lastMessage ? (lastMessage.sender_id === currentUser.id || lastMessage.is_read) : true
@@ -151,9 +148,15 @@ export default function Messages() {
                     const directThreads = await apiClient.getDirectThreads();
                     console.log('Non-admin: Direct threads loaded:', directThreads.length);
                     if (directThreads.length) {
-                        const otherIds = Array.from(new Set(directThreads.map(t => t.other_user_id)));
-                        const directUsers = otherIds.length ? await User.filter({ id: { in: otherIds }}) : [];
-                        const directUserMap = directUsers.reduce((acc, u) => ({ ...acc, [u.id]: u }), {});
+                        let directUserMap = {};
+                        try {
+                            const otherIds = Array.from(new Set(directThreads.map(t => t.other_user_id).filter(Boolean)));
+                            // This may return 403 for non-admins depending on users endpoint policy.
+                            const directUsers = otherIds.length ? await User.filter({ id: { in: otherIds }}) : [];
+                            directUserMap = directUsers.reduce((acc, u) => ({ ...acc, [u.id]: u }), {});
+                        } catch (err) {
+                            console.warn('Direct thread user lookup denied; using fallback labels', err);
+                        }
 
                         const directConvos = directThreads.map(t => {
                             const other = directUserMap[t.other_user_id];
@@ -161,7 +164,7 @@ export default function Messages() {
                                 type: 'direct',
                                 booking_id: null,
                                 direct_user_id: t.other_user_id,
-                                other_user_name: other?.full_name || 'User',
+                                other_user_name: other?.full_name || 'Support Team',
                                 other_user_avatar: other?.profile_picture,
                                 last_message: t.content,
                                 last_message_date: t.created_date,
