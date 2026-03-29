@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
-import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, ShieldCheck, ScrollText, BriefcaseBusiness } from "lucide-react";
+import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, ShieldCheck, ScrollText, BriefcaseBusiness, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
+import { User } from "@/api/entities.jsx";
+import { apiClient } from "@/api/apiClient.js";
 // Toast and auth imports removed as unused
 import {
   Sidebar,
@@ -26,6 +28,10 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
+  const [adminIndicators, setAdminIndicators] = useState({
+    hasPendingVerifications: false,
+    hasUnreadMessages: false
+  });
 
   useEffect(() => {
     loadCurrentUser();
@@ -46,7 +52,6 @@ export default function Layout({ children, currentPageName }) {
   }, [currentUser]);
   const loadCurrentUser = async () => {
     try {
-      const { User } = await import("@/api/entities.jsx");
       const isAuth = await User.isAuthenticated();
       if (isAuth) {
         const user = await User.me();
@@ -68,15 +73,56 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [location.pathname, navigate]);
 
+  useEffect(() => {
+    if (!currentUser || !isAdminUser(currentUser)) {
+      setAdminIndicators({ hasPendingVerifications: false, hasUnreadMessages: false });
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAdminIndicators = async () => {
+      try {
+        const [verificationResponse, threads] = await Promise.all([
+          User.listAdminVerifications({
+            type: 'coach',
+            status: 'pending',
+            limit: 1,
+            offset: 0,
+            include_total: 1
+          }),
+          apiClient.getDirectThreads()
+        ]);
+
+        const hasPendingVerifications = Number(verificationResponse?.total || 0) > 0;
+        const hasUnreadMessages = Array.isArray(threads)
+          ? threads.some((thread) => !thread.is_read && thread.sender_id && thread.sender_id !== currentUser.id)
+          : false;
+
+        if (!cancelled) {
+          setAdminIndicators({ hasPendingVerifications, hasUnreadMessages });
+        }
+      } catch (error) {
+        console.error('Failed to load admin indicators', error);
+      }
+    };
+
+    loadAdminIndicators();
+    const interval = window.setInterval(loadAdminIndicators, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [currentUser]);
+
   const handleLogout = async () => {
-    const { User } = await import("@/api/entities.jsx");
     await User.logout();
     setCurrentUser(null);
     window.location.href = createPageUrl("Landing");
   };
 
   const handleLogin = async () => {
-    const { User } = await import("@/api/entities.jsx");
     // Always return to Landing with next=dashboard so we route once after auth
     await User.loginWithRedirect(window.location.origin + createPageUrl("Landing?next=dashboard"));
   };
@@ -91,10 +137,10 @@ export default function Layout({ children, currentPageName }) {
     if (isAdminUser(currentUser)) {
       return [
         { title: "Admin Dashboard", url: createPageUrl("AdminDashboard"), icon: Star },
-        { title: "Verifications", url: createPageUrl("AdminVerifications"), icon: ShieldCheck },
+        { title: "Verifications", url: createPageUrl("AdminVerifications"), icon: ShieldCheck, showDot: adminIndicators.hasPendingVerifications },
         { title: "Audit Logs", url: createPageUrl("AdminAuditLogs"), icon: ScrollText },
         { title: "Operations", url: createPageUrl("AdminOperations"), icon: BriefcaseBusiness },
-        { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle }
+        { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: adminIndicators.hasUnreadMessages }
       ];
     }
     const normalizedType = normalizeUserType(currentUser.user_type);
@@ -103,13 +149,15 @@ export default function Layout({ children, currentPageName }) {
         ? [
             { title: "Dashboard", url: createPageUrl("CoachDashboard"), icon: Calendar },
             { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle },
-            { title: "Profile", url: createPageUrl("CoachProfile"), icon: UserIcon }
+            { title: "Profile", url: createPageUrl("CoachProfile"), icon: UserIcon },
+            { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
           ]
         : [
             { title: "Find Coaches", url: createPageUrl("FindCoaches"), icon: Search },
             { title: "My Bookings", url: createPageUrl("MyBookings"), icon: Calendar },
             { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle },
-            { title: "Profile", url: createPageUrl("UserProfile"), icon: UserIcon }
+            { title: "Profile", url: createPageUrl("UserProfile"), icon: UserIcon },
+            { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
           ];
     return base;
   };
@@ -177,9 +225,12 @@ export default function Layout({ children, currentPageName }) {
                           location.pathname === item.url ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600'
                         }`}
                       >
-                        <Link to={item.url} className="flex items-center gap-3 px-4">
+                        <Link to={item.url} className="flex items-center gap-3 px-4 w-full">
                           <item.icon className="w-5 h-5" />
                           <span>{item.title}</span>
+                          {item.showDot && (
+                            <span className="ml-auto inline-block h-2.5 w-2.5 rounded-full bg-red-500" aria-label={`${item.title} has updates`} />
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

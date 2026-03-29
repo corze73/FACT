@@ -367,7 +367,12 @@ export default function CoachProfile() {
         background_check_expires_at: formData.background_check_expires_at || null
       });
 
-      alert("Profile updated successfully! ✅");
+      const awaitingApproval = Boolean(formData.qualification_file_url) || Boolean(formData.background_check_file_url);
+      if (awaitingApproval) {
+        alert("Profile and compliance saved. Your documents are now awaiting admin approval.");
+      } else {
+        alert("Profile updated successfully! ✅");
+      }
       
     } catch (error) {
       console.error("Failed to update profile", error);

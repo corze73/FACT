@@ -14,6 +14,8 @@ import UserProfile from "./UserProfile";
 
 import CoachProfile from "./CoachProfile";
 
+import Help from "./Help";
+
 import Messages from "./Messages";
 
 import Conversation from "./Conversation";
@@ -58,6 +60,8 @@ const PAGES = {
     UserProfile: UserProfile,
     
     CoachProfile: CoachProfile,
+
+    Help: Help,
     
     Messages: Messages,
     
@@ -134,6 +138,9 @@ function PagesContent() {
                 
                 <Route path="/CoachProfile" element={<CoachProfile />} />
                 <Route path="/coachprofile" element={<CoachProfile />} />
+
+                <Route path="/Help" element={<Help />} />
+                <Route path="/help" element={<Help />} />
                 
                 <Route path="/Messages" element={<Messages />} />
                 <Route path="/messages" element={<Messages />} />

@@ -164,7 +164,11 @@ export default function Register() {
         }
       }
       
-      showSuccess('Account Created', 'Please check your email to verify your account, then you can log in.');
+      if (formData.user_type === 'coach') {
+        showSuccess('Account Created', 'Please check your email to verify your account. Once logged in, your compliance documents will show as Awaiting Approval until reviewed by admin.');
+      } else {
+        showSuccess('Account Created', 'Please check your email to verify your account, then you can log in.');
+      }
       navigate(createPageUrl("Landing"));
     } catch (error) {
       devError("Registration error:", error);
