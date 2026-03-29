@@ -120,7 +120,9 @@ export default function Messages() {
 
                 const otherUserIds = combinedBookings.map(b => b.client_id === currentUser.id ? b.coach_id : b.client_id).filter(Boolean);
                 console.log('Other user IDs:', otherUserIds);
-                const otherUsersList = await User.filter({ id: { in: otherUserIds }});
+                const otherUsersList = otherUserIds.length
+                    ? await User.filter({ id: { in: otherUserIds }})
+                    : [];
                 console.log('Other users loaded:', otherUsersList.length);
                 const otherUsersMap = otherUsersList.reduce((acc, u) => ({...acc, [u.id]: u }), {});
                 

@@ -126,6 +126,10 @@ export const User = {
 
   async filter(filters) {
     try {
+      if (filters?.id?.in && Array.isArray(filters.id.in) && filters.id.in.length === 0) {
+        return [];
+      }
+
       const queryParams = {};
       if (filters.role) queryParams.role = filters.role;
       if (filters.user_type) queryParams.type = filters.user_type;
