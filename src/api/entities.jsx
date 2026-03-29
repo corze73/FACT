@@ -742,6 +742,27 @@ export const Message = {
       if (!filters.booking_id) {
         throw new Error('booking_id is required');
       }
+
+      // Support both:
+      // - { booking_id: '<uuid>' }
+      // - { booking_id: { in: ['<uuid1>', '<uuid2>'] } }
+      if (typeof filters.booking_id === 'object' && Array.isArray(filters.booking_id.in)) {
+        const bookingIds = filters.booking_id.in.filter(Boolean);
+        if (!bookingIds.length) return [];
+
+        const messageLists = await Promise.all(
+          bookingIds.map((bookingId) => apiClient.getMessages(bookingId))
+        );
+
+        const merged = messageLists.flat();
+        const direction = String(orderBy || 'created_date').startsWith('-') ? -1 : 1;
+        return merged.sort((a, b) => {
+          const aTs = new Date(a?.created_date || 0).getTime();
+          const bTs = new Date(b?.created_date || 0).getTime();
+          return direction * (aTs - bTs);
+        });
+      }
+
       return await apiClient.getMessages(filters.booking_id);
     } catch (error) {
       console.error('API filter failed, using fallback:', error);

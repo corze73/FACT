@@ -220,17 +220,24 @@ export default function Messages() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-center">
-                                                    <p className={`font-semibold text-slate-800 truncate`}>
+                                                    <p className={`font-semibold text-slate-800 truncate ${!convo.is_read ? 'font-bold' : ''}`}>
                                                         {convo.other_user_name}
                                                     </p>
                                                     <p className="text-xs text-slate-500">
                                                         {convo.last_message_date ? formatDistanceToNow(new Date(convo.last_message_date), { addSuffix: true }) : ''}
                                                     </p>
                                                 </div>
-                                                <p className={`text-sm text-slate-600 truncate`}>
+                                                <p className={`text-sm truncate ${!convo.is_read ? 'text-slate-900' : 'text-slate-600'}`}>
                                                     {convo.last_message}
                                                 </p>
                                             </div>
+                                            {!convo.is_read && (
+                                                <span
+                                                    className="inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                                                    title="Unread"
+                                                    aria-label="Unread"
+                                                />
+                                            )}
                                         </div>
                                     </Link>
                                 </motion.li>

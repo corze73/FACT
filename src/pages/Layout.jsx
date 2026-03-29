@@ -7,7 +7,7 @@ import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, Shield
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
-import { User } from "@/api/entities.jsx";
+import { User, Booking, Message } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
 // Toast and auth imports removed as unused
 import {
@@ -28,7 +28,7 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
-  const [adminIndicators, setAdminIndicators] = useState({
+  const [navIndicators, setNavIndicators] = useState({
     hasPendingVerifications: false,
     hasUnreadMessages: false
   });
@@ -74,41 +74,72 @@ export default function Layout({ children, currentPageName }) {
   }, [location.pathname, navigate]);
 
   useEffect(() => {
-    if (!currentUser || !isAdminUser(currentUser)) {
-      setAdminIndicators({ hasPendingVerifications: false, hasUnreadMessages: false });
+    if (!currentUser) {
+      setNavIndicators({ hasPendingVerifications: false, hasUnreadMessages: false });
       return;
     }
 
     let cancelled = false;
 
-    const loadAdminIndicators = async () => {
+    const loadNavIndicators = async () => {
       try {
-        const [verificationResponse, threads] = await Promise.all([
-          User.listAdminVerifications({
+        const isAdmin = isAdminUser(currentUser);
+
+        let hasPendingVerifications = false;
+        if (isAdmin) {
+          const verificationResponse = await User.listAdminVerifications({
             type: 'coach',
             status: 'pending',
             limit: 1,
             offset: 0,
             include_total: 1
-          }),
-          apiClient.getDirectThreads()
-        ]);
+          });
+          hasPendingVerifications = Number(verificationResponse?.total || 0) > 0;
+        }
 
-        const hasPendingVerifications = Number(verificationResponse?.total || 0) > 0;
-        const hasUnreadMessages = Array.isArray(threads)
+        const threads = await apiClient.getDirectThreads();
+        const hasUnreadDirect = Array.isArray(threads)
           ? threads.some((thread) => !thread.is_read && thread.sender_id && thread.sender_id !== currentUser.id)
           : false;
 
+        // For coach/client users, include booking-thread unread state too.
+        let hasUnreadBooking = false;
+        if (!isAdmin) {
+          const [clientBookings, coachBookings] = await Promise.all([
+            Booking.filter({ client_id: currentUser.id }, '-created_at'),
+            Booking.filter({ coach_id: currentUser.id }, '-created_at')
+          ]);
+          const bookingMap = new Map();
+          [...clientBookings, ...coachBookings].forEach((b) => bookingMap.set(b.id, b));
+          const bookingIds = Array.from(bookingMap.keys());
+
+          if (bookingIds.length > 0) {
+            const messages = await Message.filter({ booking_id: { in: bookingIds } }, '-created_date');
+            const lastByBooking = new Map();
+            messages.forEach((m) => {
+              if (!lastByBooking.has(m.booking_id)) {
+                lastByBooking.set(m.booking_id, m);
+              }
+            });
+            hasUnreadBooking = Array.from(lastByBooking.values()).some(
+              (m) => m && m.sender_id !== currentUser.id && !m.is_read
+            );
+          }
+        }
+
         if (!cancelled) {
-          setAdminIndicators({ hasPendingVerifications, hasUnreadMessages });
+          setNavIndicators({
+            hasPendingVerifications,
+            hasUnreadMessages: hasUnreadDirect || hasUnreadBooking
+          });
         }
       } catch (error) {
-        console.error('Failed to load admin indicators', error);
+        console.error('Failed to load nav indicators', error);
       }
     };
 
-    loadAdminIndicators();
-    const interval = window.setInterval(loadAdminIndicators, 30000);
+    loadNavIndicators();
+    const interval = window.setInterval(loadNavIndicators, 30000);
 
     return () => {
       cancelled = true;
@@ -137,10 +168,10 @@ export default function Layout({ children, currentPageName }) {
     if (isAdminUser(currentUser)) {
       return [
         { title: "Admin Dashboard", url: createPageUrl("AdminDashboard"), icon: Star },
-        { title: "Verifications", url: createPageUrl("AdminVerifications"), icon: ShieldCheck, showDot: adminIndicators.hasPendingVerifications },
+        { title: "Verifications", url: createPageUrl("AdminVerifications"), icon: ShieldCheck, showDot: navIndicators.hasPendingVerifications },
         { title: "Audit Logs", url: createPageUrl("AdminAuditLogs"), icon: ScrollText },
         { title: "Operations", url: createPageUrl("AdminOperations"), icon: BriefcaseBusiness },
-        { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: adminIndicators.hasUnreadMessages },
+        { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: navIndicators.hasUnreadMessages },
         { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
       ];
     }
@@ -149,14 +180,14 @@ export default function Layout({ children, currentPageName }) {
       normalizedType === "coach"
         ? [
             { title: "Dashboard", url: createPageUrl("CoachDashboard"), icon: Calendar },
-            { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle },
+            { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: navIndicators.hasUnreadMessages },
             { title: "Profile", url: createPageUrl("CoachProfile"), icon: UserIcon },
             { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
           ]
         : [
             { title: "Find Coaches", url: createPageUrl("FindCoaches"), icon: Search },
             { title: "My Bookings", url: createPageUrl("MyBookings"), icon: Calendar },
-            { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle },
+            { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: navIndicators.hasUnreadMessages },
             { title: "Profile", url: createPageUrl("UserProfile"), icon: UserIcon },
             { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
           ];
