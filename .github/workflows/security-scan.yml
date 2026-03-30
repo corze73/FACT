@@ -27,17 +27,22 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
       
       - name: Run npm audit (fail on high/critical only)
         id: npm-audit
         run: |
+          set -euo pipefail
+
           npm audit --audit-level=high --json > audit-report.json || true
-          VULNS=$(cat audit-report.json | jq '.metadata.vulnerabilities | .high + .critical')
-          echo "vulnerabilities=$VULNS" >> $GITHUB_OUTPUT
+          VULNS=$(jq -r '((.metadata.vulnerabilities.high // 0) + (.metadata.vulnerabilities.critical // 0))' audit-report.json 2>/dev/null || echo 0)
+          echo "vulnerabilities=$VULNS" >> "$GITHUB_OUTPUT"
           
           if [ "$VULNS" -gt "0" ]; then
-            echo "⚠️ Found $VULNS vulnerabilities"
-            npm audit
+            echo "::error::Found $VULNS high/critical vulnerabilities. See artifact 'npm-audit-report'."
+            npm audit --audit-level=high || true
             exit 1
           fi
       
