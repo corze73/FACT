@@ -14,7 +14,9 @@ const ACTION_OPTIONS = [
   "user_deactivated",
   "user_hard_delete",
   "account_deletion_approved",
-  "account_deletion_rejected"
+  "account_deletion_rejected",
+  "message_deleted",
+  "message_conversation_cleared"
 ];
 
 const formatAction = (value) => value.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
@@ -61,6 +63,8 @@ export default function AdminAuditLogs() {
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [selectedLog, setSelectedLog] = useState(null);
+  const [deletedMessages, setDeletedMessages] = useState([]);
+  const [deletedMessagesLoading, setDeletedMessagesLoading] = useState(false);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
 
@@ -101,6 +105,18 @@ export default function AdminAuditLogs() {
       const response = await User.listAdminAuditLogs(filters);
       setRows(Array.isArray(response?.data) ? response.data : []);
       setTotal(Number(response?.total || 0));
+
+      setDeletedMessagesLoading(true);
+      try {
+        const deletedResponse = await User.listAdminDeletedMessages({
+          limit: 10,
+          offset: 0,
+          include_total: 0
+        });
+        setDeletedMessages(Array.isArray(deletedResponse?.data) ? deletedResponse.data : []);
+      } finally {
+        setDeletedMessagesLoading(false);
+      }
     } catch (error) {
       console.error("Failed to load admin audit logs", error);
       alert(error.message || "Failed to load audit logs");
@@ -302,6 +318,62 @@ export default function AdminAuditLogs() {
                 Next
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle>Deleted Messages Archive</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {deletedMessagesLoading ? (
+              <p className="text-slate-600">Loading deleted messages...</p>
+            ) : deletedMessages.length === 0 ? (
+              <p className="text-slate-600">No deleted messages archived yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {deletedMessages.map((row) => (
+                  <div key={row.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="bg-red-100 text-red-700">
+                          {row.deletion_scope === 'conversation_clear' ? 'Conversation Cleared' : 'Message Deleted'}
+                        </Badge>
+                        <span className="text-xs text-slate-500">Deleted: {formatDateTime(row.deleted_at)}</span>
+                      </div>
+                      <span className="text-xs text-slate-500">Archive ID: {row.id}</span>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-slate-500">From</p>
+                        <p className="text-slate-800 break-all">{row.sender_name || 'Unknown'} ({row.sender_id})</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">To</p>
+                        <p className="text-slate-800 break-all">{row.receiver_name || 'Unknown'} ({row.receiver_id})</p>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-slate-500">Deleted by</p>
+                        <p className="text-slate-800 break-all">{row.deleted_by_name || 'Unknown'} ({row.deleted_by_user_id})</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Booking ID</p>
+                        <p className="text-slate-800 break-all">{row.booking_id || 'Direct conversation'}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-slate-500 text-sm">Original content</p>
+                      <p className="text-sm text-slate-800 break-words whitespace-pre-wrap">{row.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -128,9 +128,10 @@ export default function Layout({ children, currentPageName }) {
         }
 
         if (!cancelled) {
+          const isMessagesPage = location.pathname === createPageUrl("Messages");
           setNavIndicators({
             hasPendingVerifications,
-            hasUnreadMessages: hasUnreadDirect || hasUnreadBooking
+            hasUnreadMessages: isMessagesPage ? false : (hasUnreadDirect || hasUnreadBooking)
           });
         }
       } catch (error) {
@@ -145,7 +146,7 @@ export default function Layout({ children, currentPageName }) {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [currentUser]);
+  }, [currentUser, location.pathname]);
 
   const handleLogout = async () => {
     await User.logout();

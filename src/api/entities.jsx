@@ -503,6 +503,10 @@ User.listAdminAuditLogs = async function(filters = {}) {
   return await apiClient.getAdminAuditLogs(filters);
 };
 
+User.listAdminDeletedMessages = async function(filters = {}) {
+  return await apiClient.getAdminDeletedMessages(filters);
+};
+
 User.getAdminOpsOverview = async function() {
   return await apiClient.getAdminOpsOverview();
 };
@@ -795,6 +799,31 @@ export const Message = {
       await db.update('messages', { where: { id } }, updateData);
       const messages = await db.select('messages', { where: { id } });
       return messages[0];
+    }
+  },
+
+  async delete(id) {
+    try {
+      return await apiClient.deleteMessage(id);
+    } catch (error) {
+      console.error('API delete failed, using fallback:', error);
+      if (!dbAvailable) throw error;
+      await db.delete('messages', { where: { id } });
+      return { ok: true, deleted: 1 };
+    }
+  },
+
+  async clearConversation(params = {}) {
+    try {
+      return await apiClient.clearConversationMessages(params);
+    } catch (error) {
+      console.error('API clear conversation failed, using fallback:', error);
+      if (!dbAvailable) throw error;
+      const where = {};
+      if (params.booking_id) where.booking_id = params.booking_id;
+      if (params.direct_user_id) throw error;
+      await db.delete('messages', { where });
+      return { ok: true };
     }
   }
 };

@@ -396,6 +396,7 @@ const rawHandler = async (event) => {
 
           const publicFields = `
             id,
+            member_public_id,
             full_name,
             avatar_url,
             user_type,
@@ -413,6 +414,7 @@ const rawHandler = async (event) => {
           `;
           const adminListFields = `
             id,
+            member_public_id,
             full_name,
             email,
             user_type,
@@ -487,7 +489,11 @@ const rawHandler = async (event) => {
               )`);
               params.push(`%${q}%`);
             } else if (isAdmin) {
-              conditions.push(`(full_name ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1})`);
+              conditions.push(`(
+                full_name ILIKE $${params.length + 1}
+                OR email ILIKE $${params.length + 1}
+                OR member_public_id ILIKE $${params.length + 1}
+              )`);
               params.push(`%${q}%`);
             }
           }

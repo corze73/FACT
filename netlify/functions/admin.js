@@ -308,6 +308,105 @@ const listAuditLogs = async ({ event, headers, adminId }) => {
   }
 };
 
+const listDeletedMessages = async ({ event, headers, adminId }) => {
+  const q = event.queryStringParameters || {};
+  const limit = parseLimit(q.limit, 20, 100);
+  const offset = parseOffset(q.offset, 0);
+  const includeTotal = q.include_total === '1' || q.include_total === 'true';
+  const deletedBy = typeof q.deleted_by_user_id === 'string' ? q.deleted_by_user_id.trim() : '';
+  const bookingId = typeof q.booking_id === 'string' ? q.booking_id.trim() : '';
+  const scope = typeof q.deletion_scope === 'string' ? q.deletion_scope.trim() : '';
+
+  if (limit === null || offset === null) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
+  }
+
+  if (deletedBy && !isUuid(deletedBy)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid deleted_by_user_id format' }) };
+  }
+
+  if (bookingId && !isUuid(bookingId)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid booking_id format' }) };
+  }
+
+  if (scope && !['single', 'conversation_clear'].includes(scope)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid deletion_scope value' }) };
+  }
+
+  const params = [];
+  const conditions = [];
+
+  if (deletedBy) {
+    conditions.push(`dm.deleted_by_user_id = $${params.length + 1}::uuid`);
+    params.push(deletedBy);
+  }
+
+  if (bookingId) {
+    conditions.push(`dm.booking_id = $${params.length + 1}::uuid`);
+    params.push(bookingId);
+  }
+
+  if (scope) {
+    conditions.push(`dm.deletion_scope = $${params.length + 1}`);
+    params.push(scope);
+  }
+
+  const query = `
+    SELECT
+      dm.id,
+      dm.original_message_id,
+      dm.booking_id,
+      dm.sender_id,
+      dm.receiver_id,
+      dm.content,
+      dm.created_date,
+      dm.deleted_by_user_id,
+      dm.deleted_at,
+      dm.deletion_scope,
+      dm.metadata,
+      deleter.full_name AS deleted_by_name,
+      sender.full_name AS sender_name,
+      receiver.full_name AS receiver_name
+      ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
+    FROM deleted_messages dm
+    LEFT JOIN profiles deleter ON deleter.id = dm.deleted_by_user_id
+    LEFT JOIN profiles sender ON sender.id = dm.sender_id
+    LEFT JOIN profiles receiver ON receiver.id = dm.receiver_id
+    ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
+    ORDER BY dm.deleted_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  try {
+    const rows = await executeQuery(withUserCtx(query, adminId), params);
+
+    if (includeTotal) {
+      const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+      const data = rows.map(({ total_count, ...rest }) => rest);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data, total, limit, offset })
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ data: rows, limit, offset })
+    };
+  } catch (error) {
+    if (isMissingRelationError(error, 'deleted_messages')) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data: [], total: 0, limit, offset })
+      };
+    }
+    throw error;
+  }
+};
+
 const rawHandler = async (event) => {
   const headers = getHeaders(event);
 
@@ -335,6 +434,7 @@ const rawHandler = async (event) => {
     const pathParts = (event.path || '').split('/').filter(Boolean);
     const verificationsIdx = pathParts.findIndex((part) => part === 'verifications');
     const auditLogsIdx = pathParts.findIndex((part) => part === 'audit-logs');
+    const deletedMessagesIdx = pathParts.findIndex((part) => part === 'deleted-messages');
     const coachId = verificationsIdx >= 0 ? pathParts[verificationsIdx + 1] : null;
 
     if (event.httpMethod === 'GET' && verificationsIdx >= 0) {
@@ -343,6 +443,10 @@ const rawHandler = async (event) => {
 
     if (event.httpMethod === 'GET' && auditLogsIdx >= 0) {
       return await listAuditLogs({ event, headers, adminId: auth.userId });
+    }
+
+    if (event.httpMethod === 'GET' && deletedMessagesIdx >= 0) {
+      return await listDeletedMessages({ event, headers, adminId: auth.userId });
     }
 
     if (event.httpMethod === 'PATCH' && verificationsIdx >= 0 && coachId) {

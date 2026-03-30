@@ -257,7 +257,7 @@ export default function AdminUsers() {
           </CardHeader>
           <CardContent>
             <div className="mb-4">
-              <Input placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input placeholder="Search by name, email, or member ID..." value={search} onChange={(e) => setSearch(e.target.value)} />
               {isFetching && !loading && (
                 <p className="text-xs text-slate-500 mt-2">Updating users...</p>
               )}
@@ -281,6 +281,9 @@ export default function AdminUsers() {
                           </div>
                           {/* Hide email (PII) for GDPR */}
                           <p className="text-xs text-slate-500">Email hidden</p>
+                          {u.member_public_id && (
+                            <p className="text-xs text-slate-600 mt-1">Member ID: {u.member_public_id}</p>
+                          )}
                           <div className="flex gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="capitalize">{u.user_type || "member"}</Badge>
                             <Badge className={u.user_type === "admin" ? "bg-yellow-100 text-yellow-800" : "bg-slate-100 text-slate-700"}>{u.user_type === 'admin' ? 'admin' : 'member'}</Badge>

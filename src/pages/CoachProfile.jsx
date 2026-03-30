@@ -71,6 +71,7 @@ export default function CoachProfile() {
       
       setFormData({
         id: userToLoad.id,
+        member_public_id: userToLoad.member_public_id || '',
         full_name: userToLoad.full_name || '',
         phone: userToLoad.phone || '',
         location: { address: userToLoad.location?.address || userToLoad.location || '' },
@@ -432,6 +433,17 @@ export default function CoachProfile() {
               <div className="grid lg:grid-cols-2 gap-8">
                 {/* Left Column - Form Fields */}
                 <div className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="member_public_id">Member ID</Label>
+                    <Input
+                      id="member_public_id"
+                      value={formData.member_public_id || 'Will be assigned automatically'}
+                      readOnly
+                      disabled
+                    />
+                    <p className="text-xs text-slate-500">This unique ID is assigned automatically and cannot be edited.</p>
+                  </div>
+
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="full_name">Full Name</Label>

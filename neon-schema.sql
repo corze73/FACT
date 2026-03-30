@@ -3,6 +3,7 @@
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    member_public_id TEXT UNIQUE,
     email TEXT UNIQUE NOT NULL,
     full_name TEXT,
     user_type TEXT CHECK (user_type IN ('user', 'coach', 'admin')) DEFAULT 'user',
@@ -59,6 +60,22 @@ CREATE TABLE IF NOT EXISTS messages (
     is_read BOOLEAN DEFAULT false
 );
 
+CREATE TABLE IF NOT EXISTS deleted_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    original_message_id UUID,
+    sender_id UUID REFERENCES profiles(id),
+    receiver_id UUID REFERENCES profiles(id),
+    booking_id UUID REFERENCES bookings(id),
+    content TEXT NOT NULL,
+    created_date TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    is_read BOOLEAN DEFAULT false,
+    deleted_by_user_id UUID REFERENCES profiles(id),
+    deleted_at TIMESTAMPTZ DEFAULT NOW(),
+    deletion_scope TEXT DEFAULT 'single',
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
 -- Create reviews table
 CREATE TABLE IF NOT EXISTS reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -73,6 +90,7 @@ CREATE TABLE IF NOT EXISTS reviews (
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_member_public_id ON profiles(member_public_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_user_type ON profiles(user_type);
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_coach_id ON bookings(coach_id);
@@ -80,6 +98,8 @@ CREATE INDEX IF NOT EXISTS idx_bookings_client_id ON bookings(client_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_deleted_messages_original_message_id ON deleted_messages(original_message_id);
+CREATE INDEX IF NOT EXISTS idx_deleted_messages_deleted_at ON deleted_messages(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_reviews_booking_id ON reviews(booking_id);
 
 -- Add update triggers for updated_at columns

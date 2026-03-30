@@ -6,7 +6,7 @@ import { Booking } from '@/api/entities.jsx';
 import { apiClient } from '@/api/apiClient.js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl, isAdminUser } from '@/utils';
 import MessageBubble from '../components/messaging/MessageBubble';
@@ -30,6 +30,9 @@ export default function Conversation() {
     const [directUser, setDirectUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [validationError, setValidationError] = useState('');
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedMessageIds, setSelectedMessageIds] = useState([]);
+    const [isClearing, setIsClearing] = useState(false);
     const messagesEndRef = useRef(null);
     const navigate = useNavigate();
 
@@ -103,6 +106,14 @@ export default function Conversation() {
             const unreadMessages = conversationMessages.filter(m => m.receiver_id === user.id && !m.is_read);
             for (const msg of unreadMessages) {
                 await Message.update(msg.id, { is_read: true });
+            }
+
+            if (unreadMessages.length > 0) {
+                setMessages(conversationMessages.map((msg) => (
+                    unreadMessages.some((unread) => unread.id === msg.id)
+                        ? { ...msg, is_read: true }
+                        : msg
+                )));
             }
 
         } catch (error) {
@@ -221,6 +232,53 @@ export default function Conversation() {
         await sendPreparedMessage(failedMessageData, false);
     };
 
+    const toggleSelection = (messageId) => {
+        setSelectedMessageIds((prev) => (
+            prev.includes(messageId)
+                ? prev.filter((id) => id !== messageId)
+                : [...prev, messageId]
+        ));
+    };
+
+    const exitSelectionMode = () => {
+        setSelectionMode(false);
+        setSelectedMessageIds([]);
+    };
+
+    const handleClearSelected = async () => {
+        if (selectedMessageIds.length === 0) return;
+        if (!window.confirm(`Delete ${selectedMessageIds.length} selected message(s)? This cannot be undone.`)) return;
+        setIsClearing(true);
+        try {
+            await Promise.all(selectedMessageIds.map((messageId) => Message.delete(messageId)));
+            setMessages((prev) => prev.filter((msg) => !selectedMessageIds.includes(msg.id)));
+            exitSelectionMode();
+        } catch (error) {
+            alert(error?.message || 'Failed to delete selected messages');
+        } finally {
+            setIsClearing(false);
+        }
+    };
+
+    const handleClearAll = async () => {
+        const label = mode === 'direct' ? 'this conversation' : 'all messages for this booking';
+        if (!window.confirm(`Clear ${label}? This cannot be undone.`)) return;
+        setIsClearing(true);
+        try {
+            await Message.clearConversation(
+                mode === 'direct'
+                    ? { direct_user_id: directUserId }
+                    : { booking_id: bookingId }
+            );
+            setMessages([]);
+            exitSelectionMode();
+        } catch (error) {
+            alert(error?.message || 'Failed to clear conversation');
+        } finally {
+            setIsClearing(false);
+        }
+    };
+
     if (isLoading) return <div className="h-screen flex items-center justify-center">Loading conversation...</div>;
     if (!currentUser) return <div className="h-screen flex items-center justify-center">Conversation not found.</div>;
 
@@ -271,13 +329,44 @@ export default function Conversation() {
                             Re: {booking.service_type.replace(/_/g, ' ')} Session
                         </p>
                     )}
+                    {messages.length > 0 && (
+                        <div className="flex items-center gap-2 ml-2">
+                            {!selectionMode ? (
+                                <Button type="button" variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                                    Select
+                                </Button>
+                            ) : (
+                                <>
+                                    <Button type="button" variant="outline" size="sm" onClick={exitSelectionMode} disabled={isClearing}>
+                                        <X className="w-4 h-4 mr-1" />
+                                        Cancel
+                                    </Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={handleClearSelected} disabled={selectedMessageIds.length === 0 || isClearing}>
+                                        <Trash2 className="w-4 h-4 mr-1" />
+                                        Clear Selected
+                                    </Button>
+                                </>
+                            )}
+                            <Button type="button" variant="outline" size="sm" onClick={handleClearAll} disabled={isClearing}>
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Clear All
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </header>
 
             {/* Messages */}
             <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                 {messages.map(msg => (
-                    <MessageBubble key={msg.id} message={msg} currentUser={currentUser} />
+                    <MessageBubble
+                        key={msg.id}
+                        message={msg}
+                        currentUser={currentUser}
+                        selectionMode={selectionMode}
+                        isSelected={selectedMessageIds.includes(msg.id)}
+                        onToggleSelect={toggleSelection}
+                    />
                 ))}
                 <div ref={messagesEndRef} />
             </main>

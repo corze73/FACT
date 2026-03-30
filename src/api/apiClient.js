@@ -338,6 +338,19 @@ class APIClient {
     });
   }
 
+  async deleteMessage(messageId) {
+    return this.request(`/messages/${messageId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async clearConversationMessages({ booking_id, direct_user_id }) {
+    const params = this.buildQueryParams({ booking_id, direct_user_id });
+    return this.request(`/messages?${params}`, {
+      method: 'DELETE'
+    });
+  }
+
   // ========== COMPLIANCE / VERIFICATIONS ==========
 
   async uploadComplianceFile(file, documentType = 'qualification') {
@@ -373,6 +386,11 @@ class APIClient {
   async getAdminAuditLogs(filters = {}) {
     const params = this.buildQueryParams(filters);
     return this.request(`/admin/audit-logs?${params}`);
+  }
+
+  async getAdminDeletedMessages(filters = {}) {
+    const params = this.buildQueryParams(filters);
+    return this.request(`/admin/deleted-messages?${params}`);
   }
 
   // ========== ADMIN OPS ==========

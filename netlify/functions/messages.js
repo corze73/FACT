@@ -67,6 +67,65 @@ const rawHandler = async (event) => {
       return `WITH ${ctxCte} ${trimmed}`;
     };
 
+    const tableExists = async (tableName) => {
+      const row = await executeQueryOne('SELECT to_regclass($1) AS table_name', [`public.${tableName}`]);
+      return Boolean(row?.table_name);
+    };
+
+    const logMessageAction = async ({ action, targetUserId = null, metadata = {} }) => {
+      if (!(await tableExists('admin_action_logs'))) return;
+      await executeQuery(
+        withUserCtx(
+          `INSERT INTO admin_action_logs (actor_user_id, action, target_user_id, metadata, created_at)
+           VALUES ($1, $2, $3, $4::jsonb, NOW())`,
+          currentUserId
+        ),
+        [currentUserId, action, targetUserId, JSON.stringify(metadata)]
+      );
+    };
+
+    const archiveDeletedMessages = async ({ rows, deletionScope, metadata = {} }) => {
+      if (!Array.isArray(rows) || rows.length === 0) return;
+      if (!(await tableExists('deleted_messages'))) return;
+
+      await Promise.all(
+        rows.map((row) => executeQuery(
+          withUserCtx(
+            `INSERT INTO deleted_messages (
+              original_message_id,
+              booking_id,
+              sender_id,
+              receiver_id,
+              content,
+              created_date,
+              updated_at,
+              is_read,
+              deleted_by_user_id,
+              deleted_at,
+              deletion_scope,
+              metadata
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, $11::jsonb
+            )`,
+            currentUserId
+          ),
+          [
+            row.id,
+            row.booking_id,
+            row.sender_id,
+            row.receiver_id,
+            row.content,
+            row.created_date,
+            row.updated_at,
+            row.is_read,
+            currentUserId,
+            deletionScope,
+            JSON.stringify(metadata)
+          ]
+        ))
+      );
+    };
+
     switch (event.httpMethod) {
       case 'GET': {
         // 1) Conversation for a specific booking
@@ -276,6 +335,163 @@ const rawHandler = async (event) => {
           statusCode: 200,
           headers,
           body: JSON.stringify(updatedMessage)
+        };
+      }
+
+      case 'DELETE': {
+        if (messageId && messageId !== 'messages') {
+          const baseDelete = `
+            DELETE FROM messages
+            WHERE id = $1
+              AND ($2::boolean = true OR sender_id = $3 OR receiver_id = $3)
+            RETURNING *`;
+
+          const deletedMessage = await executeQueryOne(
+            withUserCtx(baseDelete, currentUserId),
+            [messageId, isAdmin, currentUserId]
+          );
+
+          if (!deletedMessage) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Message not found' })
+            };
+          }
+
+          const targetUserId = deletedMessage.sender_id === currentUserId
+            ? deletedMessage.receiver_id
+            : deletedMessage.sender_id;
+
+          await archiveDeletedMessages({
+            rows: [deletedMessage],
+            deletionScope: 'single',
+            metadata: {
+              action: 'message_deleted',
+              target_user_id: targetUserId
+            }
+          });
+
+          await logMessageAction({
+            action: 'message_deleted',
+            targetUserId,
+            metadata: {
+              message_id: deletedMessage.id,
+              booking_id: deletedMessage.booking_id,
+              content: deletedMessage.content,
+              sender_id: deletedMessage.sender_id,
+              receiver_id: deletedMessage.receiver_id,
+              created_date: deletedMessage.created_date
+            }
+          });
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ ok: true, deleted: 1 })
+          };
+        }
+
+        const hasBookingConversation = Boolean(queryStringParameters?.booking_id);
+        const hasDirectConversation = Boolean(queryStringParameters?.direct_user_id);
+
+        if (!hasBookingConversation && !hasDirectConversation) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Message ID, booking_id, or direct_user_id is required' })
+          };
+        }
+
+        let deletedRows = [];
+        let targetUserId = null;
+
+        if (hasBookingConversation) {
+          const conversationBookingId = queryStringParameters.booking_id;
+          const baseDelete = `
+            DELETE FROM messages
+            WHERE booking_id = $1
+              AND ($2::boolean = true OR sender_id = $3 OR receiver_id = $3)
+            RETURNING *`;
+
+          deletedRows = await executeQuery(
+            withUserCtx(baseDelete, currentUserId),
+            [conversationBookingId, isAdmin, currentUserId]
+          );
+
+          const booking = await executeQueryOne(
+            withUserCtx('SELECT client_id, coach_id FROM bookings WHERE id = $1', currentUserId),
+            [conversationBookingId]
+          );
+          if (booking) {
+            targetUserId = booking.client_id === currentUserId ? booking.coach_id : booking.client_id;
+          }
+
+          await archiveDeletedMessages({
+            rows: deletedRows,
+            deletionScope: 'conversation_clear',
+            metadata: {
+              action: 'message_conversation_cleared',
+              booking_id: conversationBookingId,
+              target_user_id: targetUserId,
+              deleted_count: deletedRows.length,
+              mode: 'booking'
+            }
+          });
+
+          await logMessageAction({
+            action: 'message_conversation_cleared',
+            targetUserId,
+            metadata: {
+              booking_id: conversationBookingId,
+              deleted_count: deletedRows.length,
+              mode: 'booking'
+            }
+          });
+        } else {
+          const otherUserId = queryStringParameters.direct_user_id;
+          targetUserId = otherUserId;
+          const baseDelete = `
+            DELETE FROM messages
+            WHERE booking_id IS NULL
+              AND (
+                (sender_id = $1 AND receiver_id = $2) OR
+                (sender_id = $2 AND receiver_id = $1)
+              )
+            RETURNING *`;
+
+          deletedRows = await executeQuery(
+            withUserCtx(baseDelete, currentUserId),
+            [currentUserId, otherUserId]
+          );
+
+          await archiveDeletedMessages({
+            rows: deletedRows,
+            deletionScope: 'conversation_clear',
+            metadata: {
+              action: 'message_conversation_cleared',
+              direct_user_id: otherUserId,
+              target_user_id: otherUserId,
+              deleted_count: deletedRows.length,
+              mode: 'direct'
+            }
+          });
+
+          await logMessageAction({
+            action: 'message_conversation_cleared',
+            targetUserId,
+            metadata: {
+              direct_user_id: otherUserId,
+              deleted_count: deletedRows.length,
+              mode: 'direct'
+            }
+          });
+        }
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ ok: true, deleted: deletedRows.length })
         };
       }
 
