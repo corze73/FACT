@@ -363,6 +363,14 @@ class APIClient {
     });
   }
 
+  async restoreArchivedMessage(id) {
+    const params = this.buildQueryParams({ restore_archive_id: id });
+    return this.request(`/messages?${params}`, {
+      method: 'PUT',
+      body: JSON.stringify({})
+    });
+  }
+
   // ========== COMPLIANCE / VERIFICATIONS ==========
 
   async uploadComplianceFile(file, documentType = 'qualification') {

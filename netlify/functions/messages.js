@@ -161,10 +161,12 @@ const rawHandler = async (event) => {
           const query = `
             SELECT dm.*,
                    s.full_name AS sender_name,
-                   r.full_name AS receiver_name
+                 r.full_name AS receiver_name,
+                 (m.id IS NOT NULL) AS message_still_exists
             FROM deleted_messages dm
             LEFT JOIN profiles s ON s.id = dm.sender_id
             LEFT JOIN profiles r ON r.id = dm.receiver_id
+               LEFT JOIN messages m ON m.id = dm.original_message_id
             WHERE ${conditions.join(' AND ')}
             ORDER BY dm.deleted_at DESC
             LIMIT ${limit} OFFSET ${offset}`;
@@ -358,6 +360,76 @@ const rawHandler = async (event) => {
       }
 
       case 'PUT': {
+        if (queryStringParameters?.restore_archive_id) {
+          const archiveId = queryStringParameters.restore_archive_id;
+
+          let archivedRow = null;
+          try {
+            archivedRow = await executeQueryOne(
+              withUserCtx(
+                `SELECT *
+                 FROM deleted_messages
+                 WHERE id = $1
+                   AND deleted_by_user_id = $2`,
+                currentUserId
+              ),
+              [archiveId, currentUserId]
+            );
+          } catch (error) {
+            if (!isMissingRelationError(error, 'deleted_messages')) throw error;
+          }
+
+          if (!archivedRow) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Deleted message record not found' })
+            };
+          }
+
+          const restoredMessage = await executeQueryOne(
+            withUserCtx(
+              `UPDATE messages
+               SET deleted_by_sender_at = CASE WHEN sender_id = $2 THEN NULL ELSE deleted_by_sender_at END,
+                   deleted_by_receiver_at = CASE WHEN receiver_id = $2 THEN NULL ELSE deleted_by_receiver_at END,
+                   updated_at = NOW()
+               WHERE id = $1
+                 AND (sender_id = $2 OR receiver_id = $2)
+               RETURNING *`,
+              currentUserId
+            ),
+            [archivedRow.original_message_id, currentUserId]
+          );
+
+          if (!restoredMessage) {
+            return {
+              statusCode: 409,
+              headers,
+              body: JSON.stringify({ error: 'Message can no longer be restored' })
+            };
+          }
+
+          try {
+            await executeQuery(
+              withUserCtx(
+                `DELETE FROM deleted_messages
+                 WHERE original_message_id = $1
+                   AND deleted_by_user_id = $2`,
+                currentUserId
+              ),
+              [archivedRow.original_message_id, currentUserId]
+            );
+          } catch (error) {
+            if (!isMissingRelationError(error, 'deleted_messages')) throw error;
+          }
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(restoredMessage)
+          };
+        }
+
         // Update message (typically to mark as read)
         if (!messageId || messageId === 'messages') {
           return {

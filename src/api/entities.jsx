@@ -843,6 +843,15 @@ export const Message = {
       console.error('API permanent delete archived message failed:', error);
       throw error;
     }
+  },
+
+  async restoreArchived(id) {
+    try {
+      return await apiClient.restoreArchivedMessage(id);
+    } catch (error) {
+      console.error('API restore archived message failed:', error);
+      throw error;
+    }
   }
 };
 

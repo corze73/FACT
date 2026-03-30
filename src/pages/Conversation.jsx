@@ -317,6 +317,16 @@ export default function Conversation() {
         }
     };
 
+    const handleRestoreArchived = async (archiveId) => {
+        try {
+            await Message.restoreArchived(archiveId);
+            await loadConversation();
+            await loadDeletedMessages();
+        } catch (error) {
+            alert(error?.message || 'Failed to restore deleted message');
+        }
+    };
+
     if (isLoading) return <div className="h-screen flex items-center justify-center">Loading conversation...</div>;
     if (!currentUser) return <div className="h-screen flex items-center justify-center">Conversation not found.</div>;
 
@@ -421,15 +431,26 @@ export default function Conversation() {
                                             </p>
                                             <p className="text-sm text-slate-700 break-words whitespace-pre-wrap">{row.content}</p>
                                         </div>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-red-700 border-red-200 hover:bg-red-50"
-                                            onClick={() => handlePermanentDeleteArchived(row.id)}
-                                        >
-                                            Permanent Delete
-                                        </Button>
+                                        <div className="flex flex-col gap-2 shrink-0">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={!row.message_still_exists}
+                                                onClick={() => handleRestoreArchived(row.id)}
+                                            >
+                                                Restore
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-red-700 border-red-200 hover:bg-red-50"
+                                                onClick={() => handlePermanentDeleteArchived(row.id)}
+                                            >
+                                                Permanent Delete
+                                            </Button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
