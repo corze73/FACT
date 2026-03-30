@@ -351,6 +351,18 @@ class APIClient {
     });
   }
 
+  async listDeletedMessages(filters = {}) {
+    const params = this.buildQueryParams({ deleted: 1, ...filters });
+    return this.request(`/messages?${params}`);
+  }
+
+  async permanentlyDeleteArchivedMessage(id) {
+    const params = this.buildQueryParams({ deleted_archive_id: id });
+    return this.request(`/messages?${params}`, {
+      method: 'DELETE'
+    });
+  }
+
   // ========== COMPLIANCE / VERIFICATIONS ==========
 
   async uploadComplianceFile(file, documentType = 'qualification') {

@@ -33,6 +33,9 @@ export default function Conversation() {
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedMessageIds, setSelectedMessageIds] = useState([]);
     const [isClearing, setIsClearing] = useState(false);
+    const [showDeletedPanel, setShowDeletedPanel] = useState(false);
+    const [deletedMessages, setDeletedMessages] = useState([]);
+    const [isLoadingDeleted, setIsLoadingDeleted] = useState(false);
     const messagesEndRef = useRef(null);
     const navigate = useNavigate();
 
@@ -279,6 +282,41 @@ export default function Conversation() {
         }
     };
 
+    const loadDeletedMessages = useCallback(async () => {
+        setIsLoadingDeleted(true);
+        try {
+            const rows = await Message.listDeleted(
+                mode === 'direct'
+                    ? { direct_user_id: directUserId, limit: 100 }
+                    : { booking_id: bookingId, limit: 100 }
+            );
+            setDeletedMessages(Array.isArray(rows) ? rows : []);
+        } catch (error) {
+            console.error('Failed to load deleted messages', error);
+            setDeletedMessages([]);
+        } finally {
+            setIsLoadingDeleted(false);
+        }
+    }, [bookingId, directUserId, mode]);
+
+    const handleToggleDeletedPanel = async () => {
+        const next = !showDeletedPanel;
+        setShowDeletedPanel(next);
+        if (next) {
+            await loadDeletedMessages();
+        }
+    };
+
+    const handlePermanentDeleteArchived = async (archiveId) => {
+        if (!window.confirm('Permanently remove this message from Deleted Messages? This cannot be undone.')) return;
+        try {
+            await Message.permanentlyDeleteArchived(archiveId);
+            setDeletedMessages((prev) => prev.filter((row) => row.id !== archiveId));
+        } catch (error) {
+            alert(error?.message || 'Failed to permanently delete archived message');
+        }
+    };
+
     if (isLoading) return <div className="h-screen flex items-center justify-center">Loading conversation...</div>;
     if (!currentUser) return <div className="h-screen flex items-center justify-center">Conversation not found.</div>;
 
@@ -351,10 +389,54 @@ export default function Conversation() {
                                 <Trash2 className="w-4 h-4 mr-1" />
                                 Clear All
                             </Button>
+                            <Button type="button" variant="outline" size="sm" onClick={handleToggleDeletedPanel}>
+                                {showDeletedPanel ? 'Hide Deleted' : 'Deleted Messages'}
+                            </Button>
                         </div>
                     )}
                 </div>
             </header>
+
+            {showDeletedPanel && (
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="max-w-5xl mx-auto">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-semibold text-slate-800">Deleted Messages</h3>
+                            <Button type="button" variant="ghost" size="sm" onClick={loadDeletedMessages} disabled={isLoadingDeleted}>
+                                Refresh
+                            </Button>
+                        </div>
+
+                        {isLoadingDeleted ? (
+                            <p className="text-sm text-slate-500">Loading deleted messages...</p>
+                        ) : deletedMessages.length === 0 ? (
+                            <p className="text-sm text-slate-500">No deleted messages in this conversation.</p>
+                        ) : (
+                            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                                {deletedMessages.map((row) => (
+                                    <div key={row.id} className="rounded border border-slate-200 bg-white p-2 flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-slate-500">
+                                                Deleted {new Date(row.deleted_at).toLocaleString()}
+                                            </p>
+                                            <p className="text-sm text-slate-700 break-words whitespace-pre-wrap">{row.content}</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-red-700 border-red-200 hover:bg-red-50"
+                                            onClick={() => handlePermanentDeleteArchived(row.id)}
+                                        >
+                                            Permanent Delete
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Messages */}
             <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">

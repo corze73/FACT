@@ -23,6 +23,11 @@ const getHeaders = (event) => ({
   'Content-Type': 'application/json'
 });
 
+const isMissingRelationError = (error, relationName) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes(`relation \"${relationName}\" does not exist`) || message.includes(`relation '${relationName}' does not exist`);
+};
+
 /**
  * Netlify Function: Message Operations
  * Endpoints:
@@ -128,6 +133,55 @@ const rawHandler = async (event) => {
 
     switch (event.httpMethod) {
       case 'GET': {
+        // 0) List deleted messages archive for current user
+        if (queryStringParameters?.deleted === '1') {
+          const limitRaw = Number(queryStringParameters?.limit ?? 50);
+          const offsetRaw = Number(queryStringParameters?.offset ?? 0);
+          const limit = Number.isInteger(limitRaw) && limitRaw >= 1 && limitRaw <= 100 ? limitRaw : 50;
+          const offset = Number.isInteger(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
+
+          const conditions = ['dm.deleted_by_user_id = $1'];
+          const params = [currentUserId];
+
+          if (queryStringParameters?.booking_id) {
+            conditions.push(`dm.booking_id = $${params.length + 1}`);
+            params.push(queryStringParameters.booking_id);
+          }
+
+          if (queryStringParameters?.direct_user_id) {
+            const directId = queryStringParameters.direct_user_id;
+            conditions.push(`(
+              (dm.sender_id = $${params.length + 1} AND dm.receiver_id = $1)
+              OR
+              (dm.sender_id = $1 AND dm.receiver_id = $${params.length + 1})
+            )`);
+            params.push(directId);
+          }
+
+          const query = `
+            SELECT dm.*,
+                   s.full_name AS sender_name,
+                   r.full_name AS receiver_name
+            FROM deleted_messages dm
+            LEFT JOIN profiles s ON s.id = dm.sender_id
+            LEFT JOIN profiles r ON r.id = dm.receiver_id
+            WHERE ${conditions.join(' AND ')}
+            ORDER BY dm.deleted_at DESC
+            LIMIT ${limit} OFFSET ${offset}`;
+
+          let rows = [];
+          try {
+            rows = await executeQuery(withUserCtx(query, currentUserId), params);
+          } catch (error) {
+            if (!isMissingRelationError(error, 'deleted_messages')) throw error;
+          }
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify(rows)
+          };
+        }
+
         // 1) Conversation for a specific booking
         if (queryStringParameters?.booking_id) {
           const baseQuery = `
@@ -138,10 +192,12 @@ const rawHandler = async (event) => {
             LEFT JOIN profiles s ON m.sender_id = s.id
             LEFT JOIN profiles r ON m.receiver_id = r.id
             WHERE m.booking_id = $1
+              AND NOT ((m.sender_id = $2 AND m.deleted_by_sender_at IS NOT NULL)
+                OR (m.receiver_id = $2 AND m.deleted_by_receiver_at IS NOT NULL))
             ORDER BY m.created_date ASC`;
 
           const finalQuery = currentUserId ? withUserCtx(baseQuery, currentUserId) : baseQuery;
-          const messages = await executeQuery(finalQuery, [queryStringParameters.booking_id]);
+          const messages = await executeQuery(finalQuery, [queryStringParameters.booking_id, currentUserId]);
 
           return {
             statusCode: 200,
@@ -168,6 +224,8 @@ const rawHandler = async (event) => {
             LEFT JOIN profiles s ON m.sender_id = s.id
             LEFT JOIN profiles r ON m.receiver_id = r.id
             WHERE m.booking_id IS NULL
+              AND NOT ((m.sender_id = $1 AND m.deleted_by_sender_at IS NOT NULL)
+                OR (m.receiver_id = $1 AND m.deleted_by_receiver_at IS NOT NULL))
               AND (
                 (m.sender_id = $1 AND m.receiver_id = $2) OR
                 (m.sender_id = $2 AND m.receiver_id = $1)
@@ -201,6 +259,8 @@ const rawHandler = async (event) => {
               FROM messages m
               WHERE m.booking_id IS NULL
                 AND (m.sender_id = $1 OR m.receiver_id = $1)
+                AND NOT ((m.sender_id = $1 AND m.deleted_by_sender_at IS NOT NULL)
+                  OR (m.receiver_id = $1 AND m.deleted_by_receiver_at IS NOT NULL))
             )
             SELECT DISTINCT ON (other_user_id)
               id,
@@ -339,19 +399,52 @@ const rawHandler = async (event) => {
       }
 
       case 'DELETE': {
-        if (messageId && messageId !== 'messages') {
-          const baseDelete = `
-            DELETE FROM messages
-            WHERE id = $1
-              AND ($2::boolean = true OR sender_id = $3 OR receiver_id = $3)
-            RETURNING *`;
+        if (queryStringParameters?.deleted_archive_id) {
+          const archiveId = queryStringParameters.deleted_archive_id;
+          let deleted = null;
+          try {
+            deleted = await executeQueryOne(
+              withUserCtx(
+                `DELETE FROM deleted_messages
+                 WHERE id = $1
+                   AND deleted_by_user_id = $2
+                 RETURNING id`,
+                currentUserId
+              ),
+              [archiveId, currentUserId]
+            );
+          } catch (error) {
+            if (!isMissingRelationError(error, 'deleted_messages')) throw error;
+          }
 
-          const deletedMessage = await executeQueryOne(
-            withUserCtx(baseDelete, currentUserId),
-            [messageId, isAdmin, currentUserId]
+          if (!deleted) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Deleted message record not found' })
+            };
+          }
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ ok: true })
+          };
+        }
+
+        if (messageId && messageId !== 'messages') {
+          const baseSelect = `
+            SELECT *
+            FROM messages
+            WHERE id = $1
+              AND (sender_id = $2 OR receiver_id = $2)`;
+
+          const targetMessage = await executeQueryOne(
+            withUserCtx(baseSelect, currentUserId),
+            [messageId, currentUserId]
           );
 
-          if (!deletedMessage) {
+          if (!targetMessage) {
             return {
               statusCode: 404,
               headers,
@@ -359,12 +452,25 @@ const rawHandler = async (event) => {
             };
           }
 
-          const targetUserId = deletedMessage.sender_id === currentUserId
-            ? deletedMessage.receiver_id
-            : deletedMessage.sender_id;
+          const targetUserId = targetMessage.sender_id === currentUserId
+            ? targetMessage.receiver_id
+            : targetMessage.sender_id;
+
+          const updateQuery = `
+            UPDATE messages
+            SET deleted_by_sender_at = CASE WHEN sender_id = $2 THEN NOW() ELSE deleted_by_sender_at END,
+                deleted_by_receiver_at = CASE WHEN receiver_id = $2 THEN NOW() ELSE deleted_by_receiver_at END,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *`;
+
+          const updatedMessage = await executeQueryOne(
+            withUserCtx(updateQuery, currentUserId),
+            [messageId, currentUserId]
+          );
 
           await archiveDeletedMessages({
-            rows: [deletedMessage],
+            rows: [updatedMessage || targetMessage],
             deletionScope: 'single',
             metadata: {
               action: 'message_deleted',
@@ -376,14 +482,25 @@ const rawHandler = async (event) => {
             action: 'message_deleted',
             targetUserId,
             metadata: {
-              message_id: deletedMessage.id,
-              booking_id: deletedMessage.booking_id,
-              content: deletedMessage.content,
-              sender_id: deletedMessage.sender_id,
-              receiver_id: deletedMessage.receiver_id,
-              created_date: deletedMessage.created_date
+              message_id: targetMessage.id,
+              booking_id: targetMessage.booking_id,
+              content: targetMessage.content,
+              sender_id: targetMessage.sender_id,
+              receiver_id: targetMessage.receiver_id,
+              created_date: targetMessage.created_date
             }
           });
+
+          await executeQuery(
+            withUserCtx(
+              `DELETE FROM messages
+               WHERE id = $1
+                 AND deleted_by_sender_at IS NOT NULL
+                 AND deleted_by_receiver_at IS NOT NULL`,
+              currentUserId
+            ),
+            [messageId]
+          );
 
           return {
             statusCode: 200,
@@ -408,15 +525,18 @@ const rawHandler = async (event) => {
 
         if (hasBookingConversation) {
           const conversationBookingId = queryStringParameters.booking_id;
-          const baseDelete = `
-            DELETE FROM messages
+          const baseUpdate = `
+            UPDATE messages
+            SET deleted_by_sender_at = CASE WHEN sender_id = $2 THEN NOW() ELSE deleted_by_sender_at END,
+                deleted_by_receiver_at = CASE WHEN receiver_id = $2 THEN NOW() ELSE deleted_by_receiver_at END,
+                updated_at = NOW()
             WHERE booking_id = $1
-              AND ($2::boolean = true OR sender_id = $3 OR receiver_id = $3)
+              AND (sender_id = $2 OR receiver_id = $2)
             RETURNING *`;
 
           deletedRows = await executeQuery(
-            withUserCtx(baseDelete, currentUserId),
-            [conversationBookingId, isAdmin, currentUserId]
+            withUserCtx(baseUpdate, currentUserId),
+            [conversationBookingId, currentUserId]
           );
 
           const booking = await executeQueryOne(
@@ -448,11 +568,25 @@ const rawHandler = async (event) => {
               mode: 'booking'
             }
           });
+
+          await executeQuery(
+            withUserCtx(
+              `DELETE FROM messages
+               WHERE booking_id = $1
+                 AND deleted_by_sender_at IS NOT NULL
+                 AND deleted_by_receiver_at IS NOT NULL`,
+              currentUserId
+            ),
+            [conversationBookingId]
+          );
         } else {
           const otherUserId = queryStringParameters.direct_user_id;
           targetUserId = otherUserId;
-          const baseDelete = `
-            DELETE FROM messages
+          const baseUpdate = `
+            UPDATE messages
+            SET deleted_by_sender_at = CASE WHEN sender_id = $1 THEN NOW() ELSE deleted_by_sender_at END,
+                deleted_by_receiver_at = CASE WHEN receiver_id = $1 THEN NOW() ELSE deleted_by_receiver_at END,
+                updated_at = NOW()
             WHERE booking_id IS NULL
               AND (
                 (sender_id = $1 AND receiver_id = $2) OR
@@ -461,7 +595,7 @@ const rawHandler = async (event) => {
             RETURNING *`;
 
           deletedRows = await executeQuery(
-            withUserCtx(baseDelete, currentUserId),
+            withUserCtx(baseUpdate, currentUserId),
             [currentUserId, otherUserId]
           );
 
@@ -486,6 +620,21 @@ const rawHandler = async (event) => {
               mode: 'direct'
             }
           });
+
+          await executeQuery(
+            withUserCtx(
+              `DELETE FROM messages
+               WHERE booking_id IS NULL
+                 AND (
+                   (sender_id = $1 AND receiver_id = $2) OR
+                   (sender_id = $2 AND receiver_id = $1)
+                 )
+                 AND deleted_by_sender_at IS NOT NULL
+                 AND deleted_by_receiver_at IS NOT NULL`,
+              currentUserId
+            ),
+            [currentUserId, otherUserId]
+          );
         }
 
         return {

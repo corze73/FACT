@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     created_date TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    is_read BOOLEAN DEFAULT false
+    is_read BOOLEAN DEFAULT false,
+    deleted_by_sender_at TIMESTAMPTZ,
+    deleted_by_receiver_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS deleted_messages (
@@ -98,6 +100,8 @@ CREATE INDEX IF NOT EXISTS idx_bookings_client_id ON bookings(client_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_deleted_by_sender_at ON messages(deleted_by_sender_at);
+CREATE INDEX IF NOT EXISTS idx_messages_deleted_by_receiver_at ON messages(deleted_by_receiver_at);
 CREATE INDEX IF NOT EXISTS idx_deleted_messages_original_message_id ON deleted_messages(original_message_id);
 CREATE INDEX IF NOT EXISTS idx_deleted_messages_deleted_at ON deleted_messages(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_reviews_booking_id ON reviews(booking_id);

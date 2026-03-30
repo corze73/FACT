@@ -825,6 +825,24 @@ export const Message = {
       await db.delete('messages', { where });
       return { ok: true };
     }
+  },
+
+  async listDeleted(filters = {}) {
+    try {
+      return await apiClient.listDeletedMessages(filters);
+    } catch (error) {
+      console.error('API list deleted messages failed:', error);
+      throw error;
+    }
+  },
+
+  async permanentlyDeleteArchived(id) {
+    try {
+      return await apiClient.permanentlyDeleteArchivedMessage(id);
+    } catch (error) {
+      console.error('API permanent delete archived message failed:', error);
+      throw error;
+    }
   }
 };
 
