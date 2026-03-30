@@ -342,7 +342,7 @@ export default function Conversation() {
                 <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
                     <span className="text-lg font-bold text-slate-600">
                         {mode === 'direct'
-                                                    ? directUser?.full_name?.charAt(0)
+                                                    ? (isAdminUser(currentUser) ? directUser?.full_name?.charAt(0) : (isAdminUser(directUser) ? 'S' : directUser?.full_name?.charAt(0)))
                                                     : isAdminUser(currentUser)
                             ? (recipientForAdmin === 'coach'
                                 ? participants?.coach?.full_name?.charAt(0)
@@ -356,7 +356,7 @@ export default function Conversation() {
                         {mode === 'direct'
                                                     ? (isAdminUser(currentUser)
                               ? `Message ${directUser?.full_name || 'User'}`
-                              : directUser?.full_name || 'Conversation')
+                              : (isAdminUser(directUser) ? 'Support Team' : directUser?.full_name || 'Conversation'))
                                                     : isAdminUser(currentUser)
                             ? `Chat for ${booking.service_type.replace(/_/g, ' ')}`
                             : otherUser?.full_name}

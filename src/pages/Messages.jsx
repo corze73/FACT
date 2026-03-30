@@ -71,7 +71,7 @@ export default function Messages() {
                             other_user_name: other?.full_name || 'User',
                             last_message: t.content,
                             last_message_date: t.created_date,
-                            is_read: t.is_read
+                            is_read: t.sender_id === currentUser.id || t.is_read
                         };
                     });
 
@@ -160,15 +160,16 @@ export default function Messages() {
 
                         const directConvos = directThreads.map(t => {
                             const other = directUserMap[t.other_user_id];
+                            const isAdminOther = other?.user_type === 'admin';
                             return {
                                 type: 'direct',
                                 booking_id: null,
                                 direct_user_id: t.other_user_id,
-                                other_user_name: other?.full_name || 'Support Team',
+                                other_user_name: isAdminOther ? 'Support Team' : (other?.full_name || 'Support Team'),
                                 other_user_avatar: other?.profile_picture,
                                 last_message: t.content,
                                 last_message_date: t.created_date,
-                                is_read: t.is_read
+                                is_read: t.sender_id === currentUser.id || t.is_read
                             };
                         });
 
