@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
+import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight, MessageCircle, Copy, Check as CheckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +46,7 @@ export default function AdminUsers() {
   const [decidingId, setDecidingId] = useState(null);
   const [pendingDeleteIds, setPendingDeleteIds] = useState(new Set());
   const [adminApprovers, setAdminApprovers] = useState([]);
+  const [copiedPhrase, setCopiedPhrase] = useState(false);
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
@@ -501,11 +502,41 @@ export default function AdminUsers() {
                     </select>
                   </div>
                 )}
-                <Input
-                  value={confirmationPhrase}
-                  onChange={(e) => setConfirmationPhrase(e.target.value)}
-                  placeholder={`Type exactly: HARD DELETE ${selectedUser?.id || ''}`}
-                />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-md border border-slate-200">
+                    <code className="text-sm flex-1 font-mono text-slate-700">
+                      HARD DELETE {selectedUser?.id || ''}
+                    </code>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const phrase = `HARD DELETE ${selectedUser?.id || ''}`;
+                        navigator.clipboard.writeText(phrase);
+                        setCopiedPhrase(true);
+                        setTimeout(() => setCopiedPhrase(false), 2000);
+                      }}
+                      className="shrink-0"
+                    >
+                      {copiedPhrase ? (
+                        <>
+                          <CheckIcon className="w-4 h-4 mr-1" /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-1" /> Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <Input
+                    value={confirmationPhrase}
+                    onChange={(e) => setConfirmationPhrase(e.target.value)}
+                    placeholder={`Paste or type the confirmation phrase above`}
+                    className="text-sm"
+                  />
+                </div>
               </>
             )}
             <div className="flex justify-end gap-2 pt-2">
