@@ -35,9 +35,26 @@ const ALLOWED_MIME = new Set([
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const parseMultipartBody = (event) => new Promise((resolve, reject) => {
+  let settled = false;
+  const fail = (error) => {
+    if (settled) return;
+    settled = true;
+    reject(error);
+  };
+  const succeed = (payload) => {
+    if (settled) return;
+    settled = true;
+    resolve(payload);
+  };
+
   const contentType = event.headers?.['content-type'] || event.headers?.['Content-Type'];
   if (!contentType || !contentType.includes('multipart/form-data')) {
-    reject(new Error('Content-Type must be multipart/form-data'));
+    fail(new Error('Content-Type must be multipart/form-data'));
+    return;
+  }
+
+  if (!event.body) {
+    fail(new Error('No file uploaded'));
     return;
   }
 
@@ -62,14 +79,14 @@ const parseMultipartBody = (event) => new Promise((resolve, reject) => {
       if (totalBytes > MAX_FILE_BYTES) {
         file.unpipe();
         file.resume();
-        reject(new Error('File exceeds 10MB size limit'));
+        fail(new Error('File exceeds 10MB size limit'));
         return;
       }
       chunks.push(chunk);
     });
 
     file.on('limit', () => {
-      reject(new Error('File exceeds 10MB size limit'));
+      fail(new Error('File exceeds 10MB size limit'));
     });
 
     file.on('end', () => {
@@ -84,19 +101,19 @@ const parseMultipartBody = (event) => new Promise((resolve, reject) => {
     });
   });
 
-  busboy.on('error', (err) => reject(err));
+  busboy.on('error', (err) => fail(err));
 
   busboy.on('finish', () => {
     if (!filePart || !filePart.buffer?.length) {
-      reject(new Error('No file uploaded'));
+      fail(new Error('No file uploaded'));
       return;
     }
-    resolve({ fields, file: filePart });
+    succeed({ fields, file: filePart });
   });
 
   const rawBody = event.isBase64Encoded
     ? Buffer.from(event.body || '', 'base64')
-    : Buffer.from(event.body || '', 'utf-8');
+    : Buffer.from(event.body || '', 'latin1');
 
   busboy.end(rawBody);
 });
@@ -154,14 +171,23 @@ const rawHandler = async (event) => {
       path: event.path
     });
 
-    const status = /size limit|No file uploaded|multipart\/form-data|Unsupported file type/i.test(error.message)
+    const message = String(error?.message || 'Upload failed');
+    const status = /size limit|No file uploaded|multipart\/form-data|Unsupported file type|Unexpected end of form|Malformed part header/i.test(message)
       ? 400
-      : 500;
+      : /is not configured/i.test(message)
+        ? 503
+        : 500;
 
     return {
       statusCode: status,
       headers,
-      body: JSON.stringify({ error: status === 400 ? error.message : 'Upload failed' })
+      body: JSON.stringify({
+        error: status === 400
+          ? message
+          : status === 503
+            ? 'Upload service is temporarily unavailable'
+            : 'Upload failed'
+      })
     };
   }
 };
