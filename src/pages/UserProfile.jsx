@@ -399,11 +399,13 @@ export default function UserProfile() {
                       <Input 
                         id="phone" 
                         type="tel" 
+                        placeholder="e.g. +44 20 7946 0958"
                         value={formData.phone} 
                         onChange={(e) => handleInputChange('phone', e.target.value)} 
                         disabled={isViewingAsAdmin}
                         className={validationErrors.phone ? 'border-red-500' : ''}
                       />
+                      <p className="text-xs text-slate-500">Include country code when possible. Spaces, dashes, and parentheses are supported.</p>
                       {validationErrors.phone && (
                         <p className="text-sm text-red-600">{validationErrors.phone[0]}</p>
                       )}

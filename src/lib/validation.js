@@ -13,7 +13,27 @@ export const emailSchema = z.string()
   .trim();
 
 export const phoneSchema = z.string()
-  .regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format')
+  .trim()
+  .refine((value) => /^[\d\s()+.-]+$/.test(value), {
+    message: 'Phone number contains invalid characters'
+  })
+  .refine((value) => {
+    const plusCount = (value.match(/\+/g) || []).length;
+    return plusCount === 0 || (plusCount === 1 && value.trim().startsWith('+'));
+  }, {
+    message: 'Use + only at the start of the phone number'
+  })
+  .refine((value) => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length >= 7 && digits.length <= 15;
+  }, {
+    message: 'Phone number must contain 7 to 15 digits'
+  })
+  .transform((value) => {
+    const trimmed = value.trim();
+    const digits = trimmed.replace(/\D/g, '');
+    return trimmed.startsWith('+') ? `+${digits}` : digits;
+  })
   .optional();
 
 export const uuidSchema = z.string()
