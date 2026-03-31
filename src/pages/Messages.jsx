@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { User } from '@/api/entities.jsx';
 import { Message } from '@/api/entities.jsx';
 import { Booking } from '@/api/entities.jsx';
 import { apiClient } from '@/api/apiClient.js';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl, isAdminUser } from '@/utils';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
@@ -11,9 +11,9 @@ import { formatDistanceToNow } from 'date-fns';
 export default function Messages() {
     const [conversations, setConversations] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const location = useLocation();
 
-    useEffect(() => {
-        const fetchConversations = async () => {
+    const fetchConversations = useCallback(async () => {
             try {
                 const currentUser = await User.me();
                 console.log('Messages: Loading for user:', currentUser.id, currentUser.full_name);
@@ -187,10 +187,31 @@ export default function Messages() {
             } finally {
                 setIsLoading(false);
             }
+    }, []);
+
+    useEffect(() => {
+        fetchConversations();
+    }, [fetchConversations, location.key]);
+
+    useEffect(() => {
+        const handleFocus = () => {
+            fetchConversations();
         };
 
-        fetchConversations();
-    }, []);
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                fetchConversations();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
+    }, [fetchConversations]);
 
     if (isLoading) {
         return <div className="p-8">Loading conversations...</div>;
