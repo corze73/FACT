@@ -1264,6 +1264,17 @@ const rawHandler = async (event) => {
                  WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
                )`, currentUserId), [userId]);
 
+          if (await tableExists('deleted_messages')) {
+            await executeQuery(withUserCtx(`DELETE FROM deleted_messages
+              WHERE sender_id = $1
+                 OR receiver_id = $1
+                 OR deleted_by_user_id = $1
+                 OR booking_id IN (
+                   SELECT id FROM bookings
+                   WHERE user_id = $1 OR client_id = $1 OR coach_id = $1
+                 )`, currentUserId), [userId]);
+          }
+
           await executeQuery(withUserCtx(`DELETE FROM reviews
             WHERE reviewer_id = $1
                OR reviewee_id = $1
