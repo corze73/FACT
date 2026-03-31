@@ -444,7 +444,7 @@ const rawHandler = async (event) => {
         const baseUpdate = `
           UPDATE messages
           SET is_read = COALESCE($1, is_read),
-              updated_date = NOW()
+              updated_at = NOW()
           WHERE id = $2
           RETURNING *`;
 
