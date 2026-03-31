@@ -5,6 +5,7 @@ import { User } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 export default function AdminInvite() {
   const navigate = useNavigate();
@@ -58,9 +59,22 @@ export default function AdminInvite() {
 
   const isPending = invite?.status === "pending";
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("Landing"));
+  };
+
   return (
     <div className="min-h-screen p-6 md:p-10 bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="max-w-xl mx-auto">
+        <Button variant="ghost" size="sm" className="mb-4" onClick={handleBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Admin Invite</CardTitle>

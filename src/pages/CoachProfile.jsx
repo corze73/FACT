@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { Upload, X, Link as LinkIcon } from "lucide-react";
+import { Upload, X, Link as LinkIcon, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl, isAdminUser } from "@/utils";
 import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
 import { validateAndSanitize, profileUpdateSchema, coachProfileSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
@@ -23,6 +25,7 @@ import {
 // In a larger app, this could be refactored to reduce duplication.
 
 export default function CoachProfile() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +35,7 @@ export default function CoachProfile() {
   const [, setUploadingImage] = useState(false); // value not read; only setter used
   const [isUploadingQualification, setIsUploadingQualification] = useState(false);
   const [isUploadingBackgroundCheck, setIsUploadingBackgroundCheck] = useState(false);
+  const [isViewingAnotherProfile, setIsViewingAnotherProfile] = useState(false);
   const fileInputRef = useRef(null);
   // Refs for video URL inputs (for clearing values reliably)
   const videoInputRefs = {
@@ -61,11 +65,13 @@ export default function CoachProfile() {
         // Viewing another coach's profile (could be admin or regular user)
         console.log('Viewing another coach profile, loading user:', userIdParam);
         setIsViewingAsAdmin(true); // Use this flag for "read-only" mode
+        setIsViewingAnotherProfile(true);
         userToLoad = await User.get(userIdParam);
         console.log('Loaded coach:', userToLoad.full_name);
       } else {
         // User viewing their own profile
         console.log('User viewing own profile');
+        setIsViewingAnotherProfile(false);
         userToLoad = loggedInUser;
       }
       
@@ -414,9 +420,24 @@ export default function CoachProfile() {
 
   if (isLoading || !formData) return <div>Loading...</div>;
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(isAdminUser(currentUser) ? createPageUrl("AdminUsers") : createPageUrl("FindCoaches"));
+  };
+
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
+        {isViewingAnotherProfile && (
+          <Button variant="ghost" size="sm" className="mb-4" onClick={handleBack}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+        )}
+
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
             {isViewingAsAdmin ? 'Coach Profile' : 'My Coach Profile'}

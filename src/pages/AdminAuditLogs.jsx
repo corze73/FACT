@@ -68,6 +68,14 @@ export default function AdminAuditLogs() {
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("AdminDashboard"));
+  };
+
   const load = async ({ showSpinner = false, pageOverride, filtersOverride } = {}) => {
     if (showSpinner) setIsRefreshing(true);
 
@@ -202,6 +210,10 @@ export default function AdminAuditLogs() {
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
+        <Button variant="outline" onClick={handleBack}>
+          Back
+        </Button>
+
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Admin Audit Logs</CardTitle>

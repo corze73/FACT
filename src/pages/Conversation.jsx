@@ -39,6 +39,14 @@ export default function Conversation() {
     const messagesEndRef = useRef(null);
     const navigate = useNavigate();
 
+    const handleBack = () => {
+        if (window.history.length > 1) {
+            navigate(-1);
+            return;
+        }
+        navigate(createPageUrl('Messages'));
+    };
+
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('booking_id');
@@ -334,7 +342,7 @@ export default function Conversation() {
         <div className="flex flex-col h-screen bg-slate-50">
             {/* Header */}
             <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 p-4 flex items-center gap-4 sticky top-0 z-10">
-                <Button variant="ghost" size="icon" onClick={() => navigate(createPageUrl('Messages'))}>
+                <Button variant="ghost" size="icon" onClick={handleBack}>
                     <ArrowLeft className="w-5 h-5" />
                 </Button>
 

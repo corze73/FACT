@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight, MessageCircle, Copy, Check as CheckIcon } from "lucide-react";
+import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight, MessageCircle, Copy, Check as CheckIcon, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +64,14 @@ export default function AdminUsers() {
     } else {
       navigate(`${createPageUrl("UserProfile")}?userId=${user.id}`);
     }
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("AdminDashboard"));
   };
 
   const openRemove = (u) => {
@@ -181,6 +189,11 @@ export default function AdminUsers() {
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
+        <Button variant="ghost" size="sm" className="w-fit" onClick={handleBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+
         {/* Deletion Requests Panel */}
         <Card className="border-0 shadow-lg">
           <CardHeader>

@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl, isAdminUser } from "@/utils";
-import { Upload, Lock, Eye, EyeOff } from "lucide-react";
+import { Upload, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { validateAndSanitize, profileUpdateSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -320,6 +320,14 @@ export default function UserProfile() {
 
   if (isLoading || !formData) return <div>Loading...</div>;
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("AdminUsers"));
+  };
+
   // Admin-only accounts should not see the generic end-user profile editor.
   // Promoted admins with real end-user profile fields still see this card.
   const hasEndUserProfileData = Boolean(
@@ -337,6 +345,13 @@ export default function UserProfile() {
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-6xl mx-auto">
+        {isViewingAsAdmin && (
+          <Button variant="ghost" size="sm" className="mb-4" onClick={handleBack}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+        )}
+
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
             {isViewingAsAdmin ? 'User Profile' : 'My Profile'}

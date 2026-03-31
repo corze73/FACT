@@ -1,13 +1,29 @@
 // React import removed as unused with modern JSX transform
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 export default function Terms() {
+  const navigate = useNavigate();
   const lastUpdated = new Date().toLocaleDateString();
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("Landing"));
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="max-w-4xl mx-auto px-6 py-10">
+        <Button variant="ghost" size="sm" className="mb-4" onClick={handleBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Terms and Conditions</h1>
         <p className="text-slate-600 mb-8">Last updated: {lastUpdated}</p>
 

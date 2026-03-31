@@ -102,6 +102,14 @@ export default function AdminOperations() {
   const totalSnapshotsPages = Math.max(1, Math.ceil(snapshotsTotal / PAGE_SIZE));
   const totalSignupAttemptsPages = Math.max(1, Math.ceil(signupAttemptsTotal / PAGE_SIZE));
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("AdminDashboard"));
+  };
+
   const loadTopCards = async () => {
     setOverviewLoading(true);
     setOpsError("");
@@ -470,6 +478,10 @@ export default function AdminOperations() {
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        <Button variant="outline" onClick={handleBack}>
+          Back
+        </Button>
+
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Admin Operations</CardTitle>

@@ -78,12 +78,24 @@ export default function AdminVerifications() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("AdminDashboard"));
+  };
+
   if (loading) return <div className="p-8">Loading verification queue...</div>;
   if (!currentUser || !isAdminUser(currentUser)) return null;
 
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
+        <Button variant="outline" onClick={handleBack}>
+          Back
+        </Button>
+
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Coach Verifications</CardTitle>

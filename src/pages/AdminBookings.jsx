@@ -4,7 +4,7 @@ import { User } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, CreditCard } from "lucide-react";
+import { MessageCircle, CreditCard, ArrowLeft } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createPageUrl, isAdminUser } from "@/utils";
 import { format, isValid } from "date-fns";
@@ -138,9 +138,22 @@ export default function AdminBookings() {
     // You could scroll to the booking or open it in a modal
   };
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("AdminDashboard"));
+  };
+
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        <Button variant="ghost" size="sm" className="w-fit" onClick={handleBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+
         <BookingReferenceSearch 
           onBookingFound={handleBookingFound}
           onError={console.error}

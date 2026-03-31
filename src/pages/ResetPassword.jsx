@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Lock, Eye, EyeOff, Star, CheckCircle, AlertTriangle } from "lucide-react";
+import { Lock, Eye, EyeOff, Star, CheckCircle, AlertTriangle, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function ResetPassword() {
@@ -18,6 +18,14 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl('ForgotPassword'));
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -62,6 +70,11 @@ export default function ResetPassword() {
   return (
     <div className="min-h-screen py-12 px-6 flex items-center justify-center">
       <div className="w-full max-w-md">
+        <Button type="button" variant="ghost" size="sm" className="mb-4" onClick={handleBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}

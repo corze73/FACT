@@ -12,8 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { Link, useSearchParams } from "react-router-dom";
-import { Download, Mail, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Download, Mail, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import faqData from "@/data/helpFaq.json";
 
 /**
@@ -49,6 +49,7 @@ const categoryLabels = {
 };
 
 export default function Help() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [userType, setUserType] = useState("client");
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,6 +75,25 @@ export default function Help() {
   const importInputRef = useRef(null);
 
   const roleLabel = userType === "coach" ? "coach" : userType === "admin" ? "admin" : "client";
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    if (roleLabel === "admin") {
+      navigate(createPageUrl("AdminDashboard"));
+      return;
+    }
+
+    if (roleLabel === "coach") {
+      navigate(createPageUrl("CoachDashboard"));
+      return;
+    }
+
+    navigate(createPageUrl("Landing"));
+  };
 
   const trackHelpEvent = (eventName, params = {}) => {
     try {
@@ -441,6 +461,11 @@ export default function Help() {
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
+        <Button variant="outline" onClick={handleBack} className="w-fit gap-2">
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Button>
+
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Help & FAQs</h1>
           <p className="text-slate-600">
