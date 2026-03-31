@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
-import { createPageUrl, isAdminUser, canManageUserLifecycle, canHardDeleteUsers } from "@/utils";
+import { createPageUrl, isAdminUser, canManageUserLifecycle, canHardDeleteUsers, getAdminScope } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -353,31 +353,32 @@ export default function AdminUsers() {
                             Revoke Sessions
                           </Button>
                         )}
-                        {canLifecycle && (u.is_active !== false ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={pendingDeleteIds.has(u.id)}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openRemove(u);
-                            }}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" /> Remove
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                await User.restore(u.id);
-                                setUsers((prev) =>
-                                  prev.map((x) =>
-                                    x.id === u.id
-                                      ? { ...x, is_active: true, deactivated_at: null, deactivation_reason: null }
+                        {canLifecycle && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={pendingDeleteIds.has(u.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openRemove(u);
+                              }}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" /> {u.is_active !== false ? 'Remove' : 'Remove/Delete'}
+                            </Button>
+                            {u.is_active === false && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    await User.restore(u.id);
+                                    setUsers((prev) =>
+                                      prev.map((x) =>
+                                        x.id === u.id
+                                          ? { ...x, is_active: true, deactivated_at: null, deactivation_reason: null }
                                       : x
                                   )
                                 );
@@ -389,7 +390,9 @@ export default function AdminUsers() {
                           >
                             Restore
                           </Button>
-                        ))}
+                            )}
+                          </>
+                        )}
                       </div>
                     )}
                   </Card>
@@ -481,21 +484,23 @@ export default function AdminUsers() {
             </label>
             {hardDelete && (
               <>
-                <div>
-                  <label className="text-xs text-slate-500">Second Admin Approver (optional for full admins)</label>
-                  <select
-                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
-                    value={secondAdminId}
-                    onChange={(e) => setSecondAdminId(e.target.value)}
-                  >
-                    <option value="">Select second admin approver</option>
-                    {adminApprovers.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {(a.full_name || a.email || a.id)} ({a.admin_scope || 'full'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {getAdminScope(currentUser) !== 'full' && (
+                  <div>
+                    <label className="text-xs text-slate-500">Second Admin Approver (required for limited-scope admins)</label>
+                    <select
+                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+                      value={secondAdminId}
+                      onChange={(e) => setSecondAdminId(e.target.value)}
+                    >
+                      <option value="">Select second admin approver</option>
+                      {adminApprovers.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {(a.full_name || a.email || a.id)} ({a.admin_scope || 'full'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <Input
                   value={confirmationPhrase}
                   onChange={(e) => setConfirmationPhrase(e.target.value)}
