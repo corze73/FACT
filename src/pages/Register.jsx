@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Star, ArrowLeft, User, UserCheck, MapPin, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { showSuccess, showError, devError } from "@/utils/notifications";
+import { showSuccess, showError, showWarning, devError } from "@/utils/notifications";
 import { Badge } from "@/components/ui/badge";
 import {
   getBackgroundCheckGuidance,
@@ -133,6 +133,7 @@ export default function Register() {
       // Sign up with email and password
       await User.signUpWithEmail(formData.email, formData.password, formData);
 
+      let complianceSaved = true;
       if (formData.user_type === 'coach') {
         try {
           let qualificationFileUrl = formData.qualification_file_url || null;
@@ -158,6 +159,7 @@ export default function Register() {
           });
         } catch (complianceError) {
           devError('Compliance save warning:', complianceError);
+          complianceSaved = false;
         } finally {
           setIsUploadingQualification(false);
           setIsUploadingBackgroundCheck(false);
@@ -165,7 +167,11 @@ export default function Register() {
       }
       
       if (formData.user_type === 'coach') {
-        showSuccess('Account Created', 'Please check your email to verify your account. Once logged in, your compliance documents will show as Awaiting Approval until reviewed by admin.');
+        if (complianceSaved) {
+          showSuccess('Account Created', 'Please check your email to verify your account. Once logged in, your compliance documents will show as Awaiting Approval until reviewed by admin.');
+        } else {
+          showWarning('Account Created — Documents Pending', 'Your account was created but your verification documents could not be uploaded. Please log in and re-upload them from your profile page to enter the verification queue.');
+        }
       } else {
         showSuccess('Account Created', 'Please check your email to verify your account, then you can log in.');
       }

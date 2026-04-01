@@ -23,7 +23,7 @@ export function initFrontendMonitoring() {
     dsn,
     environment: getEnvironment(),
     release: getRelease(),
-    tracesSampleRate: Number(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE || 0.1)
+    tracesSampleRate: 0
   });
 
   initialized = true;
