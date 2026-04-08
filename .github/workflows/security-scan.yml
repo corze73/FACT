@@ -42,6 +42,14 @@ jobs:
           
           if [ "$VULNS" -gt "0" ]; then
             echo "::error::Found $VULNS high/critical vulnerabilities. See artifact 'npm-audit-report'."
+
+            jq -r '
+              .vulnerabilities
+              | to_entries[]
+              | select(.value.severity == "high" or .value.severity == "critical")
+              | "\(.key)\t\(.value.severity)\t\(.value.title // \"vulnerability\")"
+            ' audit-report.json || true
+
             npm audit --audit-level=high || true
             exit 1
           fi
