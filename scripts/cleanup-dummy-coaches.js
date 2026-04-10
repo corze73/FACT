@@ -17,6 +17,7 @@ dotenv.config();
 
 const sql = neon(process.env.DATABASE_URL);
 const FORCE_DELETE = process.env.FACT_CLEANUP_FORCE === '1';
+const INCLUDE_GENERIC_BIOS = process.env.FACT_CLEANUP_INCLUDE_GENERIC_BIOS === '1';
 
 // Configure what constitutes a "dummy" coach
 const DUMMY_INDICATORS = [
@@ -29,13 +30,47 @@ const DUMMY_INDICATORS = [
   'example'
 ];
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
+const SAFE_EMAIL_PATTERNS = [
+  /@example\.com$/i,
+  /@fact-test\.local$/i,
+  /(^|[.+_-])(test|dummy|demo|sample)([.+_-]|@|$)/i,
+  /^phase\d+\./i,
+];
 
-function question(query) {
+function createReadlineInterface() {
+  return readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+}
+
+function question(rl, query) {
   return new Promise(resolve => rl.question(query, resolve));
+}
+
+function hasDummyIndicator(value) {
+  const normalized = String(value || '').toLowerCase();
+  return DUMMY_INDICATORS.some((indicator) => normalized.includes(indicator));
+}
+
+function matchesSafeEmailPattern(email) {
+  return SAFE_EMAIL_PATTERNS.some((pattern) => pattern.test(String(email || '')));
+}
+
+function isClearlyDummyCoach(coach) {
+  const name = String(coach.full_name || '').toLowerCase();
+  const email = String(coach.email || '').toLowerCase();
+  const bio = String(coach.bio || '').trim().toLowerCase();
+
+  const emailLooksDummy = matchesSafeEmailPattern(email);
+  const nameLooksDummy = hasDummyIndicator(name);
+  const bioLooksDummy = bio.length > 0 && (bio.length < 20 || hasDummyIndicator(bio));
+
+  if (emailLooksDummy) return true;
+  if (nameLooksDummy && bioLooksDummy) return true;
+  if (INCLUDE_GENERIC_BIOS && bio.length > 0 && bio.length < 20 && nameLooksDummy) return true;
+
+  return false;
 }
 
 async function findDummyCoaches() {
@@ -49,21 +84,7 @@ async function findDummyCoaches() {
     ORDER BY created_at DESC
   `;
   
-  const dummyCoaches = allCoaches.filter(coach => {
-    const name = (coach.full_name || '').toLowerCase();
-    const email = (coach.email || '').toLowerCase();
-    const bio = (coach.bio || '').toLowerCase();
-    
-    // Check if name/email contains dummy indicators
-    const hasDummyIndicator = DUMMY_INDICATORS.some(indicator => 
-      name.includes(indicator) || email.includes(indicator)
-    );
-    
-    // Check if bio is generic or empty
-    const hasGenericBio = !bio || bio.length < 20;
-    
-    return hasDummyIndicator || hasGenericBio;
-  });
+  const dummyCoaches = allCoaches.filter(isClearlyDummyCoach);
   
   return { allCoaches, dummyCoaches };
 }
@@ -95,6 +116,8 @@ async function showCoachesSummary(all, dummy) {
 }
 
 async function cleanupDummyCoaches() {
+  let rl;
+
   try {
     console.log('🧹 FACT - Dummy Coach Cleanup Script');
     console.log('═'.repeat(60));
@@ -116,20 +139,19 @@ async function cleanupDummyCoaches() {
     console.log();
 
     if (!FORCE_DELETE) {
-      const confirm1 = await question('Type "DELETE" to proceed: ');
+      rl = createReadlineInterface();
+      const confirm1 = await question(rl, 'Type "DELETE" to proceed: ');
       
       if (confirm1.trim() !== 'DELETE') {
         console.log('\n❌ Cleanup cancelled.');
-        rl.close();
         return;
       }
       
       console.log();
-      const confirm2 = await question(`Are you absolutely sure? Type the number of coaches to delete (${dummyCoaches.length}): `);
+      const confirm2 = await question(rl, `Are you absolutely sure? Type the number of coaches to delete (${dummyCoaches.length}): `);
       
       if (confirm2.trim() !== dummyCoaches.length.toString()) {
         console.log('\n❌ Cleanup cancelled - number mismatch.');
-        rl.close();
         return;
       }
     } else {
@@ -144,12 +166,27 @@ async function cleanupDummyCoaches() {
     let deletedCount = 0;
     
     for (const id of dummyIds) {
+      const coachBookings = await sql`
+        SELECT id
+        FROM bookings
+        WHERE coach_id = ${id}
+      `;
+
+      const bookingIds = coachBookings.map((booking) => booking.id);
+
       // Delete related records first (cascade should handle this, but being explicit)
-      await sql`DELETE FROM bookings WHERE coach_id = ${id}`;
+      if (bookingIds.length > 0) {
+        await sql`DELETE FROM reviews WHERE booking_id = ANY(${bookingIds}::uuid[]) OR reviewee_id = ${id}`;
+        await sql`DELETE FROM deleted_messages WHERE booking_id = ANY(${bookingIds}::uuid[])`;
+        await sql`DELETE FROM payments WHERE booking_id = ANY(${bookingIds}::uuid[])`;
+      } else {
+        await sql`DELETE FROM reviews WHERE reviewee_id = ${id}`;
+      }
+
       await sql`DELETE FROM messages WHERE sender_id = ${id} OR receiver_id = ${id}`;
-      await sql`DELETE FROM reviews WHERE reviewee_id = ${id}`;
       await sql`DELETE FROM coach_availability WHERE coach_id = ${id}`;
       await sql`DELETE FROM coach_recurring_availability WHERE coach_id = ${id}`;
+      await sql`DELETE FROM bookings WHERE coach_id = ${id}`;
       
       // Delete the profile
       await sql`DELETE FROM profiles WHERE id = ${id}`;
@@ -182,7 +219,7 @@ async function cleanupDummyCoaches() {
     console.error('\n❌ Error during cleanup:', error.message);
     process.exit(1);
   } finally {
-    rl.close();
+    rl?.close();
   }
 }
 
