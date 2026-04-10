@@ -241,6 +241,24 @@ const rawHandler = async (event) => {
       return Boolean(row?.exists);
     };
 
+    const parseLimit = (raw, fallback, max) => {
+      const num = Number(raw ?? fallback);
+      if (!Number.isInteger(num) || num < 1 || num > max) return null;
+      return num;
+    };
+
+    const parseOffset = (raw, fallback = 0) => {
+      const num = Number(raw ?? fallback);
+      if (!Number.isInteger(num) || num < 0) return null;
+      return num;
+    };
+
+    const parseAuthStatsTimeframe = (raw) => {
+      const normalized = String(raw || '7 days').trim().toLowerCase();
+      const allowed = new Set(['1 hour', '24 hours', '7 days', '30 days']);
+      return allowed.has(normalized) ? normalized : null;
+    };
+
     const logAuthEvent = async ({ eventType, userEmail, success, errorDetails = null, contextUserId = null, signupSource = null }) => {
       try {
         if (!(await tableExists('auth_logs'))) return;
@@ -298,23 +316,167 @@ const rawHandler = async (event) => {
 
     switch (httpMethod) {
       case 'GET':
-        if (userId && userId !== 'users') {
+        if (userId === 'auth-logs') {
           if (!currentUserId) {
             return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
           }
+          if (!isAdmin) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
+          }
+
+          if (!(await tableExists('auth_logs'))) {
+            if (event.queryStringParameters?.stats === '1' || event.queryStringParameters?.stats === 'true') {
+              return { statusCode: 200, headers, body: JSON.stringify([]) };
+            }
+            return { statusCode: 200, headers, body: JSON.stringify({ data: [], total: 0, limit: 20, offset: 0 }) };
+          }
+
+          const queryParams = event.queryStringParameters || {};
+          const wantsStats = queryParams.stats === '1' || queryParams.stats === 'true';
+
+          if (wantsStats) {
+            const timeframe = parseAuthStatsTimeframe(queryParams.timeframe);
+            if (!timeframe) {
+              return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid timeframe value' }) };
+            }
+
+            const statsRows = await executeQuery(
+              withUserCtx(
+                `SELECT event_type, success, COUNT(*)::int AS count, DATE_TRUNC('day', COALESCE(timestamp, created_at)) AS date
+                 FROM auth_logs
+                 WHERE COALESCE(timestamp, created_at) >= NOW() - CAST($1 AS interval)
+                 GROUP BY event_type, success, DATE_TRUNC('day', COALESCE(timestamp, created_at))
+                 ORDER BY date DESC, event_type ASC`,
+                currentUserId
+              ),
+              [timeframe]
+            );
+
+            return { statusCode: 200, headers, body: JSON.stringify(statsRows) };
+          }
+
+          const limit = parseLimit(queryParams.limit, 20, 100);
+          const offset = parseOffset(queryParams.offset, 0);
+          const includeTotal = queryParams.include_total === '1' || queryParams.include_total === 'true';
+          const eventType = typeof queryParams.event_type === 'string' ? queryParams.event_type.trim() : '';
+          const userEmail = typeof queryParams.user_email === 'string' ? queryParams.user_email.trim() : '';
+          const successRaw = typeof queryParams.success === 'string' ? queryParams.success.trim().toLowerCase() : '';
+          const signupSource = typeof queryParams.signup_source === 'string' ? queryParams.signup_source.trim().toLowerCase() : '';
+
+          if (limit === null || offset === null) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid pagination values' }) };
+          }
+
+          if (successRaw && !['true', 'false', '1', '0'].includes(successRaw)) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid success filter value' }) };
+          }
+
+          if (signupSource && !['email', 'oauth', 'invite', 'unknown'].includes(signupSource)) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid signup_source filter value' }) };
+          }
+
+          const params = [];
+          const conditions = [];
+          if (eventType) {
+            conditions.push(`event_type = $${params.length + 1}`);
+            params.push(eventType);
+          }
+          if (userEmail) {
+            conditions.push(`user_email ILIKE $${params.length + 1}`);
+            params.push(`%${userEmail}%`);
+          }
+          if (successRaw) {
+            conditions.push(`success = $${params.length + 1}`);
+            params.push(successRaw === 'true' || successRaw === '1');
+          }
+
+          const hasSignupSourceColumn = await columnExists('auth_logs', 'signup_source');
+          if (signupSource) {
+            if (!hasSignupSourceColumn) {
+              return { statusCode: 200, headers, body: JSON.stringify({ data: [], total: 0, limit, offset }) };
+            }
+            conditions.push(`COALESCE(signup_source, 'unknown') = $${params.length + 1}`);
+            params.push(signupSource);
+          }
+
+          const rows = await executeQuery(
+            withUserCtx(
+              `SELECT id, event_type, user_email, success, error_details, user_agent, ip_address,
+                      ${hasSignupSourceColumn ? 'signup_source' : "NULL::text AS signup_source"},
+                      timestamp, created_at
+                      ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
+               FROM auth_logs
+               ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+               ORDER BY COALESCE(timestamp, created_at) DESC
+               LIMIT ${limit} OFFSET ${offset}`,
+              currentUserId
+            ),
+            params
+          );
+
+          if (!includeTotal) {
+            return { statusCode: 200, headers, body: JSON.stringify({ data: rows, limit, offset }) };
+          }
+
+          const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+          const data = rows.map(({ total_count, ...rest }) => rest);
+          return { statusCode: 200, headers, body: JSON.stringify({ data, total, limit, offset }) };
+        }
+
+        if (userId && userId !== 'users') {
           if (!isUuid(userId)) {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid user id format' }) };
           }
-          console.log('📖 Fetching single user:', userId);
-          // Get single user by ID
+
+          const canSeeFullProfile = currentUserId && (currentUserId === userId || isAdmin);
+          const userQuery = canSeeFullProfile
+            ? 'SELECT * FROM profiles WHERE id = $1'
+            : `SELECT
+                 id,
+                 member_public_id,
+                 full_name,
+                 avatar_url,
+                 user_type,
+                 phone,
+                 location,
+                 country,
+                 city,
+                 bio,
+                 video_clip_1,
+                 video_clip_2,
+                 video_clip_3,
+                 preferred_coaching_types,
+                 preferred_session_times,
+                 coach_profile,
+                 qualification_type,
+                 qualification_status,
+                 has_background_check,
+                 background_check_type,
+                 background_check_status,
+                 background_check_expires_at,
+                 verification_notes,
+                 created_at,
+                 updated_at,
+                 is_active
+               FROM profiles
+               WHERE id = $1`;
+
           const user = await executeQueryOne(
-            withUserCtx(`SELECT * FROM profiles WHERE id = $1`, userId),
+            withUserCtx(userQuery, currentUserId || userId),
             [userId]
           );
           
           console.log('✅ User query result:', user ? 'Found' : 'Not found');
 
           if (!user) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'User not found' })
+            };
+          }
+
+          if (!canSeeFullProfile && !currentUserId && user.user_type !== 'coach') {
             return {
               statusCode: 404,
               headers,
@@ -355,7 +517,11 @@ const rawHandler = async (event) => {
           const requestedPublicCoachList =
             queryParams.role === 'coach' || queryParams.type === 'coach' || queryParams.user_type === 'coach';
           const isPublicCoachList = !isAdmin && requestedPublicCoachList;
-          if (!isAdmin && !isPublicCoachList) {
+          const requestedIds = typeof queryParams.ids === 'string'
+            ? queryParams.ids.split(',').map((id) => id.trim()).filter(Boolean)
+            : [];
+          const isScopedLookup = !isAdmin && currentUserId && requestedIds.length > 0;
+          if (!isAdmin && !isPublicCoachList && !isScopedLookup) {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
           }
 
@@ -368,18 +534,6 @@ const rawHandler = async (event) => {
               body: JSON.stringify({ error: 'Public coach list requires limit and offset parameters' })
             };
           }
-
-          const parseLimit = (raw, fallback, max) => {
-            const num = Number(raw ?? fallback);
-            if (!Number.isInteger(num) || num < 1 || num > max) return null;
-            return num;
-          };
-
-          const parseOffset = (raw, fallback = 0) => {
-            const num = Number(raw ?? fallback);
-            if (!Number.isInteger(num) || num < 0) return null;
-            return num;
-          };
 
           const limitDefault = isPublicCoachList ? 24 : 20;
           const limitMax = 50;
@@ -412,6 +566,34 @@ const rawHandler = async (event) => {
             COALESCE((coach_profile->>'rating')::numeric, 0) AS rating,
             COALESCE((coach_profile->>'total_reviews')::int, 0) AS total_reviews
           `;
+          const scopedLookupFields = `
+            id,
+            member_public_id,
+            full_name,
+            avatar_url,
+            user_type,
+            phone,
+            location,
+            country,
+            city,
+            bio,
+            video_clip_1,
+            video_clip_2,
+            video_clip_3,
+            preferred_coaching_types,
+            preferred_session_times,
+            coach_profile,
+            qualification_type,
+            qualification_status,
+            has_background_check,
+            background_check_type,
+            background_check_status,
+            background_check_expires_at,
+            verification_notes,
+            created_at,
+            updated_at,
+            is_active
+          `;
           const adminListFields = `
             id,
             member_public_id,
@@ -433,7 +615,9 @@ const rawHandler = async (event) => {
             ? publicFields
             : isAdminListView
               ? adminListFields
-              : '*';
+              : isScopedLookup
+                ? scopedLookupFields
+                : '*';
           let query = `SELECT ${selectFields}${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''} FROM profiles`;
           const conditions = [];
           const params = [];
@@ -448,6 +632,11 @@ const rawHandler = async (event) => {
             conditions.push(`COALESCE(is_active, true) = true`);
             conditions.push(`NULLIF(TRIM(COALESCE(country, '')), '') IS NOT NULL`);
             conditions.push(`NULLIF(TRIM(COALESCE(city, '')), '') IS NOT NULL`);
+          }
+
+          if (requestedIds.length > 0) {
+            conditions.push(`id = ANY($${params.length + 1}::uuid[])`);
+            params.push(requestedIds);
           }
 
           if (isAdmin) {
@@ -467,14 +656,6 @@ const rawHandler = async (event) => {
                 conditions.push(`user_type = 'coach'`);
               } else if (queryParams.role === 'user' || queryParams.role === 'client') {
                 conditions.push(`user_type = 'client'`);
-              }
-            }
-
-            if (queryParams.ids) {
-              const ids = queryParams.ids.split(',').map((id) => id.trim()).filter(Boolean);
-              if (ids.length > 0) {
-                conditions.push(`id = ANY($${params.length + 1}::uuid[])`);
-                params.push(ids);
               }
             }
           }

@@ -503,7 +503,12 @@ class APIClient {
 
   async listAuthLogs(filters = {}) {
     const params = this.buildQueryParams(filters);
-    return this.request(`/admin-ops/auth-logs?${params}`);
+    return this.request(`/users/auth-logs?${params}`);
+  }
+
+  async getAuthLogStats(timeframe = '7 days') {
+    const params = this.buildQueryParams({ stats: 1, timeframe });
+    return this.request(`/users/auth-logs?${params}`);
   }
 
   async listAdminInvites(filters = {}) {
@@ -611,6 +616,72 @@ class APIClient {
    */
   async getHelpInsights(days = 30) {
     return this.request(`/help-analytics?days=${encodeURIComponent(days)}`);
+  }
+
+  // ========== REVIEWS ==========
+
+  async getReviews(filters = {}) {
+    const params = this.buildQueryParams(filters);
+    return this.request(`/reviews?${params}`);
+  }
+
+  async createReview(payload = {}) {
+    return this.request('/reviews', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  // ========== AVAILABILITY ==========
+
+  async getCoachAvailability(filters = {}) {
+    const params = this.buildQueryParams(filters);
+    return this.request(`/availability?${params}`);
+  }
+
+  async createCoachAvailability(payload = {}) {
+    return this.request('/availability', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateCoachAvailability(id, payload = {}) {
+    return this.request(`/availability/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async deleteCoachAvailability(id) {
+    return this.request(`/availability/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getCoachRecurringAvailability(filters = {}) {
+    const params = this.buildQueryParams(filters);
+    return this.request(`/availability/recurring?${params}`);
+  }
+
+  async createCoachRecurringAvailability(payload = {}) {
+    return this.request('/availability/recurring', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async updateCoachRecurringAvailability(id, payload = {}) {
+    return this.request(`/availability/recurring/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async deleteCoachRecurringAvailability(id) {
+    return this.request(`/availability/recurring/${id}`, {
+      method: 'DELETE'
+    });
   }
 }
 

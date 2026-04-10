@@ -14,7 +14,7 @@ import {
   RefreshCw,
   Eye
 } from "lucide-react";
-import { AuthLogger } from "@/api/authLogger";
+import { User } from "@/api/entities.jsx";
 
 export default function AuthenticationLogs() {
   const [authLogs, setAuthLogs] = useState([]);
@@ -35,13 +35,13 @@ export default function AuthenticationLogs() {
     setError(null);
 
     try {
-      // Load recent authentication logs
-      const recentLogs = await AuthLogger.getRecentAuthLogs(100);
-      setAuthLogs(recentLogs);
+      const [recentLogsResponse, statsResponse] = await Promise.all([
+        User.listAuthLogs({ limit: 100, offset: 0 }),
+        User.getAuthLogStats(selectedTimeframe)
+      ]);
 
-      // Load authentication statistics
-      const stats = await AuthLogger.getAuthStats(selectedTimeframe);
-      setAuthStats(stats);
+      setAuthLogs(Array.isArray(recentLogsResponse) ? recentLogsResponse : (recentLogsResponse?.data || []));
+      setAuthStats(Array.isArray(statsResponse) ? statsResponse : (statsResponse?.data || []));
 
     } catch (err) {
       console.error('Failed to load auth data:', err);
@@ -77,6 +77,15 @@ export default function AuthenticationLogs() {
 
   const formatTimestamp = (timestamp) => {
     return new Date(timestamp).toLocaleString();
+  };
+
+  const parseErrorDetails = (value) => {
+    if (!value) return null;
+    try {
+      return typeof value === 'string' ? JSON.parse(value) : value;
+    } catch {
+      return { message: String(value) };
+    }
   };
 
   const getFailureCount = (logs) => {
@@ -263,9 +272,9 @@ export default function AuthenticationLogs() {
                         <div className="text-sm text-muted-foreground">
                           {formatTimestamp(log.timestamp)}
                         </div>
-                        {!log.success && log.error_details && (
+                        {!log.success && parseErrorDetails(log.error_details)?.message && (
                           <div className="text-xs text-red-600 mt-1">
-                            {JSON.parse(log.error_details).message}
+                            {parseErrorDetails(log.error_details).message}
                           </div>
                         )}
                       </div>
@@ -313,9 +322,9 @@ export default function AuthenticationLogs() {
                         <div className="text-sm text-red-700 mt-1">
                           {formatTimestamp(log.timestamp)}
                         </div>
-                        {log.error_details && (
+                        {parseErrorDetails(log.error_details)?.message && (
                           <div className="text-sm text-red-800 mt-2 p-2 bg-white rounded border">
-                            <strong>Error:</strong> {JSON.parse(log.error_details).message}
+                            <strong>Error:</strong> {parseErrorDetails(log.error_details).message}
                           </div>
                         )}
                       </div>

@@ -7,14 +7,14 @@ const dbAvailable = !!sql && !!db && typeof db.query === 'function';
  * This file gradually migrates from direct database access to secure Netlify functions
  * 
  * Status:
- * ✅ User - Migrated to API (except auth functions)
+ * ✅ User - Migrated to API (auth client still handles local session state)
  * ✅ Booking - Migrated to API
  * ✅ Message - Migrated to API
- * ⏳ Review - Still using direct DB (low priority)
+ * ✅ Review - Migrated to API
  * ⏳ Payment - Still using direct DB (Stripe handles most)
  * ⏳ SessionDispute - Still using direct DB (rare usage)
- * ⏳ CoachAvailability - Still using direct DB (will migrate)
- * ⏳ CoachRecurringAvailability - Still using direct DB (will migrate)
+ * ✅ CoachAvailability - Migrated to API
+ * ✅ CoachRecurringAvailability - Migrated to API
  */
 
 const normalizeUserType = (value) => {
@@ -39,7 +39,6 @@ export const User = {
     if (!user) throw new Error('Not authenticated');
 
     try {
-      // Try to get user from API
       const profile = await apiClient.getUser(user.id);
       return {
         id: user.id,
@@ -55,120 +54,37 @@ export const User = {
       if (isAuthFailure) {
         console.warn('API fetch failed with auth error; clearing session:', apiError?.message || apiError);
         try { await auth.setCurrentUser(null); } catch { /* no-op */ }
-      } else {
-        console.warn('API fetch failed for current user; keeping session:', apiError?.message || apiError);
       }
-
-      if (!dbAvailable) {
-        throw apiError;
-      }
-
-      // DEV-ONLY fallback below
-      // Get from database directly (dev-only fallback)
-      const profiles = await db.select('profiles', { where: { id: user.id } });
-      let profile = profiles[0];
-
-      if (!profile) {
-        // Create basic profile via API
-        const newProfile = {
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'User',
-          role: 'user',
-          user_type: 'client',
-          is_active: true
-        };
-
-        try {
-          profile = await apiClient.createUser(newProfile);
-        } catch (createError) {
-          console.error('Failed to create user via API:', createError);
-          if (!dbAvailable) throw createError;
-          // Fallback to direct DB (dev only)
-          profile = await db.insert('profiles', newProfile);
-        }
-      }
-
-      return {
-        id: user.id,
-        email: user.email,
-        ...normalizeUserRecord(profile)
-      };
+      throw apiError;
     }
   },
 
   async list() {
-    try {
-      const data = await apiClient.getUsers();
-      return normalizeUserList(data);
-    } catch (error) {
-      console.error('API list failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      // Fallback to direct DB (dev only)
-      const data = await db.select('profiles', { orderBy: { created_at: 'desc' }, limit: 1000 });
-      return normalizeUserList(data || []);
-    }
+    const data = await apiClient.getUsers();
+    return normalizeUserList(data);
   },
 
   async get(id) {
-    try {
-      const user = await apiClient.getUser(id);
-      return normalizeUserRecord(user);
-    } catch (error) {
-      console.error('API get failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      // Fallback to direct DB (dev only)
-      const users = await db.select('profiles', { where: { id } });
-      if (users.length === 0) throw new Error('User not found');
-      return normalizeUserRecord(users[0]);
-    }
+    const user = await apiClient.getUser(id);
+    return normalizeUserRecord(user);
   },
 
   async filter(filters) {
-    try {
-      if (filters?.id?.in && Array.isArray(filters.id.in) && filters.id.in.length === 0) {
-        return [];
-      }
-
-      const queryParams = {};
-      if (filters.role) queryParams.role = filters.role;
-      if (filters.user_type) queryParams.type = filters.user_type;
-      if (filters.id?.in) queryParams.ids = filters.id.in.join(',');
-      const users = await apiClient.getUsers(queryParams);
-      return normalizeUserList(users);
-    } catch (error) {
-      console.error('API filter failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      // Fallback to direct DB (dev only)
-      const options = { where: {} };
-      
-      if (filters.id?.in) {
-        const placeholders = filters.id.in.map((_, i) => `$${i + 1}`).join(', ');
-        const query = `SELECT * FROM profiles WHERE id IN (${placeholders})`;
-        const rows = await db.query(query, filters.id.in);
-        return normalizeUserList(rows);
-      }
-      
-      if (filters.role) {
-        options.where.role = filters.role;
-      }
-      
-      const rows = await db.select('profiles', options);
-      return normalizeUserList(rows);
+    if (filters?.id?.in && Array.isArray(filters.id.in) && filters.id.in.length === 0) {
+      return [];
     }
+
+    const queryParams = {};
+    if (filters.role) queryParams.role = filters.role;
+    if (filters.user_type) queryParams.type = filters.user_type;
+    if (filters.id?.in) queryParams.ids = filters.id.in.join(',');
+    const users = await apiClient.getUsers(queryParams);
+    return normalizeUserList(Array.isArray(users?.data) ? users.data : users);
   },
 
   async update(id, userData) {
-    try {
-      const updated = await apiClient.updateUser(id, userData);
-      return normalizeUserRecord(updated);
-    } catch (error) {
-      console.error('API update failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      // Fallback to direct DB (dev only)
-      await db.update('profiles', { where: { id } }, userData);
-      return await this.get(id);
-    }
+    const updated = await apiClient.updateUser(id, userData);
+    return normalizeUserRecord(updated);
   },
 
   async updateMyUserData(userData) {
@@ -210,8 +126,6 @@ export const User = {
   },
 
   async signUpWithEmail(email, password, userData) {
-    let errorDetails = null;
-
     try {
       const profileData = { ...userData };
       delete profileData.password; // Do not forward raw password in the profile spread
@@ -257,52 +171,11 @@ export const User = {
         token: createdUser.token
       });
 
-      // Fire-and-forget notifications
-      setTimeout(async () => {
-        try {
-          const { AuthNotificationService } = await import('./authLogger.js');
-          await AuthNotificationService.handleSignupEvent(
-            email,
-            profileData.full_name,
-            profileData.user_type,
-            true
-          );
-        } catch (notificationError) {
-          console.error('Notification error (non-blocking):', notificationError);
-        }
-      }, 0);
-
       return { user: auth.currentUser };
-
-    } catch (error) {
-      errorDetails = {
-        message: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-      };
-
-      setTimeout(async () => {
-        try {
-          const { AuthNotificationService } = await import('./authLogger.js');
-          await AuthNotificationService.handleSignupEvent(
-            email,
-            userData.full_name || 'User',
-            userData.user_type || 'user',
-            false,
-            errorDetails
-          );
-        } catch (notificationError) {
-          console.error('Failure notification error (non-blocking):', notificationError);
-        }
-      }, 0);
-
-      throw error;
     }
   },
 
   async signInWithEmail(email, password) {
-    let errorDetails = null;
-
     try {
       if (!email || !password) {
         throw new Error('Email and password are required');
@@ -323,33 +196,7 @@ export const User = {
         token: signedInUser.token
       });
 
-      setTimeout(async () => {
-        try {
-          const { AuthNotificationService } = await import('./authLogger.js');
-          await AuthNotificationService.handleSigninEvent(email, true);
-        } catch (notificationError) {
-          console.error('Signin notification error (non-blocking):', notificationError);
-        }
-      }, 0);
-
       return { user: auth.currentUser };
-
-    } catch (error) {
-      errorDetails = {
-        message: error.message,
-        timestamp: new Date().toISOString()
-      };
-
-      setTimeout(async () => {
-        try {
-          const { AuthNotificationService } = await import('./authLogger.js');
-          await AuthNotificationService.handleSigninEvent(email, false, errorDetails);
-        } catch (notificationError) {
-          console.error('Signin failure notification error (non-blocking):', notificationError);
-        }
-      }, 0);
-
-      throw error;
     }
   },
 
@@ -571,6 +418,10 @@ User.listAuthLogs = async function(filters = {}) {
   return await apiClient.listAuthLogs(filters);
 };
 
+User.getAuthLogStats = async function(timeframe = '7 days') {
+  return await apiClient.getAuthLogStats(timeframe);
+};
+
 User.listAdminInvites = async function(filters = {}) {
   return await apiClient.listAdminInvites(filters);
 };
@@ -647,184 +498,104 @@ User.resetPassword = async function(token, newPassword) {
 // ========== BOOKING ENTITY (Migrated to API) ==========
 export const Booking = {
   async list(orderBy = '-created_at', limit = null, offset = null, includeTotal = false, extraFilters = {}) {
-    try {
-      let options = {};
-      if (typeof orderBy === 'object' && orderBy !== null) {
-        options = orderBy;
-      } else if (typeof limit === 'object' && limit !== null) {
-        options = limit;
-      } else {
-        options = { orderBy, limit, offset, includeTotal, ...extraFilters };
-      }
-
-      const filters = { ...options.filters };
-      if (options.orderBy) filters.orderBy = options.orderBy;
-      if (options.limit) {
-        const parsedLimit = Number(options.limit);
-        if (Number.isInteger(parsedLimit) && parsedLimit > 0) {
-          filters.limit = Math.min(parsedLimit, 50);
-        }
-      }
-      if (options.offset !== null && options.offset !== undefined) filters.offset = options.offset;
-      if (options.includeTotal) filters.include_total = '1';
-      if (options.status) filters.status = options.status;
-      if (options.coach_id) filters.coach_id = options.coach_id;
-      if (options.client_id) filters.client_id = options.client_id;
-      if (options.view) filters.view = options.view;
-
-      // orderBy format: '-created_at' means DESC, 'created_at' means ASC
-      return await apiClient.getBookings(filters);
-    } catch (error) {
-      console.error('API list failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      const data = await db.select('bookings', { orderBy: { created_date: 'desc' }, limit: limit || undefined });
-      return data || [];
+    let options = {};
+    if (typeof orderBy === 'object' && orderBy !== null) {
+      options = orderBy;
+    } else if (typeof limit === 'object' && limit !== null) {
+      options = limit;
+    } else {
+      options = { orderBy, limit, offset, includeTotal, ...extraFilters };
     }
+
+    const filters = { ...options.filters };
+    if (options.orderBy) filters.orderBy = options.orderBy;
+    if (options.limit) {
+      const parsedLimit = Number(options.limit);
+      if (Number.isInteger(parsedLimit) && parsedLimit > 0) {
+        filters.limit = Math.min(parsedLimit, 50);
+      }
+    }
+    if (options.offset !== null && options.offset !== undefined) filters.offset = options.offset;
+    if (options.includeTotal) filters.include_total = '1';
+    if (options.status) filters.status = options.status;
+    if (options.coach_id) filters.coach_id = options.coach_id;
+    if (options.client_id) filters.client_id = options.client_id;
+    if (options.view) filters.view = options.view;
+
+    return await apiClient.getBookings(filters);
   },
 
   async get(id) {
-    try {
-      return await apiClient.getBooking(id);
-    } catch (error) {
-      console.error('API get failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      const bookings = await db.select('bookings', { where: { id } });
-      if (bookings.length === 0) throw new Error('Booking not found');
-      return bookings[0];
-    }
+    return await apiClient.getBooking(id);
   },
 
   async filter(filters, orderBy = 'created_date') {
-    try {
-      // Convert filters to query parameters
-      const queryParams = {};
-      if (filters.coach_id) queryParams.coach_id = filters.coach_id;
-      if (filters.client_id) queryParams.client_id = filters.client_id;
-      if (filters.status) queryParams.status = filters.status;
-      
-      return await apiClient.getBookings(queryParams);
-    } catch (error) {
-      console.error('API filter failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      const options = { where: { ...filters }, orderBy: { [orderBy]: 'desc' } };
-      return await db.select('bookings', options);
-    }
+    const queryParams = {};
+    if (filters.coach_id) queryParams.coach_id = filters.coach_id;
+    if (filters.client_id) queryParams.client_id = filters.client_id;
+    if (filters.status) queryParams.status = filters.status;
+    if (orderBy) queryParams.orderBy = orderBy;
+
+    return await apiClient.getBookings(queryParams);
   },
 
   async create(bookingData) {
-    try {
-      return await apiClient.createBooking(bookingData);
-    } catch (error) {
-      console.error('API create failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      return await db.insert('bookings', bookingData);
-    }
+    return await apiClient.createBooking(bookingData);
   },
 
   async update(id, updateData) {
-    try {
-      return await apiClient.updateBooking(id, updateData);
-    } catch (error) {
-      console.error('API update failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      await db.update('bookings', { where: { id } }, updateData);
-      return await this.get(id);
-    }
+    return await apiClient.updateBooking(id, updateData);
   },
 
   async delete(id) {
-    try {
-      await apiClient.deleteBooking(id);
-    } catch (error) {
-      console.error('API delete failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      await db.delete('bookings', { where: { id } });
-    }
+    await apiClient.deleteBooking(id);
   }
 };
 
 // ========== MESSAGE ENTITY (Migrated to API) ==========
 export const Message = {
   async filter(filters, orderBy = 'created_date') {
-    try {
-      if (!filters.booking_id) {
-        throw new Error('booking_id is required');
-      }
-
-      // Support both:
-      // - { booking_id: '<uuid>' }
-      // - { booking_id: { in: ['<uuid1>', '<uuid2>'] } }
-      if (typeof filters.booking_id === 'object' && Array.isArray(filters.booking_id.in)) {
-        const bookingIds = filters.booking_id.in.filter(Boolean);
-        if (!bookingIds.length) return [];
-
-        const messageLists = await Promise.all(
-          bookingIds.map((bookingId) => apiClient.getMessages(bookingId))
-        );
-
-        const merged = messageLists.flat();
-        const direction = String(orderBy || 'created_date').startsWith('-') ? -1 : 1;
-        return merged.sort((a, b) => {
-          const aTs = new Date(a?.created_date || 0).getTime();
-          const bTs = new Date(b?.created_date || 0).getTime();
-          return direction * (aTs - bTs);
-        });
-      }
-
-      return await apiClient.getMessages(filters.booking_id);
-    } catch (error) {
-      console.error('API filter failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      const options = { where: { ...filters }, orderBy: { [orderBy]: 'asc' } };
-      return await db.select('messages', options);
+    if (!filters.booking_id) {
+      throw new Error('booking_id is required');
     }
+
+    if (typeof filters.booking_id === 'object' && Array.isArray(filters.booking_id.in)) {
+      const bookingIds = filters.booking_id.in.filter(Boolean);
+      if (!bookingIds.length) return [];
+
+      const messageLists = await Promise.all(
+        bookingIds.map((bookingId) => apiClient.getMessages(bookingId))
+      );
+
+      const merged = messageLists.flat();
+      const direction = String(orderBy || 'created_date').startsWith('-') ? -1 : 1;
+      return merged.sort((a, b) => {
+        const aTs = new Date(a?.created_date || 0).getTime();
+        const bTs = new Date(b?.created_date || 0).getTime();
+        return direction * (aTs - bTs);
+      });
+    }
+
+    return await apiClient.getMessages(filters.booking_id);
   },
 
   async create(messageData) {
-    try {
-      return await apiClient.sendMessage(messageData);
-    } catch (error) {
-      console.error('API create failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      return await db.insert('messages', messageData);
-    }
+    return await apiClient.sendMessage(messageData);
   },
 
   async update(id, updateData) {
-    try {
+    if (updateData?.is_read === true || Object.keys(updateData || {}).length === 0) {
       return await apiClient.markMessageRead(id);
-    } catch (error) {
-      console.error('API update failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      await db.update('messages', { where: { id } }, updateData);
-      const messages = await db.select('messages', { where: { id } });
-      return messages[0];
     }
+    throw new Error('Only read-status updates are supported for messages through the API');
   },
 
   async delete(id) {
-    try {
-      return await apiClient.deleteMessage(id);
-    } catch (error) {
-      console.error('API delete failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      await db.delete('messages', { where: { id } });
-      return { ok: true, deleted: 1 };
-    }
+    return await apiClient.deleteMessage(id);
   },
 
   async clearConversation(params = {}) {
-    try {
-      return await apiClient.clearConversationMessages(params);
-    } catch (error) {
-      console.error('API clear conversation failed, using fallback:', error);
-      if (!dbAvailable) throw error;
-      const where = {};
-      if (params.booking_id) where.booking_id = params.booking_id;
-      if (params.direct_user_id) throw error;
-      await db.delete('messages', { where });
-      return { ok: true };
-    }
+    return await apiClient.clearConversationMessages(params);
   },
 
   async listDeleted(filters = {}) {
@@ -860,17 +631,13 @@ export const Message = {
 
 export const Review = {
   async filter(filters, orderBy = 'created_date') {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for reviews.');
-    const options = {
-      where: { ...filters },
-      orderBy: { [orderBy]: 'desc' }
-    };
-    return await db.select('reviews', options);
+    const queryParams = { ...filters };
+    if (orderBy) queryParams.orderBy = orderBy;
+    return await apiClient.getReviews(queryParams);
   },
 
   async create(reviewData) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for reviews.');
-    return await db.insert('reviews', reviewData);
+    return await apiClient.createReview(reviewData);
   }
 };
 
@@ -916,56 +683,36 @@ export const SessionDispute = {
 
 export const CoachAvailability = {
   async getByCoachId(coachId) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
-    const availabilities = await db.select('coach_availability', {
-      where: { coach_id: coachId },
-      orderBy: { start_date: 'asc' }
-    });
-    return availabilities || [];
+    return await apiClient.getCoachAvailability({ coach_id: coachId });
   },
 
   async create(availabilityData) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
-    return await db.insert('coach_availability', availabilityData);
+    return await apiClient.createCoachAvailability(availabilityData);
   },
 
   async update(id, updateData) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
-    await db.update('coach_availability', { where: { id } }, updateData);
-    const availabilities = await db.select('coach_availability', { where: { id } });
-    return availabilities[0];
+    return await apiClient.updateCoachAvailability(id, updateData);
   },
 
   async delete(id) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach availability.');
-    await db.delete('coach_availability', { where: { id } });
+    return await apiClient.deleteCoachAvailability(id);
   }
 };
 
 export const CoachRecurringAvailability = {
   async getByCoachId(coachId) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
-    const recurring = await db.select('coach_recurring_availability', {
-      where: { coach_id: coachId },
-      orderBy: { day_of_week: 'asc' }
-    });
-    return recurring || [];
+    return await apiClient.getCoachRecurringAvailability({ coach_id: coachId });
   },
 
   async create(recurringData) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
-    return await db.insert('coach_recurring_availability', recurringData);
+    return await apiClient.createCoachRecurringAvailability(recurringData);
   },
 
   async update(id, updateData) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
-    await db.update('coach_recurring_availability', { where: { id } }, updateData);
-    const recurring = await db.select('coach_recurring_availability', { where: { id } });
-    return recurring[0];
+    return await apiClient.updateCoachRecurringAvailability(id, updateData);
   },
 
   async delete(id) {
-    if (!dbAvailable) throw new Error('Direct DB access disabled. Implement API route for coach recurring availability.');
-    await db.delete('coach_recurring_availability', { where: { id } });
+    return await apiClient.deleteCoachRecurringAvailability(id);
   }
 };
