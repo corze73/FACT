@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPageUrl, isAdminUser } from "@/utils";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
@@ -12,6 +13,14 @@ import { motion } from "framer-motion";
 import { format, isValid } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { showError, showSuccess } from "@/utils/notifications";
+
+const ADMIN_DASHBOARD_CURRENT_USER_QUERY_KEY = ["admin-dashboard", "current-user"];
+const ADMIN_DASHBOARD_STATS_QUERY_KEY = ["admin-dashboard", "stats"];
+const ADMIN_DASHBOARD_RECENT_BOOKINGS_QUERY_KEY = ["admin-dashboard", "recent-bookings"];
+const ADMIN_DASHBOARD_DELETION_REQUESTS_QUERY_KEY = ["admin-dashboard", "deletion-requests"];
+
+const isAuthFailure = (error) => error?.status === 401 || error?.message?.includes("Not authenticated");
 
 // Utility function to safely parse dates
 const safeParseDate = (dateValue) => {
@@ -28,10 +37,77 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(null);
-  const [stats, setStats] = useState({
-    totalUsers: 0, // excludes admins
-    totalAccounts: 0, // includes admins
+  const [deletionRequests, setDeletionRequests] = useState([]);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const queryClient = useQueryClient();
+
+  const currentUserQuery = useQuery({
+    queryKey: ADMIN_DASHBOARD_CURRENT_USER_QUERY_KEY,
+    queryFn: async () => {
+      const storedUser = localStorage.getItem("currentUser");
+      if (!storedUser) {
+        throw Object.assign(new Error("Not authenticated"), { status: 401 });
+      }
+      return User.me();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const statsQuery = useQuery({
+    queryKey: ADMIN_DASHBOARD_STATS_QUERY_KEY,
+    queryFn: async () => {
+      const [userStats, bookingStats] = await Promise.all([
+        apiClient.getUsers({ stats: "1" }),
+        apiClient.getBookingStats(),
+      ]);
+
+      return {
+        totalUsers: userStats?.total_users || 0,
+        totalAccounts: userStats?.total_accounts || 0,
+        admins: userStats?.admins || 0,
+        totalCoaches: userStats?.total_coaches || 0,
+        totalClients: userStats?.total_clients || 0,
+        totalBookings: bookingStats?.total || 0,
+        pending: bookingStats?.pending || 0,
+        confirmed: bookingStats?.confirmed || 0,
+        cancelled: bookingStats?.cancelled || 0,
+        completed: bookingStats?.completed || 0,
+      };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const recentBookingsQuery = useQuery({
+    queryKey: ADMIN_DASHBOARD_RECENT_BOOKINGS_QUERY_KEY,
+    queryFn: async () => {
+      const recent = await Booking.list("-created_at", 8);
+      const ids = Array.from(new Set(recent.flatMap((booking) => [booking.client_id, booking.coach_id]).filter(Boolean)));
+      const users = ids.length ? await User.filter({ id: { in: ids } }) : [];
+      const userMap = users.reduce((accumulator, user) => {
+        accumulator[user.id] = user;
+        return accumulator;
+      }, {});
+
+      return { recentBookings: recent, userMap };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const deletionRequestsQuery = useQuery({
+    queryKey: ADMIN_DASHBOARD_DELETION_REQUESTS_QUERY_KEY,
+    queryFn: () => User.listDeletionRequests({ status: "pending" }),
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const currentUser = currentUserQuery.data ?? null;
+  const stats = statsQuery.data ?? {
+    totalUsers: 0,
+    totalAccounts: 0,
     admins: 0,
     totalCoaches: 0,
     totalClients: 0,
@@ -39,82 +115,62 @@ export default function AdminDashboard() {
     pending: 0,
     confirmed: 0,
     cancelled: 0,
-    completed: 0
-  });
-  const [recentBookings, setRecentBookings] = useState([]);
-  const [userMap, setUserMap] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [deletionRequests, setDeletionRequests] = useState([]);
-  const [decisionOpen, setDecisionOpen] = useState(false);
-  const [decisionReason, setDecisionReason] = useState("");
-  const [selectedRequest, setSelectedRequest] = useState(null);
+    completed: 0,
+  };
+  const recentBookings = recentBookingsQuery.data?.recentBookings ?? [];
+  const userMap = recentBookingsQuery.data?.userMap ?? {};
+  const loading = currentUserQuery.isLoading || statsQuery.isLoading || recentBookingsQuery.isLoading || deletionRequestsQuery.isLoading;
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        // Check if user is logged in
-        const storedUser = localStorage.getItem('currentUser');
-        if (!storedUser) {
-          console.error('❌ Not logged in - redirecting to login');
-          navigate(createPageUrl('Login'));
-          return;
-        }
-        
-        const me = await User.me();
-        console.log('👤 Current user:', me);
-        setCurrentUser(me);
-        if (!isAdminUser(me)) {
-          const home = me.user_type === "coach" ? "CoachDashboard" : "FindCoaches";
-          navigate(createPageUrl(home));
-          return;
-        }
+    if (!currentUserQuery.error) {
+      return;
+    }
 
-          console.log('📊 Fetching dashboard stats and recent data...');
-          const [userStats, bookingStats, recent, pendingReqs] = await Promise.all([
-            apiClient.getUsers({ stats: '1' }),
-            apiClient.getBookingStats(),
-            Booking.list('-created_at', 8),
-            User.listDeletionRequests({ status: 'pending' })
-          ]);
+    console.error("❌ Error loading admin dashboard user:", currentUserQuery.error);
+    if (isAuthFailure(currentUserQuery.error)) {
+      navigate(createPageUrl("Login"));
+    }
+  }, [currentUserQuery.error, navigate]);
 
-          const totalBookings = bookingStats?.total || 0;
-          const pending = bookingStats?.pending || 0;
-          const confirmed = bookingStats?.confirmed || 0;
-          const cancelled = bookingStats?.cancelled || 0;
-          const completed = bookingStats?.completed || 0;
+  useEffect(() => {
+    if (!currentUser || isAdminUser(currentUser)) {
+      return;
+    }
 
-          const totalAccounts = userStats?.total_accounts || 0;
-          const totalUsers = userStats?.total_users || 0;
-          const totalCoaches = userStats?.total_coaches || 0;
-          const totalClients = userStats?.total_clients || 0;
-          const admins = userStats?.admins || 0;
+    const home = currentUser.user_type === "coach" ? "CoachDashboard" : "FindCoaches";
+    navigate(createPageUrl(home));
+  }, [currentUser, navigate]);
 
-        const ids = Array.from(new Set(recent.flatMap(b => [b.client_id, b.coach_id]).filter(Boolean)));
-        const users = ids.length ? await User.filter({ id: { in: ids } }) : [];
-        const umap = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
-        
-  setStats({ totalUsers, totalAccounts, admins, totalCoaches, totalClients, totalBookings, pending, confirmed, cancelled, completed });
-        setRecentBookings(recent);
-  setUserMap(umap);
+  useEffect(() => {
+    if (!statsQuery.error) {
+      return;
+    }
 
-  setDeletionRequests(pendingReqs || []);
-      } catch (error) {
-        console.error('❌ Error loading admin dashboard data:', error);
-        console.error('Error details:', {
-          message: error.message,
-          status: error.status,
-          details: error.details
-        });
-        // If unauthorized, redirect to login
-        if (error.status === 401 || error.message?.includes('Not authenticated')) {
-          navigate(createPageUrl('Login'));
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [navigate]);
+    console.error("❌ Error loading admin dashboard stats:", statsQuery.error);
+    showError("Stats Unavailable", statsQuery.error.message || "Unable to load dashboard statistics.");
+  }, [statsQuery.error]);
+
+  useEffect(() => {
+    if (!recentBookingsQuery.error) {
+      return;
+    }
+
+    console.error("❌ Error loading recent admin bookings:", recentBookingsQuery.error);
+    showError("Recent Bookings Unavailable", recentBookingsQuery.error.message || "Unable to load recent bookings.");
+  }, [recentBookingsQuery.error]);
+
+  useEffect(() => {
+    if (!deletionRequestsQuery.error) {
+      return;
+    }
+
+    console.error("❌ Error loading deletion requests:", deletionRequestsQuery.error);
+    showError("Deletion Requests Unavailable", deletionRequestsQuery.error.message || "Unable to load deletion requests.");
+  }, [deletionRequestsQuery.error]);
+
+  useEffect(() => {
+    setDeletionRequests(deletionRequestsQuery.data || []);
+  }, [deletionRequestsQuery.data]);
 
   const openDecision = (req) => {
     setSelectedRequest(req);
@@ -127,10 +183,16 @@ export default function AdminDashboard() {
     try {
       await User.decideDeletionRequest(selectedRequest.id, decision, decisionReason, currentUser?.id);
       setDeletionRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
+      queryClient.setQueryData(
+        ADMIN_DASHBOARD_DELETION_REQUESTS_QUERY_KEY,
+        (previous = []) => previous.filter((request) => request.id !== selectedRequest.id)
+      );
       setDecisionOpen(false);
       setDecisionReason("");
+      setSelectedRequest(null);
+      showSuccess("Request Updated", `Deletion request ${decision === "approved" ? "approved" : "rejected"}.`);
     } catch (e) {
-      alert(e.message || 'Failed to process request');
+      showError("Request Update Failed", e.message || "Failed to process request");
     }
   };
 

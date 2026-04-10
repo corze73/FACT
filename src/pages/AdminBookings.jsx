@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Booking } from "@/api/entities.jsx";
 import { User } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,11 @@ import { createPageUrl, isAdminUser } from "@/utils";
 import { format, isValid } from "date-fns";
 import { BookingReference, BookingReferenceSearch } from "../components/booking/BookingReference";
 import StripePaymentModal from "@/components/payment/StripePaymentModal.jsx";
+import { showError } from "@/utils/notifications";
+
+const ADMIN_BOOKINGS_CURRENT_USER_QUERY_KEY = ["admin-bookings", "current-user"];
+
+const isAuthFailure = (error) => error?.status === 401 || error?.message?.includes("Not authenticated");
 
 // Utility function to safely parse dates
 const safeParseDate = (dateValue) => {
@@ -27,56 +33,84 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
 export default function AdminBookings() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [bookings, setBookings] = useState([]);
-  const [totalBookings, setTotalBookings] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [isFetching, setIsFetching] = useState(false);
   const [highlightedBookingId, setHighlightedBookingId] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const queryClient = useQueryClient();
   const PAGE_SIZE = 50;
 
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const statusParam = (urlParams.get("status") || "all").toLowerCase();
   const highlightParam = urlParams.get("highlight");
   const hasActiveFilters = statusParam !== "all";
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const me = await User.me();
-        setCurrentUser(me);
-        if (!isAdminUser(me)) return;
+  const currentUserQuery = useQuery({
+    queryKey: ADMIN_BOOKINGS_CURRENT_USER_QUERY_KEY,
+    queryFn: () => User.me(),
+    staleTime: 5 * 60 * 1000,
+  });
 
-        setIsFetching(true);
-        const response = await Booking.list({
-          orderBy: '-created_at',
-          limit: PAGE_SIZE,
-          offset: (currentPage - 1) * PAGE_SIZE,
-          includeTotal: true,
-          view: 'admin_list',
-          status: statusParam !== 'all' ? statusParam : undefined
-        });
+  const bookingsQuery = useQuery({
+    queryKey: ["admin-bookings", { currentPage, statusParam }],
+    queryFn: async () => {
+      const response = await Booking.list({
+        orderBy: "-created_at",
+        limit: PAGE_SIZE,
+        offset: (currentPage - 1) * PAGE_SIZE,
+        includeTotal: true,
+        view: "admin_list",
+        status: statusParam !== "all" ? statusParam : undefined,
+      });
 
-        const list = response?.data || response || [];
-        const total = response?.total ?? list.length;
-        setTotalBookings(total);
-        setBookings(list);
-      } catch (error) {
-        console.error("Error loading bookings:", error);
-      } finally {
-        setLoading(false);
-        setIsFetching(false);
-      }
-    };
-    load();
-  }, [currentPage, statusParam]);
+      const list = response?.data || response || [];
+      return {
+        bookings: list,
+        totalBookings: response?.total ?? list.length,
+      };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+    keepPreviousData: true,
+  });
+
+  const currentUser = currentUserQuery.data ?? null;
+  const bookings = bookingsQuery.data?.bookings ?? [];
+  const totalBookings = bookingsQuery.data?.totalBookings ?? 0;
+  const loading = currentUserQuery.isLoading || bookingsQuery.isLoading;
+  const isFetching = bookingsQuery.isFetching;
 
   useEffect(() => {
     setCurrentPage(1);
   }, [statusParam]);
+
+  useEffect(() => {
+    if (!currentUserQuery.error) {
+      return;
+    }
+
+    console.error("Error loading admin user:", currentUserQuery.error);
+    if (isAuthFailure(currentUserQuery.error)) {
+      navigate(createPageUrl("Login"));
+    }
+  }, [currentUserQuery.error, navigate]);
+
+  useEffect(() => {
+    if (!currentUser || isAdminUser(currentUser)) {
+      return;
+    }
+
+    navigate(createPageUrl(currentUser.user_type === "coach" ? "CoachDashboard" : "FindCoaches"));
+  }, [currentUser, navigate]);
+
+  useEffect(() => {
+    if (!bookingsQuery.error) {
+      return;
+    }
+
+    console.error("Error loading bookings:", bookingsQuery.error);
+    showError("Bookings Unavailable", bookingsQuery.error.message || "Unable to load admin bookings.");
+  }, [bookingsQuery.error]);
 
   // Handle navigation from sidebar search
   useEffect(() => {
@@ -119,11 +153,17 @@ export default function AdminBookings() {
   const handlePaymentSuccess = () => {
     // Update local state for the paid booking
     if (paymentBooking) {
-      setBookings(prev => prev.map(b => (
-        b.id === paymentBooking.id
-          ? { ...b, status: 'confirmed', payment_status: 'authorized' }
-          : b
-      )));
+      queryClient.setQueriesData({ queryKey: ["admin-bookings"] }, (previous) => {
+        if (!previous?.bookings) return previous;
+        return {
+          ...previous,
+          bookings: previous.bookings.map((booking) => (
+            booking.id === paymentBooking.id
+              ? { ...booking, status: "confirmed", payment_status: "authorized" }
+              : booking
+          ))
+        };
+      });
     }
     setIsPaymentOpen(false);
     setPaymentBooking(null);
