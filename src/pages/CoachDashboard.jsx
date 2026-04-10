@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
 import { createPageUrl } from "@/utils";
+import { showError } from "@/utils/notifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,66 +34,111 @@ const formatLocationLabel = (booking) => {
   return address ? `${type} - ${address}` : type;
 };
 
+const COACH_DASHBOARD_BOOKINGS_QUERY_KEY = ["bookings", "coach-dashboard"];
+const COACH_DASHBOARD_CLIENTS_QUERY_KEY = ["users", "coach-dashboard-clients"];
+
+const sortBookings = (list) => [...list].sort((a, b) => {
+  const dateA = safeParseDate(a.session_date) || new Date('2099-01-01');
+  const dateB = safeParseDate(b.session_date) || new Date('2099-01-01');
+  return dateA - dateB;
+});
+
+const isAuthFailure = (error) => {
+  const status = Number(error?.status || 0);
+  const message = String(error?.message || '').toLowerCase();
+  return status === 401 || message.includes('not authenticated') || message.includes('unauthorized');
+};
+
 export default function CoachDashboard() {
   const navigate = useNavigate();
-  const [bookings, setBookings] = useState([]);
-  const [clients, setClients] = useState({});
   const [activeTab, setActiveTab] = useState("pending");
   const [bookingToDecline, setBookingToDecline] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const currentUserQuery = useQuery({
+    queryKey: ["user", "current", "coach-dashboard"],
+    queryFn: () => User.me(),
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
 
-  const loadData = async () => {
-    try {
-      const user = await User.me();
-      setCurrentUser(user);
+  const currentUser = currentUserQuery.data || null;
 
-      console.log('Coach loading data for user:', user.id, user.full_name);
-
-      // Fetch only this coach's bookings; API limit is capped at 50 per request.
+  const bookingsQuery = useQuery({
+    queryKey: [...COACH_DASHBOARD_BOOKINGS_QUERY_KEY, currentUser?.id],
+    enabled: !!currentUser,
+    queryFn: async () => {
       const coachBookings = await Booking.list({
         orderBy: '-created_at',
         limit: 50,
-        coach_id: user.id
+        coach_id: currentUser.id
       });
-      console.log('Coach bookings loaded:', coachBookings.length);
-      
-      console.log('Coach bookings filtered:', coachBookings.length, coachBookings);
-      
-      setBookings(coachBookings.sort((a, b) => {
-        const dateA = safeParseDate(a.session_date) || new Date('2099-01-01');
-        const dateB = safeParseDate(b.session_date) || new Date('2099-01-01');
-        return dateA - dateB;
-      }));
-      
-      const clientIds = [...new Set(coachBookings.map(b => b.client_id).filter(Boolean))];
-      console.log('Client IDs to fetch:', clientIds);
-      
-      if (clientIds.length > 0) {
-        const clientUsers = await User.filter({ id: { in: clientIds }});
-        console.log('Client users loaded:', clientUsers);
-        const clientsMap = clientUsers.reduce((acc, client) => {
-          acc[client.id] = client;
-          return acc;
-        }, {});
-        setClients(clientsMap);
-      }
 
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
+      return sortBookings(coachBookings);
+    },
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+
+  const bookings = bookingsQuery.data || [];
+
+  const clientIds = useMemo(
+    () => [...new Set(bookings.map((booking) => booking.client_id).filter(Boolean))],
+    [bookings]
+  );
+
+  const clientsQuery = useQuery({
+    queryKey: [...COACH_DASHBOARD_CLIENTS_QUERY_KEY, clientIds],
+    enabled: clientIds.length > 0,
+    queryFn: () => User.filter({ id: { in: clientIds } }),
+    staleTime: 3 * 60 * 1000,
+    retry: 1,
+  });
+
+  const clients = useMemo(() => {
+    const clientUsers = clientsQuery.data || [];
+    return clientUsers.reduce((acc, client) => {
+      acc[client.id] = client;
+      return acc;
+    }, {});
+  }, [clientsQuery.data]);
+
+  useEffect(() => {
+    if (currentUserQuery.error && isAuthFailure(currentUserQuery.error)) {
+      console.error("Error loading dashboard user:", currentUserQuery.error);
+      navigate(createPageUrl("Landing"));
     }
+  }, [currentUserQuery.error, navigate]);
+
+  useEffect(() => {
+    if (!bookingsQuery.error || isAuthFailure(bookingsQuery.error)) return;
+    console.error("Error loading dashboard data:", bookingsQuery.error);
+    showError("Dashboard Unavailable", bookingsQuery.error.message || "Unable to load bookings right now.");
+  }, [bookingsQuery.error]);
+
+  useEffect(() => {
+    if (!clientsQuery.error || isAuthFailure(clientsQuery.error)) return;
+    console.error("Error loading client details:", clientsQuery.error);
+    showError("Client Details Unavailable", clientsQuery.error.message || "Unable to load client details right now.");
+  }, [clientsQuery.error]);
+
+  const refreshBookings = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+  };
+
+  const updateCachedBooking = (updatedBooking) => {
+    queryClient.setQueryData([...COACH_DASHBOARD_BOOKINGS_QUERY_KEY, currentUser?.id], (existing = []) =>
+      sortBookings(existing.map((booking) => (booking.id === updatedBooking.id ? updatedBooking : booking)))
+    );
   };
 
   const handleAcceptBooking = async (bookingId) => {
     try {
       await Booking.update(bookingId, { accept: true });
-      loadData();
+      await refreshBookings();
     } catch (error) {
       console.error("Error accepting booking:", error);
-      alert("Error accepting booking. Please try again.");
+      showError("Accept Failed", error.message || "Error accepting booking. Please try again.");
     }
   };
 
@@ -99,10 +146,10 @@ export default function CoachDashboard() {
     try {
       await Booking.update(bookingId, { cancel: true, cancellation_reason: reason });
       setBookingToDecline(null);
-      loadData();
+      await refreshBookings();
     } catch (error) {
       console.error("Error declining booking:", error);
-      alert("Error declining booking. Please try again.");
+      showError("Decline Failed", error.message || "Error declining booking. Please try again.");
     }
   };
 
@@ -154,7 +201,7 @@ export default function CoachDashboard() {
                 booking={booking} 
                 currentUser={currentUser}
                 onBookingUpdate={(updatedBooking) => {
-                  setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b));
+                  updateCachedBooking(updatedBooking);
                 }}
               />
             </div>
