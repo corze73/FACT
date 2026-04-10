@@ -112,6 +112,28 @@ const rawHandler = async (event) => {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
     }
 
+    if (event.httpMethod === 'DELETE') {
+      if (!recordId || !uuidPattern.test(recordId)) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'Availability record id is required' }) };
+      }
+
+      const deleted = await executeQueryOne(
+        withUserCtx(
+          `DELETE FROM ${tableName}
+           WHERE id = $1
+           RETURNING *`,
+          currentUserId
+        ),
+        [recordId]
+      );
+
+      if (!deleted) {
+        return { statusCode: 404, headers, body: JSON.stringify({ error: 'Availability record not found' }) };
+      }
+
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, id: recordId }) };
+    }
+
     const payload = parseBody(event.body);
     if (payload === null) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) };
@@ -246,24 +268,6 @@ const rawHandler = async (event) => {
         return { statusCode: 404, headers, body: JSON.stringify({ error: 'Availability record not found' }) };
       }
       return { statusCode: 200, headers, body: JSON.stringify(updated) };
-    }
-
-    if (event.httpMethod === 'DELETE') {
-      const deleted = await executeQueryOne(
-        withUserCtx(
-          `DELETE FROM ${tableName}
-           WHERE id = $1
-           RETURNING *`,
-          currentUserId
-        ),
-        [recordId]
-      );
-
-      if (!deleted) {
-        return { statusCode: 404, headers, body: JSON.stringify({ error: 'Availability record not found' }) };
-      }
-
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, id: recordId }) };
     }
 
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };

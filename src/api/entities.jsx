@@ -126,7 +126,6 @@ export const User = {
   },
 
   async signUpWithEmail(email, password, userData) {
-    try {
       const profileData = { ...userData };
       delete profileData.password; // Do not forward raw password in the profile spread
 
@@ -172,11 +171,9 @@ export const User = {
       });
 
       return { user: auth.currentUser };
-    }
   },
 
   async signInWithEmail(email, password) {
-    try {
       if (!email || !password) {
         throw new Error('Email and password are required');
       }
@@ -197,7 +194,6 @@ export const User = {
       });
 
       return { user: auth.currentUser };
-    }
   },
 
   // Auth functions use Google OAuth + custom auth object
