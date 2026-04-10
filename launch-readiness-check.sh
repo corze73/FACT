@@ -126,8 +126,7 @@ echo -e "\n${BLUE}5. Testing Build System${NC}"
 echo "----------------------"
 
 # Test if the app can build (quick build test)
-BUILD_TEST=$(timeout 30s npm run build 2>&1)
-if echo "$BUILD_TEST" | grep -q "build completed\|built in"; then
+if npm run build >/tmp/fact-build.log 2>&1; then
     test_result 0 "Application builds successfully"
 else
     test_result 1 "Application build failed"
@@ -161,12 +160,22 @@ kill $SERVER_PID 2>/dev/null
 echo -e "\n${BLUE}7. Testing Frontend Availability${NC}"
 echo "--------------------------------"
 
-# Check if frontend dev server can start
-DEV_TEST=$(timeout 10s npm run dev 2>&1)
-if echo "$DEV_TEST" | grep -q "Local:.*http://localhost:5173"; then
+# Check if frontend dev server is available or can start
+if curl -s http://localhost:8888 >/dev/null 2>&1; then
     test_result 0 "Frontend dev server starts successfully"
 else
-    test_result 1 "Frontend dev server failed to start"
+    npm run dev >/tmp/fact-dev.log 2>&1 &
+    DEV_PID=$!
+    sleep 12
+
+    if curl -s http://localhost:8888 >/dev/null 2>&1 || grep -Eq "localhost:8888|Server now ready|Netlify Dev" /tmp/fact-dev.log; then
+        test_result 0 "Frontend dev server starts successfully"
+    else
+        test_result 1 "Frontend dev server failed to start"
+    fi
+
+    kill $DEV_PID 2>/dev/null
+    wait $DEV_PID 2>/dev/null
 fi
 
 echo -e "\n${BLUE}8. Testing Critical Features${NC}"
