@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { User } from "@/api/entities.jsx";
-import { apiClient } from "@/api/apiClient.js";
 import { Booking } from "@/api/entities.jsx";
+import { useCoaches } from "@/hooks/useQueries.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -29,11 +29,7 @@ const getCachedCurrentUser = () => {
 
 export default function FindCoaches() {
   const navigate = useNavigate();
-  const [coaches, setCoaches] = useState([]);
-  const [totalCoaches, setTotalCoaches] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isFetching, setIsFetching] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -58,7 +54,7 @@ export default function FindCoaches() {
     city: debouncedCity
   }), [filters, debouncedSearchTerm, debouncedCountry, debouncedCity]);
 
-  const buildCoachQuery = useCallback(() => {
+  const coachQueryFilters = useMemo(() => {
     const params = {
       limit: COACHES_PER_PAGE,
       offset: (currentPage - 1) * COACHES_PER_PAGE,
@@ -98,25 +94,17 @@ export default function FindCoaches() {
     return () => clearTimeout(timeout);
   }, [filters.searchTerm, filters.country, filters.city]);
 
-  const fetchCoaches = useCallback(async () => {
-    setIsFetching(true);
-    try {
-      const response = await apiClient.getCoaches(buildCoachQuery());
-      if (response && Array.isArray(response.data)) {
-        setCoaches(response.data);
-        setTotalCoaches(response.total || 0);
-      } else {
-        const list = Array.isArray(response) ? response : [];
-        setCoaches(list);
-        setTotalCoaches(list.length);
-      }
-    } catch (error) {
-      devError("Error loading data:", error);
-    } finally {
-      setIsLoading(false);
-      setIsFetching(false);
-    }
-  }, [buildCoachQuery]);
+  const coachesQuery = useCoaches(coachQueryFilters);
+  const coachesResponse = coachesQuery.data;
+  const coaches = useMemo(
+    () => (Array.isArray(coachesResponse?.data) ? coachesResponse.data : Array.isArray(coachesResponse) ? coachesResponse : []),
+    [coachesResponse]
+  );
+  const totalCoaches = Array.isArray(coachesResponse?.data)
+    ? Number(coachesResponse?.total || 0)
+    : coaches.length;
+  const isLoading = coachesQuery.isLoading;
+  const isFetching = coachesQuery.isFetching;
 
   useEffect(() => {
     // Redirect admins to AdminDashboard, allow guests to browse
@@ -155,8 +143,10 @@ export default function FindCoaches() {
   }, [navigate]);
 
   useEffect(() => {
-    fetchCoaches();
-  }, [fetchCoaches]);
+    if (!coachesQuery.error) return;
+    devError("Error loading data:", coachesQuery.error);
+    showError('Coach Search Failed', coachesQuery.error.message || 'Unable to load coaches. Please try again.');
+  }, [coachesQuery.error]);
 
   const totalPages = Math.ceil(totalCoaches / COACHES_PER_PAGE);
 

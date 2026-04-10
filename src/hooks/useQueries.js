@@ -37,21 +37,7 @@ const normalizeUserListResponse = (response) => {
 export function useCoaches(filters = {}) {
   return useQuery({
     queryKey: queryKeys.coaches(filters),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      
-      // Apply filters
-      if (filters.sport) params.append('sport', filters.sport);
-      if (filters.experience_level) params.append('experience_level', filters.experience_level);
-      if (filters.country) params.append('country', filters.country);
-      if (filters.city) params.append('city', filters.city);
-      if (filters.search) params.append('search', filters.search);
-      if (filters.limit) params.append('limit', filters.limit);
-      if (filters.page) params.append('offset', (filters.page - 1) * (filters.limit || 20));
-      
-      const response = await apiClient.getCoaches(params.toString());
-      return response;
-    },
+    queryFn: () => apiClient.getCoaches(filters),
     // Cache for 5 minutes since coach listings don't change frequently
     staleTime: 5 * 60 * 1000,
   });
