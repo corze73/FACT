@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { User } from "@/api/entities.jsx";
 import {
   createPageUrl,
@@ -15,23 +16,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { alertToast, showSuccess } from "@/utils/notifications";
 
 const PAGE_SIZE = 20;
+const ADMIN_OPERATIONS_CURRENT_USER_QUERY_KEY = ["admin-operations", "current-user"];
 
 const csvCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
+const isAuthFailure = (error) => error?.status === 401 || error?.message?.includes("Not authenticated");
+
 export default function AdminOperations() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(null);
-  const [initialized, setInitialized] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [opsError, setOpsError] = useState("");
-  const [overview, setOverview] = useState(null);
-  const [weekly, setWeekly] = useState(null);
-  const [overviewLoading, setOverviewLoading] = useState(false);
-
-  const [admins, setAdmins] = useState([]);
-  const [adminsLoading, setAdminsLoading] = useState(false);
   const [adminSearch, setAdminSearch] = useState("");
   const [adminScopeFilter, setAdminScopeFilter] = useState("all");
   const [promoteTarget, setPromoteTarget] = useState("");
@@ -40,55 +35,186 @@ export default function AdminOperations() {
   const [promoteMessage, setPromoteMessage] = useState("");
   const [promoteError, setPromoteError] = useState("");
   const [adminActionLoadingId, setAdminActionLoadingId] = useState("");
-  const [invites, setInvites] = useState([]);
-  const [invitesLoading, setInvitesLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteScope, setInviteScope] = useState("support");
   const [inviteHours, setInviteHours] = useState(72);
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteError, setInviteError] = useState("");
 
-  const [cases, setCases] = useState([]);
-  const [casesTotal, setCasesTotal] = useState(0);
   const [casesPage, setCasesPage] = useState(1);
   const [casesStatus, setCasesStatus] = useState("all");
-  const [casesLoading, setCasesLoading] = useState(false);
-  const [casesError, setCasesError] = useState("");
   const [newCaseTitle, setNewCaseTitle] = useState("");
   const [newCaseDesc, setNewCaseDesc] = useState("");
   const [newCaseTargetUser, setNewCaseTargetUser] = useState("");
 
-  const [disputes, setDisputes] = useState([]);
-  const [disputesTotal, setDisputesTotal] = useState(0);
   const [disputesPage, setDisputesPage] = useState(1);
   const [disputesStatus, setDisputesStatus] = useState("all");
-  const [disputesLoading, setDisputesLoading] = useState(false);
-  const [disputesError, setDisputesError] = useState("");
   const [newDisputeBookingId, setNewDisputeBookingId] = useState("");
   const [newDisputeReason, setNewDisputeReason] = useState("");
 
-  const [expiring, setExpiring] = useState([]);
-  const [expiringTotal, setExpiringTotal] = useState(0);
   const [expiringPage, setExpiringPage] = useState(1);
   const [expiringDays, setExpiringDays] = useState(30);
-  const [expiringLoading, setExpiringLoading] = useState(false);
-  const [expiringError, setExpiringError] = useState("");
 
-  const [snapshots, setSnapshots] = useState([]);
-  const [snapshotsTotal, setSnapshotsTotal] = useState(0);
   const [snapshotsPage, setSnapshotsPage] = useState(1);
   const [snapshotUserFilter, setSnapshotUserFilter] = useState("");
-  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
-  const [snapshotsError, setSnapshotsError] = useState("");
 
-  const [signupAttempts, setSignupAttempts] = useState([]);
-  const [signupAttemptsTotal, setSignupAttemptsTotal] = useState(0);
   const [signupAttemptsPage, setSignupAttemptsPage] = useState(1);
   const [signupEmailFilter, setSignupEmailFilter] = useState("");
   const [signupSuccessFilter, setSignupSuccessFilter] = useState("all");
   const [signupSourceFilter, setSignupSourceFilter] = useState("all");
-  const [signupAttemptsLoading, setSignupAttemptsLoading] = useState(false);
-  const [signupAttemptsError, setSignupAttemptsError] = useState("");
+
+  const currentUserQuery = useQuery({
+    queryKey: ADMIN_OPERATIONS_CURRENT_USER_QUERY_KEY,
+    queryFn: () => User.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const overviewQuery = useQuery({
+    queryKey: ["admin-operations", "overview"],
+    queryFn: async () => {
+      const [overviewData, weeklyData] = await Promise.all([
+        User.getAdminOpsOverview(),
+        User.getWeeklyOpsReport()
+      ]);
+      return { overview: overviewData || null, weekly: weeklyData || null };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const adminsQuery = useQuery({
+    queryKey: ["admin-operations", "admins", adminSearch, adminScopeFilter],
+    queryFn: async () => {
+      const adminData = await User.listAdminUsersOps({
+        limit: 100,
+        offset: 0,
+        search: adminSearch.trim() || undefined,
+        scope: adminScopeFilter !== "all" ? adminScopeFilter : undefined
+      });
+      return adminData?.data || [];
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const invitesQuery = useQuery({
+    queryKey: ["admin-operations", "invites"],
+    queryFn: async () => {
+      const data = await User.listAdminInvites({ include_total: 1, limit: 20, offset: 0 });
+      return data?.data || [];
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const casesQuery = useQuery({
+    queryKey: ["admin-operations", "cases", casesPage, casesStatus],
+    queryFn: async () => {
+      const caseData = await User.listAdminCases({
+        include_total: 1,
+        limit: PAGE_SIZE,
+        offset: (casesPage - 1) * PAGE_SIZE,
+        status: casesStatus !== "all" ? casesStatus : undefined
+      });
+      return { data: caseData?.data || [], total: Number(caseData?.total || 0) };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const disputesQuery = useQuery({
+    queryKey: ["admin-operations", "disputes", disputesPage, disputesStatus],
+    queryFn: async () => {
+      const disputeData = await User.listBookingDisputes({
+        include_total: 1,
+        limit: PAGE_SIZE,
+        offset: (disputesPage - 1) * PAGE_SIZE,
+        status: disputesStatus !== "all" ? disputesStatus : undefined
+      });
+      return { data: disputeData?.data || [], total: Number(disputeData?.total || 0) };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const expiringQuery = useQuery({
+    queryKey: ["admin-operations", "expiring", expiringPage, expiringDays],
+    queryFn: async () => {
+      const expiringData = await User.listComplianceExpiring({
+        days: expiringDays,
+        include_total: 1,
+        limit: PAGE_SIZE,
+        offset: (expiringPage - 1) * PAGE_SIZE
+      });
+      return { data: expiringData?.data || [], total: Number(expiringData?.total || 0) };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const snapshotsQuery = useQuery({
+    queryKey: ["admin-operations", "snapshots", snapshotsPage, snapshotUserFilter],
+    queryFn: async () => {
+      const snapshotData = await User.listDeletedUserSnapshots({
+        include_total: 1,
+        limit: PAGE_SIZE,
+        offset: (snapshotsPage - 1) * PAGE_SIZE,
+        user_id: snapshotUserFilter.trim() || undefined
+      });
+      return { data: snapshotData?.data || [], total: Number(snapshotData?.total || 0) };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const signupAttemptsQuery = useQuery({
+    queryKey: ["admin-operations", "signup-attempts", signupAttemptsPage, signupEmailFilter, signupSuccessFilter, signupSourceFilter],
+    queryFn: async () => {
+      const authData = await User.listAuthLogs({
+        include_total: 1,
+        limit: PAGE_SIZE,
+        offset: (signupAttemptsPage - 1) * PAGE_SIZE,
+        event_type: 'signup',
+        user_email: signupEmailFilter.trim() || undefined,
+        success: signupSuccessFilter !== 'all' ? signupSuccessFilter : undefined,
+        signup_source: signupSourceFilter !== 'all' ? signupSourceFilter : undefined
+      });
+      return { data: authData?.data || [], total: Number(authData?.total || 0) };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const currentUser = currentUserQuery.data ?? null;
+  const loading = currentUserQuery.isLoading;
+  const opsError = overviewQuery.error?.message || currentUserQuery.error?.message || "";
+  const overview = overviewQuery.data?.overview ?? null;
+  const weekly = overviewQuery.data?.weekly ?? null;
+  const overviewLoading = overviewQuery.isLoading || overviewQuery.isFetching;
+  const admins = adminsQuery.data ?? [];
+  const adminsLoading = adminsQuery.isLoading || adminsQuery.isFetching;
+  const invites = invitesQuery.data ?? [];
+  const invitesLoading = invitesQuery.isLoading || invitesQuery.isFetching;
+  const cases = casesQuery.data?.data ?? [];
+  const casesTotal = casesQuery.data?.total ?? 0;
+  const casesLoading = casesQuery.isLoading || casesQuery.isFetching;
+  const casesError = casesQuery.error?.message || "";
+  const disputes = disputesQuery.data?.data ?? [];
+  const disputesTotal = disputesQuery.data?.total ?? 0;
+  const disputesLoading = disputesQuery.isLoading || disputesQuery.isFetching;
+  const disputesError = disputesQuery.error?.message || "";
+  const expiring = expiringQuery.data?.data ?? [];
+  const expiringTotal = expiringQuery.data?.total ?? 0;
+  const expiringLoading = expiringQuery.isLoading || expiringQuery.isFetching;
+  const expiringError = expiringQuery.error?.message || "";
+  const snapshots = snapshotsQuery.data?.data ?? [];
+  const snapshotsTotal = snapshotsQuery.data?.total ?? 0;
+  const snapshotsLoading = snapshotsQuery.isLoading || snapshotsQuery.isFetching;
+  const snapshotsError = snapshotsQuery.error?.message || "";
+  const signupAttempts = signupAttemptsQuery.data?.data ?? [];
+  const signupAttemptsTotal = signupAttemptsQuery.data?.total ?? 0;
+  const signupAttemptsLoading = signupAttemptsQuery.isLoading || signupAttemptsQuery.isFetching;
+  const signupAttemptsError = signupAttemptsQuery.error?.message || "";
 
   const adminScope = useMemo(() => getAdminScope(currentUser), [currentUser]);
   const canRoles = useMemo(() => canManageAdminRoles(currentUser), [currentUser]);
@@ -110,195 +236,17 @@ export default function AdminOperations() {
     navigate(createPageUrl("AdminDashboard"));
   };
 
-  const loadTopCards = async () => {
-    setOverviewLoading(true);
-    setOpsError("");
-    try {
-      const [overviewData, weeklyData] = await Promise.all([
-        User.getAdminOpsOverview(),
-        User.getWeeklyOpsReport()
-      ]);
-      setOverview(overviewData || null);
-      setWeekly(weeklyData || null);
-    } catch (error) {
-      setOpsError(error.message || "Failed to load summary cards");
-    } finally {
-      setOverviewLoading(false);
+  useEffect(() => {
+    if (!currentUserQuery.error) return;
+    if (isAuthFailure(currentUserQuery.error)) {
+      navigate(createPageUrl("Login"));
     }
-  };
-
-  const loadAdmins = async () => {
-    setAdminsLoading(true);
-    try {
-      const adminData = await User.listAdminUsersOps({
-        limit: 100,
-        offset: 0,
-        search: adminSearch.trim() || undefined,
-        scope: adminScopeFilter !== "all" ? adminScopeFilter : undefined
-      });
-      setAdmins(adminData?.data || []);
-    } finally {
-      setAdminsLoading(false);
-    }
-  };
-
-  const loadCases = async () => {
-    setCasesLoading(true);
-    setCasesError("");
-    try {
-      const caseData = await User.listAdminCases({
-        include_total: 1,
-        limit: PAGE_SIZE,
-        offset: (casesPage - 1) * PAGE_SIZE,
-        status: casesStatus !== "all" ? casesStatus : undefined
-      });
-      setCases(caseData?.data || []);
-      setCasesTotal(Number(caseData?.total || 0));
-    } catch (error) {
-      setCasesError(error.message || "Failed to load cases");
-    } finally {
-      setCasesLoading(false);
-    }
-  };
-
-  const loadDisputes = async () => {
-    setDisputesLoading(true);
-    setDisputesError("");
-    try {
-      const disputeData = await User.listBookingDisputes({
-        include_total: 1,
-        limit: PAGE_SIZE,
-        offset: (disputesPage - 1) * PAGE_SIZE,
-        status: disputesStatus !== "all" ? disputesStatus : undefined
-      });
-      setDisputes(disputeData?.data || []);
-      setDisputesTotal(Number(disputeData?.total || 0));
-    } catch (error) {
-      setDisputesError(error.message || "Failed to load disputes");
-    } finally {
-      setDisputesLoading(false);
-    }
-  };
-
-  const loadExpiring = async () => {
-    setExpiringLoading(true);
-    setExpiringError("");
-    try {
-      const expiringData = await User.listComplianceExpiring({
-        days: expiringDays,
-        include_total: 1,
-        limit: PAGE_SIZE,
-        offset: (expiringPage - 1) * PAGE_SIZE
-      });
-      setExpiring(expiringData?.data || []);
-      setExpiringTotal(Number(expiringData?.total || 0));
-    } catch (error) {
-      setExpiringError(error.message || "Failed to load compliance alerts");
-    } finally {
-      setExpiringLoading(false);
-    }
-  };
-
-  const loadSnapshots = async () => {
-    setSnapshotsLoading(true);
-    setSnapshotsError("");
-    try {
-      const snapshotData = await User.listDeletedUserSnapshots({
-        include_total: 1,
-        limit: PAGE_SIZE,
-        offset: (snapshotsPage - 1) * PAGE_SIZE,
-        user_id: snapshotUserFilter.trim() || undefined
-      });
-      setSnapshots(snapshotData?.data || []);
-      setSnapshotsTotal(Number(snapshotData?.total || 0));
-    } catch (error) {
-      setSnapshotsError(error.message || "Failed to load snapshots");
-    } finally {
-      setSnapshotsLoading(false);
-    }
-  };
-
-  const loadSignupAttempts = async () => {
-    setSignupAttemptsLoading(true);
-    setSignupAttemptsError("");
-    try {
-      const authData = await User.listAuthLogs({
-        include_total: 1,
-        limit: PAGE_SIZE,
-        offset: (signupAttemptsPage - 1) * PAGE_SIZE,
-        event_type: 'signup',
-        user_email: signupEmailFilter.trim() || undefined,
-        success: signupSuccessFilter !== 'all' ? signupSuccessFilter : undefined,
-        signup_source: signupSourceFilter !== 'all' ? signupSourceFilter : undefined
-      });
-      setSignupAttempts(authData?.data || []);
-      setSignupAttemptsTotal(Number(authData?.total || 0));
-    } catch (error) {
-      setSignupAttemptsError(error.message || 'Failed to load signup attempts');
-    } finally {
-      setSignupAttemptsLoading(false);
-    }
-  };
-
-  const bootstrap = async () => {
-    try {
-      const me = await User.me();
-      setCurrentUser(me);
-      if (!isAdminUser(me)) {
-        navigate(createPageUrl("Landing"));
-        return;
-      }
-    } catch (error) {
-      setOpsError(error.message || "Failed to initialize admin operations");
-    } finally {
-      setLoading(false);
-      setInitialized(true);
-    }
-  };
+  }, [currentUserQuery.error, navigate]);
 
   useEffect(() => {
-    bootstrap();
-  }, []);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadTopCards();
-  }, [initialized]);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadAdmins();
-  }, [initialized, adminSearch, adminScopeFilter]);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadCases();
-  }, [initialized, casesPage, casesStatus]);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadDisputes();
-  }, [initialized, disputesPage, disputesStatus]);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadExpiring();
-  }, [initialized, expiringPage, expiringDays]);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadSnapshots();
-  }, [initialized, snapshotsPage, snapshotUserFilter]);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadSignupAttempts();
-  }, [initialized, signupAttemptsPage, signupEmailFilter, signupSuccessFilter, signupSourceFilter]);
-
-  useEffect(() => {
-    if (!initialized) return;
-    loadAdminInvites();
-  }, [initialized]);
+    if (!currentUser || isAdminUser(currentUser)) return;
+    navigate(createPageUrl("Landing"));
+  }, [currentUser, navigate]);
 
   const createCase = async () => {
     if (!newCaseTitle.trim()) return;
@@ -310,12 +258,14 @@ export default function AdminOperations() {
     setNewCaseTitle("");
     setNewCaseDesc("");
     setNewCaseTargetUser("");
-    await Promise.all([loadCases(), loadTopCards()]);
+    await Promise.all([casesQuery.refetch(), overviewQuery.refetch()]);
+    showSuccess('Case Created', 'Case created successfully.');
   };
 
   const updateCaseStatus = async (caseId, status) => {
     await User.updateAdminCase(caseId, { status });
-    await Promise.all([loadCases(), loadTopCards()]);
+    await Promise.all([casesQuery.refetch(), overviewQuery.refetch()]);
+    showSuccess('Case Updated', 'Case status updated successfully.');
   };
 
   const createDispute = async () => {
@@ -326,17 +276,20 @@ export default function AdminOperations() {
     });
     setNewDisputeBookingId("");
     setNewDisputeReason("");
-    await Promise.all([loadDisputes(), loadTopCards()]);
+    await Promise.all([disputesQuery.refetch(), overviewQuery.refetch()]);
+    showSuccess('Dispute Created', 'Dispute created successfully.');
   };
 
   const updateDisputeStatus = async (disputeId, status) => {
     await User.updateBookingDispute(disputeId, { status });
-    await Promise.all([loadDisputes(), loadTopCards()]);
+    await Promise.all([disputesQuery.refetch(), overviewQuery.refetch()]);
+    showSuccess('Dispute Updated', 'Dispute status updated successfully.');
   };
 
   const updateAdminScope = async (adminUserId, admin_scope) => {
     await User.updateAdminUserScope(adminUserId, { admin_scope });
-    await loadAdmins();
+    await adminsQuery.refetch();
+    showSuccess('Admin Scope Updated', 'Admin scope updated successfully.');
   };
 
   const deactivateAdmin = async (adminUser) => {
@@ -350,9 +303,10 @@ export default function AdminOperations() {
         reason: reason.trim(),
         hard: false
       });
-      await Promise.all([loadAdmins(), loadTopCards()]);
+      await Promise.all([adminsQuery.refetch(), overviewQuery.refetch()]);
+      showSuccess('Admin Deactivated', 'Admin deactivated successfully.');
     } catch (error) {
-      alert(error.message || 'Failed to deactivate admin');
+      alertToast(error.message || 'Failed to deactivate admin');
     } finally {
       setAdminActionLoadingId("");
     }
@@ -364,9 +318,10 @@ export default function AdminOperations() {
     setAdminActionLoadingId(adminUser.id);
     try {
       await User.restore(adminUser.id);
-      await Promise.all([loadAdmins(), loadTopCards()]);
+      await Promise.all([adminsQuery.refetch(), overviewQuery.refetch()]);
+      showSuccess('Admin Restored', 'Admin restored successfully.');
     } catch (error) {
-      alert(error.message || 'Failed to restore admin');
+      alertToast(error.message || 'Failed to restore admin');
     } finally {
       setAdminActionLoadingId("");
     }
@@ -386,24 +341,11 @@ export default function AdminOperations() {
       const result = await User.promoteAdminUser(payload);
       setPromoteMessage(`Promoted ${result?.data?.email || target} to admin (${result?.data?.admin_scope || promoteScope}).`);
       setPromoteTarget("");
-      await Promise.all([loadAdmins(), loadTopCards()]);
+      await Promise.all([adminsQuery.refetch(), overviewQuery.refetch()]);
     } catch (error) {
       setPromoteError(error.message || 'Failed to promote user to admin');
     } finally {
       setPromoteLoading(false);
-    }
-  };
-
-  const loadAdminInvites = async () => {
-    setInvitesLoading(true);
-    setInviteError("");
-    try {
-      const data = await User.listAdminInvites({ include_total: 1, limit: 20, offset: 0 });
-      setInvites(data?.data || []);
-    } catch (error) {
-      setInviteError(error.message || 'Failed to load admin invites');
-    } finally {
-      setInvitesLoading(false);
     }
   };
 
@@ -427,7 +369,7 @@ export default function AdminOperations() {
           : `Invite created but email was not sent (SMTP not configured). Link preview: ${preview}`
       );
       setInviteEmail("");
-      await loadAdminInvites();
+      await invitesQuery.refetch();
     } catch (error) {
       setInviteError(error.message || 'Failed to create admin invite');
     }
@@ -436,7 +378,7 @@ export default function AdminOperations() {
   const revokeInvite = async (inviteId) => {
     try {
       await User.revokeAdminInvite(inviteId);
-      await loadAdminInvites();
+      await invitesQuery.refetch();
     } catch (error) {
       setInviteError(error.message || 'Failed to revoke invite');
     }
@@ -446,7 +388,7 @@ export default function AdminOperations() {
     const res = await User.exportAuditLogs({ redaction, limit: 1000 });
     const rows = res?.data || [];
     if (!rows.length) {
-      alert("No audit rows to export.");
+      alertToast("No audit rows to export.");
       return;
     }
 

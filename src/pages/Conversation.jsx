@@ -1,5 +1,6 @@
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { User } from '@/api/entities.jsx';
 import { Message } from '@/api/entities.jsx';
 import { Booking } from '@/api/entities.jsx';
@@ -13,29 +14,81 @@ import MessageBubble from '../components/messaging/MessageBubble';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { validateAndSanitize, messageSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
+import { alertToast, showError } from '@/utils/notifications';
+
+async function loadConversationData(mode, bookingId, directUserId) {
+    const user = await User.me();
+    let conversationMessages = [];
+    let booking = null;
+    let otherUser = null;
+    let participants = null;
+    let directUser = null;
+
+    if (mode === 'booking') {
+        booking = await Booking.get(bookingId);
+
+        if (isAdminUser(user)) {
+            const [clientData, coachData] = await Promise.all([
+                User.get(booking.client_id),
+                User.get(booking.coach_id)
+            ]);
+            participants = { client: clientData, coach: coachData };
+        } else {
+            const otherUserId = booking.client_id === user.id ? booking.coach_id : booking.client_id;
+            otherUser = await User.get(otherUserId);
+        }
+
+        const allMessages = await Message.filter({ booking_id: bookingId }, 'created_date');
+        conversationMessages = isAdminUser(user)
+            ? allMessages
+            : allMessages.filter((message) => message.sender_id === user.id || message.receiver_id === user.id);
+    } else {
+        directUser = await User.get(directUserId);
+        conversationMessages = await apiClient.getDirectMessages(directUserId);
+    }
+
+    const unreadMessages = conversationMessages.filter((message) => message.receiver_id === user.id && !message.is_read);
+    if (unreadMessages.length > 0) {
+        await Promise.all(unreadMessages.map((message) => Message.update(message.id, { is_read: true })));
+        conversationMessages = conversationMessages.map((message) => (
+            unreadMessages.some((unread) => unread.id === message.id)
+                ? { ...message, is_read: true }
+                : message
+        ));
+    }
+
+    return {
+        currentUser: user,
+        booking,
+        otherUser,
+        participants,
+        directUser,
+        messages: conversationMessages,
+    };
+}
+
+async function loadDeletedMessages(mode, bookingId, directUserId) {
+    return Message.listDeleted(
+        mode === 'direct'
+            ? { direct_user_id: directUserId, limit: 100 }
+            : { booking_id: bookingId, limit: 100 }
+    );
+}
 
 export default function Conversation() {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [failedMessageData, setFailedMessageData] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null);
-    const [otherUser, setOtherUser] = useState(null);
-    const [participants, setParticipants] = useState(null); // {client, coach} for admin
     const [recipientForAdmin, setRecipientForAdmin] = useState('client');
-    const [booking, setBooking] = useState(null);
     const [bookingId, setBookingId] = useState(null);
     const [mode, setMode] = useState('booking'); // 'booking' | 'direct'
     const [directUserId, setDirectUserId] = useState(null);
-    const [directUser, setDirectUser] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [validationError, setValidationError] = useState('');
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedMessageIds, setSelectedMessageIds] = useState([]);
     const [isClearing, setIsClearing] = useState(false);
     const [showDeletedPanel, setShowDeletedPanel] = useState(false);
-    const [deletedMessages, setDeletedMessages] = useState([]);
-    const [isLoadingDeleted, setIsLoadingDeleted] = useState(false);
     const messagesEndRef = useRef(null);
     const navigate = useNavigate();
 
@@ -61,82 +114,34 @@ export default function Conversation() {
         }
     }, []);
 
-    const loadConversation = useCallback(async () => {
-        if (mode === 'booking' && !bookingId) return;
-        if (mode === 'direct' && !directUserId) return;
+    const isReady = (mode === 'booking' && Boolean(bookingId)) || (mode === 'direct' && Boolean(directUserId));
 
-        try {
-            setIsLoading(true);
-            const user = await User.me();
-            setCurrentUser(user);
-            let conversationMessages = [];
+    const conversationQuery = useQuery({
+        queryKey: ['conversation', mode, bookingId, directUserId],
+        queryFn: () => loadConversationData(mode, bookingId, directUserId),
+        enabled: isReady,
+        staleTime: 30 * 1000,
+        refetchOnWindowFocus: false,
+    });
 
-            if (mode === 'booking') {
-                const currentBooking = await Booking.get(bookingId);
-                setBooking(currentBooking);
-
-                // Admin: load both client and coach as participants; Non-admin: load the other user only
-                if (isAdminUser(user)) {
-                    const clientData = await User.get(currentBooking.client_id);
-                    const coachData = await User.get(currentBooking.coach_id);
-                    setParticipants({ client: clientData, coach: coachData });
-                    setOtherUser(null);
-                } else {
-                    const otherUserId = currentBooking.client_id === user.id ? currentBooking.coach_id : currentBooking.client_id;
-                    const otherUserData = await User.get(otherUserId);
-                    setOtherUser(otherUserData);
-                }
-
-                const allMessages = await Message.filter({ booking_id: bookingId }, 'created_date');
-
-                // Filter messages based on user role
-                if (isAdminUser(user)) {
-                    // Admin sees all messages for this booking
-                    conversationMessages = allMessages;
-                } else {
-                    // Non-admin users only see messages where they are sender or receiver
-                    conversationMessages = allMessages.filter(msg =>
-                        msg.sender_id === user.id || msg.receiver_id === user.id
-                    );
-                }
-            } else {
-                // Direct admin ↔ user conversation (no booking)
-                const targetUser = await User.get(directUserId);
-                setDirectUser(targetUser);
-                setBooking(null);
-                setParticipants(null);
-                setOtherUser(null);
-
-                const allMessages = await apiClient.getDirectMessages(directUserId);
-                // RLS already scopes messages to the current user; just use them as-is
-                conversationMessages = allMessages;
-            }
-
-            setMessages(conversationMessages);
-            
-            const unreadMessages = conversationMessages.filter(m => m.receiver_id === user.id && !m.is_read);
-            for (const msg of unreadMessages) {
-                await Message.update(msg.id, { is_read: true });
-            }
-
-            if (unreadMessages.length > 0) {
-                setMessages(conversationMessages.map((msg) => (
-                    unreadMessages.some((unread) => unread.id === msg.id)
-                        ? { ...msg, is_read: true }
-                        : msg
-                )));
-            }
-
-        } catch (error) {
-            console.error("Failed to load conversation", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [bookingId, directUserId, mode]);
+    const deletedMessagesQuery = useQuery({
+        queryKey: ['conversation', 'deleted', mode, bookingId, directUserId],
+        queryFn: () => loadDeletedMessages(mode, bookingId, directUserId),
+        enabled: showDeletedPanel && isReady,
+        staleTime: 30 * 1000,
+        refetchOnWindowFocus: false,
+    });
 
     useEffect(() => {
-        loadConversation();
-    }, [loadConversation]);
+        if (!conversationQuery.data?.messages) return;
+        setMessages(conversationQuery.data.messages);
+    }, [conversationQuery.data]);
+
+    useEffect(() => {
+        if (!conversationQuery.error) return;
+        console.error("Failed to load conversation", conversationQuery.error);
+        showError('Conversation Unavailable', conversationQuery.error.message || 'Failed to load conversation.');
+    }, [conversationQuery.error]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -265,7 +270,7 @@ export default function Conversation() {
             setMessages((prev) => prev.filter((msg) => !selectedMessageIds.includes(msg.id)));
             exitSelectionMode();
         } catch (error) {
-            alert(error?.message || 'Failed to delete selected messages');
+            alertToast(error?.message || 'Failed to delete selected messages');
         } finally {
             setIsClearing(false);
         }
@@ -284,56 +289,45 @@ export default function Conversation() {
             setMessages([]);
             exitSelectionMode();
         } catch (error) {
-            alert(error?.message || 'Failed to clear conversation');
+            alertToast(error?.message || 'Failed to clear conversation');
         } finally {
             setIsClearing(false);
         }
     };
 
-    const loadDeletedMessages = useCallback(async () => {
-        setIsLoadingDeleted(true);
-        try {
-            const rows = await Message.listDeleted(
-                mode === 'direct'
-                    ? { direct_user_id: directUserId, limit: 100 }
-                    : { booking_id: bookingId, limit: 100 }
-            );
-            setDeletedMessages(Array.isArray(rows) ? rows : []);
-        } catch (error) {
-            console.error('Failed to load deleted messages', error);
-            setDeletedMessages([]);
-        } finally {
-            setIsLoadingDeleted(false);
-        }
-    }, [bookingId, directUserId, mode]);
-
     const handleToggleDeletedPanel = async () => {
         const next = !showDeletedPanel;
         setShowDeletedPanel(next);
-        if (next) {
-            await loadDeletedMessages();
-        }
     };
 
     const handlePermanentDeleteArchived = async (archiveId) => {
         if (!window.confirm('Permanently remove this message from Deleted Messages? This cannot be undone.')) return;
         try {
             await Message.permanentlyDeleteArchived(archiveId);
-            setDeletedMessages((prev) => prev.filter((row) => row.id !== archiveId));
+            await deletedMessagesQuery.refetch();
         } catch (error) {
-            alert(error?.message || 'Failed to permanently delete archived message');
+            alertToast(error?.message || 'Failed to permanently delete archived message');
         }
     };
 
     const handleRestoreArchived = async (archiveId) => {
         try {
             await Message.restoreArchived(archiveId);
-            await loadConversation();
-            await loadDeletedMessages();
+            await conversationQuery.refetch();
+            await deletedMessagesQuery.refetch();
         } catch (error) {
-            alert(error?.message || 'Failed to restore deleted message');
+            alertToast(error?.message || 'Failed to restore deleted message');
         }
     };
+
+    const currentUser = conversationQuery.data?.currentUser ?? null;
+    const otherUser = conversationQuery.data?.otherUser ?? null;
+    const participants = conversationQuery.data?.participants ?? null;
+    const booking = conversationQuery.data?.booking ?? null;
+    const directUser = conversationQuery.data?.directUser ?? null;
+    const deletedMessages = Array.isArray(deletedMessagesQuery.data) ? deletedMessagesQuery.data : [];
+    const isLoadingDeleted = deletedMessagesQuery.isLoading || deletedMessagesQuery.isFetching;
+    const isLoading = !isReady || conversationQuery.isLoading;
 
     if (isLoading) return <div className="h-screen flex items-center justify-center">Loading conversation...</div>;
     if (!currentUser) return <div className="h-screen flex items-center justify-center">Conversation not found.</div>;

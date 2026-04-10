@@ -15,6 +15,7 @@ import { motion } from "framer-motion";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Download, Mail, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import faqData from "@/data/helpFaq.json";
+import { alertToast } from "@/utils/notifications";
 
 /**
  * Normalise a row from the help-content API (DB format) or the static JSON
@@ -397,7 +398,7 @@ export default function Help() {
       if (active?.faqs) setFaqEntries(active.faqs.map(normalizeFaqRow));
       if (all?.faqs) setAllFaqs(all.faqs.map(normalizeFaqRow));
     } catch (err) {
-      alert(`Delete failed: ${err?.message || "Unknown error"}`);
+      alertToast(`Delete failed: ${err?.message || "Unknown error"}`);
     }
   };
 
@@ -452,9 +453,9 @@ export default function Help() {
       ]);
       if (active?.faqs) setFaqEntries(active.faqs.map(normalizeFaqRow));
       if (all?.faqs) setAllFaqs(all.faqs.map(normalizeFaqRow));
-      alert(`Import complete: ${imported} added, ${skipped} skipped (already exist).`);
+      alertToast(`Import complete: ${imported} added, ${skipped} skipped (already exist).`);
     } catch (err) {
-      alert(`Import failed: ${err?.message || "Unknown error"}`);
+      alertToast(`Import failed: ${err?.message || "Unknown error"}`);
     }
   };
 

@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { alertToast } from "@/utils/notifications";
 
 export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
   const [availabilities, setAvailabilities] = useState([]);
@@ -72,7 +73,7 @@ export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
 
   const handleSave = async () => {
     if (!dateRange.from || !dateRange.to) {
-      alert("Please select a date range");
+      alertToast("Please select a date range");
       return;
     }
 
@@ -96,7 +97,7 @@ export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
       setShowAddModal(false);
     } catch (error) {
       console.error("Failed to save availability:", error);
-      alert("Failed to save availability");
+      alertToast("Failed to save availability");
     }
   };
 
@@ -110,7 +111,7 @@ export default function AvailabilityCalendar({ coachId, isReadOnly = false }) {
       await loadAvailabilities();
     } catch (error) {
       console.error("Failed to delete availability:", error);
-      alert("Failed to delete availability");
+      alertToast("Failed to delete availability");
     }
   };
 

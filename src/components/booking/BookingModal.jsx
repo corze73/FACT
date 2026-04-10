@@ -12,6 +12,7 @@ import { CalendarIcon, Clock, CreditCard } from "lucide-react";
 import { calculatePaymentBreakdown } from "../../utils/payment";
 import { bookingSchema, formatValidationErrors, safeValidate } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
+import { alertToast } from "@/utils/notifications";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   const servicePrice = coach?.coach_profile?.hourly_rate || 50;
@@ -42,7 +43,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
     // Check rate limit
     const rateLimitCheck = checkRateLimit('booking');
     if (!rateLimitCheck.allowed) {
-      alert(`Too many booking attempts. Please wait until ${new Date(rateLimitCheck.resetTime).toLocaleTimeString()}`);
+      alertToast(`Too many booking attempts. Please wait until ${new Date(rateLimitCheck.resetTime).toLocaleTimeString()}`);
       return;
     }
 
@@ -51,7 +52,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
         session_date: ['Please select a date'],
         session_time: ['Please select a time']
       });
-      alert('Please select a session date and time');
+      alertToast('Please select a session date and time');
       return;
     }
 
@@ -82,7 +83,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       
       // Show first error to user
       const firstError = Object.values(errors)[0];
-      alert(firstError || 'Please check the form for errors');
+      alertToast(firstError || 'Please check the form for errors');
       return;
     }
 

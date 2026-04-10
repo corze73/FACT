@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { createPageUrl, isAdminUser } from "@/utils";
@@ -7,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { showError } from "@/utils/notifications";
 
 const PAGE_SIZE = 25;
+const ADMIN_AUDIT_CURRENT_USER_QUERY_KEY = ["admin-audit", "current-user"];
 const ACTION_OPTIONS = [
   "all",
   "user_deactivated",
@@ -49,22 +52,78 @@ const toCsvCell = (value) => {
   return `"${str.replace(/"/g, '""')}"`;
 };
 
+const isAuthFailure = (error) => error?.status === 401 || error?.message?.includes("Not authenticated");
+
 export default function AdminAuditLogs() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(null);
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [action, setAction] = useState("all");
   const [actorId, setActorId] = useState("");
   const [targetId, setTargetId] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [selectedLog, setSelectedLog] = useState(null);
-  const [deletedMessages, setDeletedMessages] = useState([]);
-  const [deletedMessagesLoading, setDeletedMessagesLoading] = useState(false);
+  const [submittedFilters, setSubmittedFilters] = useState({
+    action: "all",
+    actorId: "",
+    targetId: "",
+    createdFrom: "",
+    createdTo: ""
+  });
+
+  const currentUserQuery = useQuery({
+    queryKey: ADMIN_AUDIT_CURRENT_USER_QUERY_KEY,
+    queryFn: () => User.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const auditRowsQuery = useQuery({
+    queryKey: ["admin-audit", "rows", page, submittedFilters],
+    queryFn: async () => {
+      const offset = (page - 1) * PAGE_SIZE;
+      const filters = {
+        limit: PAGE_SIZE,
+        offset,
+        include_total: 1,
+      };
+
+      if (submittedFilters.action !== "all") filters.action = submittedFilters.action;
+      if (submittedFilters.actorId.trim()) filters.actor_user_id = submittedFilters.actorId.trim();
+      if (submittedFilters.targetId.trim()) filters.target_user_id = submittedFilters.targetId.trim();
+      if (submittedFilters.createdFrom) filters.created_from = submittedFilters.createdFrom;
+      if (submittedFilters.createdTo) filters.created_to = submittedFilters.createdTo;
+
+      const response = await User.listAdminAuditLogs(filters);
+      return {
+        rows: Array.isArray(response?.data) ? response.data : [],
+        total: Number(response?.total || 0),
+      };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const deletedMessagesQuery = useQuery({
+    queryKey: ["admin-audit", "deleted-messages"],
+    queryFn: async () => {
+      const response = await User.listAdminDeletedMessages({
+        limit: 10,
+        offset: 0,
+        include_total: 0
+      });
+      return Array.isArray(response?.data) ? response.data : [];
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const currentUser = currentUserQuery.data ?? null;
+  const rows = auditRowsQuery.data?.rows ?? [];
+  const total = auditRowsQuery.data?.total ?? 0;
+  const loading = currentUserQuery.isLoading || auditRowsQuery.isLoading;
+  const isRefreshing = auditRowsQuery.isFetching;
+  const deletedMessages = deletedMessagesQuery.data ?? [];
+  const deletedMessagesLoading = deletedMessagesQuery.isLoading || deletedMessagesQuery.isFetching;
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
 
@@ -76,72 +135,34 @@ export default function AdminAuditLogs() {
     navigate(createPageUrl("AdminDashboard"));
   };
 
-  const load = async ({ showSpinner = false, pageOverride, filtersOverride } = {}) => {
-    if (showSpinner) setIsRefreshing(true);
-
-    try {
-      const me = await User.me();
-      setCurrentUser(me);
-      if (!isAdminUser(me)) {
-        navigate(createPageUrl("Landing"));
-        return;
-      }
-
-      const activePage = Number.isInteger(pageOverride) ? pageOverride : page;
-      const offset = (activePage - 1) * PAGE_SIZE;
-      const activeFilters = {
-        action,
-        actorId,
-        targetId,
-        createdFrom,
-        createdTo,
-        ...(filtersOverride || {})
-      };
-
-      const filters = {
-        limit: PAGE_SIZE,
-        offset,
-        include_total: 1
-      };
-
-      if (activeFilters.action !== "all") filters.action = activeFilters.action;
-      if (activeFilters.actorId.trim()) filters.actor_user_id = activeFilters.actorId.trim();
-      if (activeFilters.targetId.trim()) filters.target_user_id = activeFilters.targetId.trim();
-      if (activeFilters.createdFrom) filters.created_from = activeFilters.createdFrom;
-      if (activeFilters.createdTo) filters.created_to = activeFilters.createdTo;
-
-      const response = await User.listAdminAuditLogs(filters);
-      setRows(Array.isArray(response?.data) ? response.data : []);
-      setTotal(Number(response?.total || 0));
-
-      setDeletedMessagesLoading(true);
-      try {
-        const deletedResponse = await User.listAdminDeletedMessages({
-          limit: 10,
-          offset: 0,
-          include_total: 0
-        });
-        setDeletedMessages(Array.isArray(deletedResponse?.data) ? deletedResponse.data : []);
-      } finally {
-        setDeletedMessagesLoading(false);
-      }
-    } catch (error) {
-      console.error("Failed to load admin audit logs", error);
-      alert(error.message || "Failed to load audit logs");
-    } finally {
-      setLoading(false);
-      if (showSpinner) setIsRefreshing(false);
+  useEffect(() => {
+    if (!currentUserQuery.error) return;
+    console.error("Failed to load admin audit user", currentUserQuery.error);
+    if (isAuthFailure(currentUserQuery.error)) {
+      navigate(createPageUrl("Login"));
     }
-  };
+  }, [currentUserQuery.error, navigate]);
 
   useEffect(() => {
-    load();
-  }, [page]);
+    if (!currentUser || isAdminUser(currentUser)) return;
+    navigate(createPageUrl("Landing"));
+  }, [currentUser, navigate]);
+
+  useEffect(() => {
+    if (!auditRowsQuery.error) return;
+    console.error("Failed to load admin audit logs", auditRowsQuery.error);
+    showError("Audit Logs Unavailable", auditRowsQuery.error.message || "Failed to load audit logs");
+  }, [auditRowsQuery.error]);
+
+  useEffect(() => {
+    if (!deletedMessagesQuery.error) return;
+    console.error("Failed to load deleted messages archive", deletedMessagesQuery.error);
+    showError("Deleted Messages Unavailable", deletedMessagesQuery.error.message || "Failed to load deleted messages archive");
+  }, [deletedMessagesQuery.error]);
 
   const applyFilters = async () => {
-    const nextPage = 1;
-    setPage(nextPage);
-    await load({ showSpinner: true, pageOverride: nextPage });
+    setPage(1);
+    setSubmittedFilters({ action, actorId, targetId, createdFrom, createdTo });
   };
 
   const clearFilters = async () => {
@@ -157,9 +178,8 @@ export default function AdminAuditLogs() {
     setTargetId(resetFilters.targetId);
     setCreatedFrom(resetFilters.createdFrom);
     setCreatedTo(resetFilters.createdTo);
-    const nextPage = 1;
-    setPage(nextPage);
-    await load({ showSpinner: true, pageOverride: nextPage, filtersOverride: resetFilters });
+    setPage(1);
+    setSubmittedFilters(resetFilters);
   };
 
   const exportCsv = () => {

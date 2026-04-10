@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import { createPageUrl, isAdminUser } from "@/utils";
@@ -10,6 +11,9 @@ import { getBackgroundCheckDisplayStatus } from "@/lib/complianceConstants";
 import { showError, showSuccess } from "@/utils/notifications";
 
 const PAGE_SIZE = 20;
+const ADMIN_VERIFICATIONS_CURRENT_USER_QUERY_KEY = ["admin-verifications", "current-user"];
+
+const isAuthFailure = (error) => error?.status === 401 || error?.message?.includes("Not authenticated");
 
 const tone = (status) => {
   if (status === 'verified') return 'bg-emerald-100 text-emerald-700';
@@ -20,24 +24,20 @@ const tone = (status) => {
 
 export default function AdminVerifications() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(null);
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [notesByCoach, setNotesByCoach] = useState({});
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
 
-  const load = async () => {
-    try {
-      const me = await User.me();
-      setCurrentUser(me);
-      if (!isAdminUser(me)) {
-        navigate(createPageUrl('Landing'));
-        return;
-      }
+  const currentUserQuery = useQuery({
+    queryKey: ADMIN_VERIFICATIONS_CURRENT_USER_QUERY_KEY,
+    queryFn: () => User.me(),
+    staleTime: 5 * 60 * 1000,
+  });
 
+  const rowsQuery = useQuery({
+    queryKey: ["admin-verifications", page],
+    queryFn: async () => {
       const offset = (page - 1) * PAGE_SIZE;
       const response = await User.listAdminVerifications({
         type: 'coach',
@@ -47,18 +47,32 @@ export default function AdminVerifications() {
         include_total: 1
       });
 
-      setRows(response?.data || []);
-      setTotal(response?.total || 0);
-    } catch (error) {
-      console.error('Failed to load verification queue', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        rows: response?.data || [],
+        total: response?.total || 0,
+      };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
 
   useEffect(() => {
-    load();
-  }, [page]);
+    if (!currentUserQuery.error) return;
+    if (isAuthFailure(currentUserQuery.error)) {
+      navigate(createPageUrl('Login'));
+    }
+  }, [currentUserQuery.error, navigate]);
+
+  useEffect(() => {
+    if (!currentUserQuery.data || isAdminUser(currentUserQuery.data)) return;
+    navigate(createPageUrl('Landing'));
+  }, [currentUserQuery.data, navigate]);
+
+  useEffect(() => {
+    if (!rowsQuery.error) return;
+    console.error('Failed to load verification queue', rowsQuery.error);
+    showError('Verification Queue Unavailable', rowsQuery.error.message || 'Failed to load verification queue');
+  }, [rowsQuery.error]);
 
   const applyDecision = async (coachId, payload, label) => {
     setIsSaving(true);
@@ -66,7 +80,7 @@ export default function AdminVerifications() {
     try {
       const notes = notesByCoach[coachId] || '';
       await User.updateAdminVerification(coachId, { ...payload, verification_notes: notes || null });
-      await load();
+      await rowsQuery.refetch();
       showSuccess('Verification Updated', `${label} updated successfully.`);
     } catch (error) {
       showError('Verification Update Failed', error.message || 'Failed to update verification');
@@ -75,6 +89,11 @@ export default function AdminVerifications() {
       setActiveAction(null);
     }
   };
+
+  const currentUser = currentUserQuery.data ?? null;
+  const rows = rowsQuery.data?.rows ?? [];
+  const total = rowsQuery.data?.total ?? 0;
+  const loading = currentUserQuery.isLoading || rowsQuery.isLoading;
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 

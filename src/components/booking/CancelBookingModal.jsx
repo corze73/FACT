@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { alertToast } from "@/utils/notifications";
 
 export default function CancelBookingModal({ isOpen, onClose, onSubmit }) {
   const [reason, setReason] = useState("");
@@ -11,7 +12,7 @@ export default function CancelBookingModal({ isOpen, onClose, onSubmit }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!reason.trim()) {
-      alert("Please provide a reason for cancelling.");
+      alertToast("Please provide a reason for cancelling.");
       return;
     }
     setIsSubmitting(true);

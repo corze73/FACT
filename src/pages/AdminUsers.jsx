@@ -1,6 +1,7 @@
 
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { User } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
 import { createPageUrl, isAdminUser, canManageUserLifecycle, canHardDeleteUsers, getAdminScope } from "@/utils";
@@ -12,8 +13,10 @@ import { ExternalLink, Trash2, Check, X, ChevronLeft, ChevronRight, MessageCircl
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { showError, showSuccess } from "@/utils/notifications";
 
 const USERS_PER_PAGE = 20;
+const ADMIN_USERS_CURRENT_USER_QUERY_KEY = ["admin-users", "current-user"];
 const normalizeUserType = (value) => {
   if (value === 'coach' || value === 'client') return value;
   if (value === 'user' || !value) return 'client';
@@ -25,16 +28,15 @@ const normalizeUserList = (list) => (Array.isArray(list)
   : list
 );
 
+const isAuthFailure = (error) => error?.status === 401 || error?.message?.includes("Not authenticated");
+
 export default function AdminUsers() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
+  const location = useLocation();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [isFetching, setIsFetching] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalUsers, setTotalUsers] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [reason, setReason] = useState("");
@@ -47,12 +49,66 @@ export default function AdminUsers() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState(new Set());
   const [adminApprovers, setAdminApprovers] = useState([]);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [totalUsers, setTotalUsers] = useState(0);
 
   const formatService = (s) => s?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const typeParam = urlParams.get("type") || "all";
   const hasActiveFilters = search.trim().length > 0 || typeParam !== "all";
+
+  const currentUserQuery = useQuery({
+    queryKey: ADMIN_USERS_CURRENT_USER_QUERY_KEY,
+    queryFn: () => User.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ["admin-users", "list", currentPage, debouncedSearch, typeParam],
+    queryFn: async () => {
+      const params = {
+        type: typeParam,
+        limit: USERS_PER_PAGE,
+        offset: (currentPage - 1) * USERS_PER_PAGE,
+        include_total: "1",
+        view: "admin_list"
+      };
+      if (debouncedSearch) params.search = debouncedSearch;
+
+      const response = await apiClient.getUsers(params);
+      if (response && Array.isArray(response.data)) {
+        return {
+          users: normalizeUserList(response.data),
+          totalUsers: response.total || 0,
+        };
+      }
+
+      const list = Array.isArray(response) ? response : [];
+      return {
+        users: normalizeUserList(list),
+        totalUsers: list.length,
+      };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
+
+  const adminMetaQuery = useQuery({
+    queryKey: ["admin-users", "meta"],
+    queryFn: async () => {
+      const [pending, approvers] = await Promise.all([
+        User.listDeletionRequests({ status: "pending" }),
+        User.listAdminUsersOps({ limit: 100, offset: 0 })
+      ]);
+      return {
+        requests: pending,
+        approvers: approvers?.data || [],
+      };
+    },
+    enabled: Boolean(currentUserQuery.data && isAdminUser(currentUserQuery.data)),
+    staleTime: 60 * 1000,
+  });
 
   const handleCardClick = (user) => {
     // Navigate to the appropriate profile page based on user type
@@ -109,10 +165,11 @@ export default function AdminUsers() {
         confirmation_phrase: hardDelete ? confirmationPhrase : undefined,
         second_admin_id: hardDelete && secondAdminId.trim() ? secondAdminId : undefined
       });
+      showSuccess("User Updated", hardDelete ? "User deleted successfully." : "User removed successfully.");
     } catch (e) {
       setUsers(previousUsers);
       setTotalUsers(previousTotalUsers);
-      alert(`Failed to remove user: ${e.message}`);
+      showError("User Removal Failed", e.message || "Failed to remove user.");
     } finally {
       setPendingDeleteIds(prev => {
         const next = new Set(prev);
@@ -128,49 +185,42 @@ export default function AdminUsers() {
   }, [search]);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const me = await User.me();
-        setCurrentUser(me);
-        if (!isAdminUser(me)) return;
+    if (usersQuery.data) {
+      setUsers(usersQuery.data.users || []);
+      setTotalUsers(usersQuery.data.totalUsers || 0);
+    }
+  }, [usersQuery.data]);
 
-        setIsFetching(true);
-        const params = {
-          type: typeParam,
-          limit: USERS_PER_PAGE,
-          offset: (currentPage - 1) * USERS_PER_PAGE,
-          include_total: '1',
-          view: 'admin_list'
-        };
-        if (debouncedSearch) params.search = debouncedSearch;
+  useEffect(() => {
+    if (!currentUserQuery.error) return;
+    console.warn("Failed to load users admin auth", currentUserQuery.error);
+    if (isAuthFailure(currentUserQuery.error)) {
+      navigate(createPageUrl("Login"));
+    }
+  }, [currentUserQuery.error, navigate]);
 
-        const response = await apiClient.getUsers(params);
-        if (response && Array.isArray(response.data)) {
-          setUsers(normalizeUserList(response.data));
-          setTotalUsers(response.total || 0);
-        } else {
-          const list = Array.isArray(response) ? response : [];
-          setUsers(normalizeUserList(list));
-          setTotalUsers(list.length);
-        }
+  useEffect(() => {
+    if (!currentUserQuery.data || isAdminUser(currentUserQuery.data)) return;
+    navigate(createPageUrl(currentUserQuery.data.user_type === "coach" ? "CoachDashboard" : "FindCoaches"));
+  }, [currentUserQuery.data, navigate]);
 
-        if (currentPage === 1) {
-          const [pending, approvers] = await Promise.all([
-            User.listDeletionRequests({ status: 'pending' }),
-            User.listAdminUsersOps({ limit: 100, offset: 0 })
-          ]);
-          setRequests(pending);
-          setAdminApprovers((approvers?.data || []).filter((a) => a.id !== me.id));
-        }
-      } catch (e) {
-        console.warn('Failed to load users admin list', e);
-      } finally {
-        setLoading(false);
-        setIsFetching(false);
-      }
-    };
-    load();
-  }, [currentPage, debouncedSearch, typeParam]);
+  useEffect(() => {
+    if (!usersQuery.error) return;
+    console.warn("Failed to load users admin list", usersQuery.error);
+    showError("Users Unavailable", usersQuery.error.message || "Failed to load user list.");
+  }, [usersQuery.error]);
+
+  useEffect(() => {
+    if (!adminMetaQuery.error) return;
+    console.warn("Failed to load admin users meta", adminMetaQuery.error);
+    showError("Admin Data Unavailable", adminMetaQuery.error.message || "Failed to load deletion requests.");
+  }, [adminMetaQuery.error]);
+
+  useEffect(() => {
+    if (!adminMetaQuery.data || !currentUserQuery.data) return;
+    setRequests(adminMetaQuery.data.requests || []);
+    setAdminApprovers((adminMetaQuery.data.approvers || []).filter((a) => a.id !== currentUserQuery.data.id));
+  }, [adminMetaQuery.data, currentUserQuery.data]);
 
   const paginatedUsers = users;
   const totalPages = Math.ceil(totalUsers / USERS_PER_PAGE);
@@ -179,6 +229,10 @@ export default function AdminUsers() {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, typeParam]);
+
+  const currentUser = currentUserQuery.data ?? null;
+  const loading = currentUserQuery.isLoading || usersQuery.isLoading;
+  const isFetching = usersQuery.isFetching || adminMetaQuery.isFetching;
 
   if (loading) return <div className="p-8">Loading users...</div>;
   if (!currentUser || !isAdminUser(currentUser)) return null;
@@ -225,9 +279,14 @@ export default function AdminUsers() {
                             // Reflect immediately: deactivate user locally
                             setUsers(prev => prev.map(u => u.id === r.user_id ? { ...u, is_active: false, deactivated_at: new Date().toISOString(), deactivation_reason: requestActionReason || 'Account deletion approved' } : u));
                             setRequests(prev => prev.filter(x => x.id !== r.id));
+                            queryClient.setQueryData(["admin-users", "meta"], (previous) => previous ? {
+                              ...previous,
+                              requests: (previous.requests || []).filter((x) => x.id !== r.id)
+                            } : previous);
                             setRequestActionReason('');
                             setDecidingId(null);
-                          } catch (e) { alert('Failed to approve request: ' + e.message); }
+                            showSuccess("Request Approved", "Deletion request approved.");
+                          } catch (e) { showError("Approval Failed", e.message || 'Failed to approve request'); }
                         }}>
                           <Check className="w-4 h-4 mr-1" /> Approve
                         </Button>
@@ -235,9 +294,14 @@ export default function AdminUsers() {
                           try {
                             await User.decideDeletionRequest(r.id, 'rejected', requestActionReason || null, currentUser.id);
                             setRequests(prev => prev.filter(x => x.id !== r.id));
+                            queryClient.setQueryData(["admin-users", "meta"], (previous) => previous ? {
+                              ...previous,
+                              requests: (previous.requests || []).filter((x) => x.id !== r.id)
+                            } : previous);
                             setRequestActionReason('');
                             setDecidingId(null);
-                          } catch (e) { alert('Failed to reject request: ' + e.message); }
+                            showSuccess("Request Rejected", "Deletion request rejected.");
+                          } catch (e) { showError("Rejection Failed", e.message || 'Failed to reject request'); }
                         }}>
                           <X className="w-4 h-4 mr-1" /> Reject
                         </Button>
@@ -357,9 +421,9 @@ export default function AdminUsers() {
                               e.stopPropagation();
                               try {
                                 await User.revokeSessions(u.id);
-                                alert('User sessions revoked. They will need to sign in again.');
+                                showSuccess('Sessions Revoked', 'User sessions revoked. They will need to sign in again.');
                               } catch (err) {
-                                alert('Failed to revoke sessions: ' + err.message);
+                                showError('Session Revoke Failed', err.message || 'Failed to revoke sessions');
                               }
                             }}
                             className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
@@ -396,8 +460,9 @@ export default function AdminUsers() {
                                       : x
                                   )
                                 );
-                              } catch {
-                                alert('Failed to restore user');
+                                    showSuccess('User Restored', 'User restored successfully.');
+                              } catch (error) {
+                                showError('Restore Failed', error.message || 'Failed to restore user');
                               }
                             }}
                             className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"

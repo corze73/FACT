@@ -14,6 +14,7 @@ import { createPageUrl, isAdminUser } from "@/utils";
 import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
 import { validateAndSanitize, profileUpdateSchema, coachProfileSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
+import { alertToast } from "@/utils/notifications";
 import {
   getBackgroundCheckDisplayStatus,
   getBackgroundCheckGuidance,
@@ -143,13 +144,13 @@ export default function CoachProfile() {
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+      alertToast('Please select an image file');
       return;
     }
     
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be smaller than 5MB');
+      alertToast('Image must be smaller than 5MB');
       return;
     }
     
@@ -193,13 +194,13 @@ export default function CoachProfile() {
         setUploadingImage(false);
       };
       img.onerror = () => {
-        alert('Failed to load image');
+        alertToast('Failed to load image');
         setUploadingImage(false);
       };
       img.src = event.target.result;
     };
     reader.onerror = () => {
-      alert('Failed to read file');
+      alertToast('Failed to read file');
       setUploadingImage(false);
     };
     reader.readAsDataURL(file);
@@ -208,7 +209,7 @@ export default function CoachProfile() {
   const setVideoUrl = (clipNumber, value) => {
     // Only allow http/https URLs and allowed hosts (YouTube/Vimeo)
     if (value && !/^https?:\/\//i.test(value)) {
-      alert('Please enter a valid URL starting with http:// or https://');
+      alertToast('Please enter a valid URL starting with http:// or https://');
       return;
     }
     if (value) {
@@ -216,7 +217,7 @@ export default function CoachProfile() {
         const u = new URL(value);
         const allowed = ['www.youtube.com','youtube.com','youtu.be','vimeo.com','player.vimeo.com'];
         if (!allowed.includes(u.hostname)) {
-          alert('Only YouTube or Vimeo URLs are allowed.');
+          alertToast('Only YouTube or Vimeo URLs are allowed.');
           return;
         }
       } catch {
@@ -293,11 +294,11 @@ export default function CoachProfile() {
   const uploadComplianceFile = async (file, type) => {
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Only PDF, JPG, JPEG, and PNG files are allowed.');
+      alertToast('Only PDF, JPG, JPEG, and PNG files are allowed.');
       return null;
     }
     if (file.size > 10 * 1024 * 1024) {
-      alert('Maximum file size is 10MB.');
+      alertToast('Maximum file size is 10MB.');
       return null;
     }
 
@@ -340,17 +341,17 @@ export default function CoachProfile() {
         if (!country) locationErrors.country = 'Country is required for coach profiles';
         if (!city) locationErrors.city = 'City is required for coach profiles';
         setValidationErrors((prev) => ({ ...prev, ...locationErrors }));
-        alert('Please add both Country and City before saving your coach profile.');
+        alertToast('Please add both Country and City before saving your coach profile.');
         return;
       }
 
       if (!isViewingAsAdmin && formData.has_background_check && !formData.background_check_file_url) {
-        alert('Please upload your background check document before saving.');
+        alertToast('Please upload your background check document before saving.');
         return;
       }
 
       if (!isViewingAsAdmin && formData.has_background_check && !String(formData.background_check_type || '').trim()) {
-        alert(`Please select your ${getBackgroundLabel()} type before saving.`);
+        alertToast(`Please select your ${getBackgroundLabel()} type before saving.`);
         return;
       }
       
@@ -376,9 +377,9 @@ export default function CoachProfile() {
 
       const awaitingApproval = Boolean(formData.qualification_file_url) || Boolean(formData.background_check_file_url);
       if (awaitingApproval) {
-        alert("Profile and compliance saved. Your documents are now awaiting admin approval.");
+        alertToast("Profile and compliance saved. Your documents are now awaiting admin approval.");
       } else {
-        alert("Profile updated successfully! ✅");
+        alertToast("Profile updated successfully! ✅");
       }
       
     } catch (error) {
@@ -387,11 +388,11 @@ export default function CoachProfile() {
       if (error.name === 'ZodError') {
         const errors = formatValidationErrors(error);
         setValidationErrors(errors);
-        alert("Please check your input and try again.");
+        alertToast("Please check your input and try again.");
       } else if (error.message && error.message.includes('rate limit')) {
-        alert("⚠️ " + error.message);
+        alertToast("⚠️ " + error.message);
       } else {
-        alert("Failed to update profile. Please try again.");
+        alertToast("Failed to update profile. Please try again.");
       }
     } finally {
       setIsSaving(false);
@@ -619,7 +620,7 @@ export default function CoachProfile() {
                               const url = await uploadComplianceFile(file, 'qualification');
                               if (url) setFormData(prev => ({ ...prev, qualification_file_url: url, qualification_status: 'pending' }));
                             } catch (error) {
-                              alert(error.message || 'Failed to upload qualification document');
+                              alertToast(error.message || 'Failed to upload qualification document');
                             } finally {
                               setIsUploadingQualification(false);
                             }
@@ -724,7 +725,7 @@ export default function CoachProfile() {
                                   const url = await uploadComplianceFile(file, 'background_check');
                                   if (url) setFormData(prev => ({ ...prev, background_check_file_url: url, background_check_status: 'pending' }));
                                 } catch (error) {
-                                  alert(error.message || 'Failed to upload background check document');
+                                  alertToast(error.message || 'Failed to upload background check document');
                                 } finally {
                                   setIsUploadingBackgroundCheck(false);
                                 }

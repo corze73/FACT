@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { showError } from "@/utils/notifications";
 
 export default function LoginOptionsModal({ 
   isOpen, 
@@ -33,11 +34,11 @@ export default function LoginOptionsModal({
     } catch (error) {
       console.error("Login error:", error);
       if (error.message.includes('Invalid login credentials')) {
-        alert('Invalid email or password. Please check your credentials and try again.');
+        showError('Login Failed', 'Invalid email or password. Please check your credentials and try again.');
       } else if (error.message.includes('Email not confirmed')) {
-        alert('Please check your email and click the verification link before logging in.');
+        showError('Email Not Confirmed', 'Please check your email and click the verification link before logging in.');
       } else {
-        alert(`Login failed: ${error.message}`);
+        showError('Login Failed', error.message || 'Unable to log in.');
       }
     } finally {
       setLoginLoading(false);

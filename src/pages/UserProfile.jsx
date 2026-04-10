@@ -14,6 +14,7 @@ import { Upload, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { validateAndSanitize, profileUpdateSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { alertToast } from "@/utils/notifications";
 
 export default function UserProfile() {
   const [formData, setFormData] = useState(null);
@@ -132,9 +133,9 @@ export default function UserProfile() {
       setPendingDeletion(res);
       setDeletionOpen(false);
       setDeletionReason("");
-      alert('Deletion request submitted. An admin will review it shortly.');
+      alertToast('Deletion request submitted. An admin will review it shortly.');
     } catch {
-      alert('Failed to submit deletion request');
+      alertToast('Failed to submit deletion request');
     }
   };
 
@@ -187,13 +188,13 @@ export default function UserProfile() {
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+      alertToast('Please select an image file');
       return;
     }
     
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be smaller than 5MB');
+      alertToast('Image must be smaller than 5MB');
       return;
     }
     
@@ -237,13 +238,13 @@ export default function UserProfile() {
         setUploadingImage(false);
       };
       img.onerror = () => {
-        alert('Failed to load image');
+        alertToast('Failed to load image');
         setUploadingImage(false);
       };
       img.src = event.target.result;
     };
     reader.onerror = () => {
-      alert('Failed to read file');
+      alertToast('Failed to read file');
       setUploadingImage(false);
     };
     reader.readAsDataURL(file);
@@ -280,7 +281,7 @@ export default function UserProfile() {
       
       setIsSaving(true);
       await User.updateMyUserData(dataToSave);
-      alert("Profile updated successfully! ✅");
+      alertToast("Profile updated successfully! ✅");
       
     } catch (error) {
       console.error("Failed to update profile", error);
@@ -289,13 +290,13 @@ export default function UserProfile() {
         // Validation error - show specific field errors
         const errors = formatValidationErrors(error);
         setValidationErrors(errors);
-        alert("Please check your input and try again.");
+        alertToast("Please check your input and try again.");
       } else if (error.message && error.message.includes('rate limit')) {
         // Rate limit error
-        alert("⚠️ " + error.message);
+        alertToast("⚠️ " + error.message);
       } else {
         // Other errors
-        alert("Failed to update profile. Please try again.");
+        alertToast("Failed to update profile. Please try again.");
       }
     } finally {
       setIsSaving(false);

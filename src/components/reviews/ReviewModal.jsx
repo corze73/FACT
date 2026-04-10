@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
 import { motion } from "framer-motion";
+import { alertToast } from "@/utils/notifications";
 
 export default function ReviewModal({ isOpen, onClose, booking, onSubmit, currentUser }) {
   const [rating, setRating] = useState(0);
@@ -15,7 +16,7 @@ export default function ReviewModal({ isOpen, onClose, booking, onSubmit, curren
     e.preventDefault();
     
     if (rating === 0) {
-      alert("Please select a rating");
+      alertToast("Please select a rating");
       return;
     }
 

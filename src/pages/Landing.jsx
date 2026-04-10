@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
-import { showSuccess } from "@/utils/notifications";
+import { showSuccess, showError } from "@/utils/notifications";
 import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 
@@ -34,7 +34,7 @@ export default function Landing() {
       await User.loginWithRedirect(window.location.origin + createPageUrl("Landing?next=dashboard"));
     } catch (error) {
       console.error("Google login error:", error);
-      alert(`Login failed: ${error.message}`);
+      showError('Login Failed', error.message || 'Unable to log in.');
     }
   };
 
