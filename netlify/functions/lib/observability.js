@@ -4,6 +4,11 @@ import * as Sentry from '@sentry/node';
 
 let sentryInitialized = false;
 
+const isLocalFunctionDev = () =>
+  process.env.NETLIFY_DEV === 'true' ||
+  process.env.NETLIFY_LOCAL === 'true' ||
+  process.env.URL === 'http://localhost:8888';
+
 const getRelease = () =>
   process.env.SENTRY_RELEASE || process.env.APP_VERSION || process.env.COMMIT_REF || 'dev';
 const getEnvironment = () =>
@@ -70,6 +75,12 @@ const decodeAuthPayload = (event) => {
 
 export function initServerMonitoring() {
   if (sentryInitialized) return;
+
+  if (isLocalFunctionDev()) {
+    console.log('Sentry disabled for local Netlify dev');
+    sentryInitialized = true;
+    return;
+  }
 
   const dsn = process.env.SENTRY_DSN_SERVER || process.env.SENTRY_DSN;
   console.log(`Sentry enabled: ${Boolean(dsn)}`);

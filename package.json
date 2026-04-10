@@ -428,7 +428,7 @@
   },
   "scripts": {
     "dev": "npx netlify dev",
-    "dev:vite": "vite",
+    "dev:vite": "vite --port 5173 --strictPort",
     "check-env": "node check-env.js",
     "check-env:ci": "node check-env.js --ci",
     "server": "node server.js",

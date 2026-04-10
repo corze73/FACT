@@ -10,6 +10,8 @@ export default defineConfig({
     securityHeaders()
   ],
   server: {
+    port: 5173,
+    strictPort: true,
     allowedHosts: true,
     proxy: {
       // Forward API calls to local Express server during dev
