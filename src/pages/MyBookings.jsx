@@ -1,5 +1,6 @@
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
 import { Review } from "@/api/entities.jsx";
@@ -27,84 +28,126 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
 import ReviewModal from "../components/reviews/ReviewModal";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl, isAdminUser } from "@/utils";
+import { showError, showSuccess } from "@/utils/notifications";
 import CancelBookingModal from "../components/booking/CancelBookingModal";
 import RescheduleBookingModal from "../components/booking/RescheduleBookingModal";
 import { BookingReference } from "../components/booking/BookingReference";
 import SessionStatus from "../components/booking/SessionStatus";
 
+const MY_BOOKINGS_QUERY_KEY = ["bookings", "my-bookings"];
+const MY_BOOKING_PARTNERS_QUERY_KEY = ["users", "booking-partners"];
+
+const isAuthFailure = (error) => {
+  const status = Number(error?.status || 0);
+  const message = String(error?.message || '').toLowerCase();
+  return status === 401 || message.includes('not authenticated') || message.includes('unauthorized');
+};
+
+const sortBookings = (list) => [...list].sort((a, b) => {
+  const dateA = safeParseDate(a.session_date) || new Date('1900-01-01');
+  const dateB = safeParseDate(b.session_date) || new Date('1900-01-01');
+  return dateB - dateA;
+});
 
 export default function MyBookings() {
-  const [bookings, setBookings] = useState([]);
-  const [partners, setPartners] = useState({});
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming");
   const [bookingToCancel, setBookingToCancel] = useState(null);
   const [bookingToReschedule, setBookingToReschedule] = useState(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const currentUserQuery = useQuery({
+    queryKey: ["user", "current", "my-bookings"],
+    queryFn: () => User.me(),
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+
+  const currentUser = currentUserQuery.data || null;
+
+  const bookingsQuery = useQuery({
+    queryKey: [...MY_BOOKINGS_QUERY_KEY, currentUser?.id],
+    enabled: !!currentUser && !isAdminUser(currentUser),
+    queryFn: async () => {
+      const [clientBookings, coachBookings] = await Promise.all([
+        Booking.filter({ client_id: currentUser.id }, '-created_at'),
+        Booking.filter({ coach_id: currentUser.id }, '-created_at'),
+      ]);
+
+      const allBookingsMap = new Map();
+      [...clientBookings, ...coachBookings].forEach((booking) => {
+        allBookingsMap.set(booking.id, booking);
+      });
+
+      return sortBookings(Array.from(allBookingsMap.values()));
+    },
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+
+  const bookings = bookingsQuery.data || [];
+
+  const partnerIds = useMemo(() => {
+    if (!currentUser) return [];
+
+    return [...new Set(bookings.map((booking) =>
+      currentUser.id === booking.client_id ? booking.coach_id : booking.client_id
+    ).filter(Boolean))];
+  }, [bookings, currentUser]);
+
+  const partnersQuery = useQuery({
+    queryKey: [...MY_BOOKING_PARTNERS_QUERY_KEY, partnerIds],
+    enabled: !!currentUser && partnerIds.length > 0,
+    queryFn: () => User.filter({ id: { in: partnerIds } }),
+    staleTime: 3 * 60 * 1000,
+    retry: 1,
+  });
+
+  const partners = useMemo(() => {
+    const partnerUsers = partnersQuery.data || [];
+    return partnerUsers.reduce((acc, partner) => {
+      acc[partner.id] = partner;
+      return acc;
+    }, {});
+  }, [partnersQuery.data]);
+
+  const isLoading = currentUserQuery.isLoading || bookingsQuery.isLoading || (partnerIds.length > 0 && partnersQuery.isLoading);
 
   // Redirect admins to AdminDashboard
   useEffect(() => {
-    (async () => {
-      try {
-        const me = await User.me();
-        if (isAdminUser(me)) {
-          navigate(createPageUrl("AdminDashboard"));
-        }
-      } catch (error) {
-        // User not authenticated - redirect to landing
-        console.error("Error checking user role:", error);
-        navigate(createPageUrl("Landing"));
-      }
-    })();
-  }, [navigate]);
+    if (currentUser && isAdminUser(currentUser)) {
+      navigate(createPageUrl("AdminDashboard"));
+      return;
+    }
+
+    if (currentUserQuery.error && isAuthFailure(currentUserQuery.error)) {
+      console.error("Error checking user role:", currentUserQuery.error);
+      navigate(createPageUrl("Landing"));
+    }
+  }, [currentUser, currentUserQuery.error, navigate]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!bookingsQuery.error || isAuthFailure(bookingsQuery.error)) return;
+    console.error("Error loading bookings:", bookingsQuery.error);
+    showError("Bookings Unavailable", bookingsQuery.error.message || "Unable to load your bookings right now.");
+  }, [bookingsQuery.error]);
 
-  const loadData = async () => {
-    try {
-      const user = await User.me();
-      setCurrentUser(user);
-      
-      // Get bookings where user is either client or coach
-      const clientBookings = await Booking.filter({ client_id: user.id }, '-created_at');
-      const coachBookings = await Booking.filter({ coach_id: user.id }, '-created_at');
-      
-      // Combine and deduplicate bookings
-      const allBookingsMap = new Map();
-      [...clientBookings, ...coachBookings].forEach(booking => {
-        allBookingsMap.set(booking.id, booking);
-      });
-      const allBookings = Array.from(allBookingsMap.values());
-      
-      setBookings(allBookings.sort((a,b) => {
-        const dateA = safeParseDate(a.session_date) || new Date('1900-01-01');
-        const dateB = safeParseDate(b.session_date) || new Date('1900-01-01');
-        return dateB - dateA;
-      }));
+  useEffect(() => {
+    if (!partnersQuery.error || isAuthFailure(partnersQuery.error)) return;
+    console.error("Error loading booking partners:", partnersQuery.error);
+    showError("Partner Details Unavailable", partnersQuery.error.message || "Unable to load participant details right now.");
+  }, [partnersQuery.error]);
 
-      const partnerIds = [...new Set(allBookings.map(b => 
-          user.id === b.client_id ? b.coach_id : b.client_id
-      ).filter(Boolean))];
+  const refreshBookings = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+  };
 
-      if (partnerIds.length > 0) {
-          const partnerUsers = await User.filter({ id: { in: partnerIds }});
-          const partnersMap = partnerUsers.reduce((acc, partner) => {
-              acc[partner.id] = partner;
-              return acc;
-          }, {});
-          setPartners(partnersMap);
-      }
-
-    } catch (error) {
-      console.error("Error loading bookings:", error);
-    } finally {
-      setIsLoading(false);
-    }
+  const updateCachedBooking = (updatedBooking) => {
+    queryClient.setQueryData([...MY_BOOKINGS_QUERY_KEY, currentUser?.id], (existing = []) =>
+      sortBookings(existing.map((booking) => (booking.id === updatedBooking.id ? updatedBooking : booking)))
+    );
   };
   
   const handleMessageClick = (bookingId) => {
@@ -164,10 +207,10 @@ export default function MyBookings() {
 
       setShowReviewModal(false);
       setSelectedBooking(null);
-      loadData(); // Refresh bookings
+      await refreshBookings();
     } catch (error) {
       console.error("Error submitting review:", error);
-      alert("Error submitting review. Please try again.");
+      showError("Review Failed", error.message || "Error submitting review. Please try again.");
     }
   };
 
@@ -178,11 +221,11 @@ export default function MyBookings() {
         cancellation_reason: reason 
       });
       setBookingToCancel(null);
-      loadData(); // Refresh bookings
-      alert("Booking cancelled successfully.");
+      await refreshBookings();
+      showSuccess("Booking Cancelled", "Booking cancelled successfully.");
     } catch (error) {
       console.error("Error cancelling booking:", error);
-      alert("Error cancelling booking. Please try again.");
+      showError("Cancellation Failed", error.message || "Error cancelling booking. Please try again.");
     }
   };
 
@@ -285,7 +328,7 @@ export default function MyBookings() {
                                   booking={booking} 
                                   currentUser={currentUser}
                                   onBookingUpdate={(updatedBooking) => {
-                                    setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b));
+                                    updateCachedBooking(updatedBooking);
                                   }}
                                 />
                               </div>
@@ -348,7 +391,10 @@ export default function MyBookings() {
                                   <Button 
                                     size="sm"
                                     className="bg-green-600 hover:bg-green-700"
-                                    onClick={async () => { await Booking.update(booking.id, {accept: true}); loadData(); }}
+                                    onClick={async () => {
+                                      await Booking.update(booking.id, { accept: true });
+                                      await refreshBookings();
+                                    }}
                                   >
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Accept
@@ -428,9 +474,9 @@ export default function MyBookings() {
         booking={bookingToReschedule}
         isOpen={!!bookingToReschedule}
         onClose={() => setBookingToReschedule(null)}
-        onSuccess={() => {
+        onSuccess={async () => {
           setBookingToReschedule(null);
-          loadData();
+          await refreshBookings();
         }}
         currentUserId={currentUser?.id}
       />
