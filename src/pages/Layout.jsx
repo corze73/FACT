@@ -33,6 +33,15 @@ export default function Layout({ children, currentPageName }) {
     hasUnreadMessages: false
   });
 
+  const getCachedCurrentUser = () => {
+    try {
+      const cachedUser = localStorage.getItem('currentUser');
+      return cachedUser ? JSON.parse(cachedUser) : null;
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     loadCurrentUser();
   }, []);
@@ -61,8 +70,16 @@ export default function Layout({ children, currentPageName }) {
       }
     } catch (error) {
       console.error("Error loading user:", error);
-      // Clear any stale auth state
-      setCurrentUser(null);
+      const status = Number(error?.status || 0);
+      const message = String(error?.message || '').toLowerCase();
+      const isAuthFailure = status === 401 || message.includes('not authenticated') || message.includes('unauthorized');
+
+      if (isAuthFailure) {
+        setCurrentUser(null);
+        return;
+      }
+
+      setCurrentUser(getCachedCurrentUser());
     }
   };
   

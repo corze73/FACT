@@ -136,6 +136,37 @@ export const db = {
   }
 };
 
+const decodeStoredAuthToken = () => {
+  try {
+    const token = localStorage.getItem('authToken');
+    if (!token) return null;
+
+    const [, payloadSegment] = token.split('.');
+    if (!payloadSegment) return null;
+
+    const normalizedPayload = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(normalizedPayload)
+        .split('')
+        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .join('')
+    );
+    const payload = JSON.parse(json);
+
+    if (!payload?.sub) return null;
+
+    return {
+      id: payload.sub,
+      email: payload.email || null,
+      user_type: payload.user_type || 'client',
+      role: payload.user_type === 'admin' ? 'admin' : 'user'
+    };
+  } catch (error) {
+    console.error('Error decoding stored auth token:', error);
+    return null;
+  }
+};
+
 // Simple auth simulation (custom authentication for Neon)
 export const auth = {
   currentUser: null,
@@ -143,16 +174,27 @@ export const auth = {
   // Initialize auth from localStorage on app start
   async init() {
     const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
+    const fallbackUser = storedUser ? null : decodeStoredAuthToken();
+    if (storedUser || fallbackUser) {
       try {
-        this.currentUser = JSON.parse(storedUser);
-        // Set user context for RLS in dev only
-        if (sql) {
-          await db.setUserContext(this.currentUser.id);
+        this.currentUser = storedUser ? JSON.parse(storedUser) : fallbackUser;
+        if (!storedUser && fallbackUser) {
+          localStorage.setItem('currentUser', JSON.stringify(fallbackUser));
         }
       } catch (error) {
         console.error('Error loading stored user:', error);
         localStorage.removeItem('currentUser');
+        return;
+      }
+
+      // Set user context for RLS in dev only. Do not clear the cached session on
+      // transient context/network failures; the API layer remains the source of truth.
+      if (sql) {
+        try {
+          await db.setUserContext(this.currentUser.id);
+        } catch (error) {
+          console.error('Error setting stored user context:', error);
+        }
       }
     }
   },

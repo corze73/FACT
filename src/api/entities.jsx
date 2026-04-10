@@ -30,6 +30,55 @@ const normalizeUserRecord = (user) => {
 
 const normalizeUserList = (list) => (Array.isArray(list) ? list.map(normalizeUserRecord) : list);
 
+const formatBookingTime = (date) => {
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+const formatLocationType = (value) => {
+  if (!value) return 'Online';
+  return String(value)
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const normalizeBookingRecord = (booking) => {
+  if (!booking) return booking;
+
+  const bookingDateValue = booking.booking_date ?? booking.session_date ?? null;
+  const bookingDate = bookingDateValue ? new Date(bookingDateValue) : null;
+  const hasValidBookingDate = bookingDate instanceof Date && !Number.isNaN(bookingDate.getTime());
+
+  return {
+    ...booking,
+    session_date: booking.session_date ?? bookingDateValue,
+    session_time: booking.session_time ?? (hasValidBookingDate ? formatBookingTime(bookingDate) : null),
+    location: booking.location ?? {
+      type: formatLocationType(booking.location_type),
+      address: booking.location_address ?? '',
+      notes: booking.location_notes ?? ''
+    }
+  };
+};
+
+const normalizeBookingResult = (result) => {
+  if (Array.isArray(result)) {
+    return result.map(normalizeBookingRecord);
+  }
+
+  if (result && Array.isArray(result.data)) {
+    return {
+      ...result,
+      data: result.data.map(normalizeBookingRecord)
+    };
+  }
+
+  return normalizeBookingRecord(result);
+};
+
 // ========== USER ENTITY (Migrated to API) ==========
 export const User = {
   // Auth functions still use auth client (Google OAuth)
@@ -518,11 +567,11 @@ export const Booking = {
     if (options.client_id) filters.client_id = options.client_id;
     if (options.view) filters.view = options.view;
 
-    return await apiClient.getBookings(filters);
+    return normalizeBookingResult(await apiClient.getBookings(filters));
   },
 
   async get(id) {
-    return await apiClient.getBooking(id);
+    return normalizeBookingRecord(await apiClient.getBooking(id));
   },
 
   async filter(filters, orderBy = 'created_date') {
@@ -532,15 +581,15 @@ export const Booking = {
     if (filters.status) queryParams.status = filters.status;
     if (orderBy) queryParams.orderBy = orderBy;
 
-    return await apiClient.getBookings(queryParams);
+    return normalizeBookingResult(await apiClient.getBookings(queryParams));
   },
 
   async create(bookingData) {
-    return await apiClient.createBooking(bookingData);
+    return normalizeBookingRecord(await apiClient.createBooking(bookingData));
   },
 
   async update(id, updateData) {
-    return await apiClient.updateBooking(id, updateData);
+    return normalizeBookingRecord(await apiClient.updateBooking(id, updateData));
   },
 
   async delete(id) {

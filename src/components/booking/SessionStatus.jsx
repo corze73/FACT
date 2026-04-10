@@ -14,6 +14,10 @@ export default function SessionStatus({ booking, currentUser, onBookingUpdate })
   const [showDisputeDialog, setShowDisputeDialog] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
 
+  const durationLabel = Number.isFinite(Number(booking.duration))
+    ? `${Number(booking.duration)} mins`
+    : booking.duration;
+
   const isClient = booking.client_id === currentUser.id;
   const isCoach = booking.coach_id === currentUser.id;
   const userRole = isClient ? 'client' : 'coach';
@@ -126,7 +130,7 @@ export default function SessionStatus({ booking, currentUser, onBookingUpdate })
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-slate-500" />
-            <span>{booking.session_time} ({booking.duration}h)</span>
+            <span>{booking.session_time} ({durationLabel})</span>
           </div>
         </div>
 

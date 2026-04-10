@@ -26,6 +26,12 @@ const formatSafeDate = (dateValue, formatStr = 'PPP') => {
   return date ? format(date, formatStr) : 'Date TBD';
 };
 
+const formatLocationLabel = (booking) => {
+  const type = booking.location?.type || 'Online';
+  const address = booking.location?.address;
+  return address ? `${type} - ${address}` : type;
+};
+
 export default function CoachDashboard() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
@@ -138,7 +144,7 @@ export default function CoachDashboard() {
           <div className="grid md:grid-cols-2 gap-4 mb-4 text-sm">
             <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-slate-500" /><span>{formatSafeDate(booking.session_date)}</span></div>
             <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-slate-500" /><span>{booking.session_time} ({booking.duration} mins)</span></div>
-            <div className="flex items-center gap-2 col-span-2"><MapPin className="w-4 h-4 text-slate-500" /><span>{booking.location?.type || 'Online'} - {booking.location?.address}</span></div>
+            <div className="flex items-center gap-2 col-span-2"><MapPin className="w-4 h-4 text-slate-500" /><span>{formatLocationLabel(booking)}</span></div>
           </div>
           
           {/* Session Status Component for confirmed/active bookings */}

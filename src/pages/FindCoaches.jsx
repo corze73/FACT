@@ -18,6 +18,15 @@ import BookingModal from "../components/booking/BookingModal";
 
 const COACHES_PER_PAGE = 24;
 
+const getCachedCurrentUser = () => {
+  try {
+    const cachedUser = localStorage.getItem('currentUser');
+    return cachedUser ? JSON.parse(cachedUser) : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function FindCoaches() {
   const navigate = useNavigate();
   const [coaches, setCoaches] = useState([]);
@@ -119,9 +128,28 @@ export default function FindCoaches() {
           return;
         }
         // Authenticated non-admin user - allow browse
+        setCurrentUser(me);
       } catch (error) {
-        // User not authenticated - allow browsing as guest
-        devLog("Loading coaches for guest user");
+        const status = Number(error?.status || 0);
+        const message = String(error?.message || '').toLowerCase();
+        const isAuthFailure = status === 401 || message.includes('not authenticated') || message.includes('unauthorized');
+
+        if (isAuthFailure) {
+          // User not authenticated - allow browsing as guest
+          setCurrentUser(null);
+          devLog("Loading coaches for guest user");
+          return;
+        }
+
+        const cachedUser = getCachedCurrentUser();
+        if (cachedUser && !isAdminUser(cachedUser)) {
+          setCurrentUser(cachedUser);
+          devError("FindCoaches auth refresh failed; using cached user state:", error);
+          return;
+        }
+
+        setCurrentUser(null);
+        devError("FindCoaches auth refresh failed with no cached user:", error);
       }
     })();
   }, [navigate]);
