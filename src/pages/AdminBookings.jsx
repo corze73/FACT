@@ -172,12 +172,6 @@ export default function AdminBookings() {
   if (loading) return <div className="p-8">Loading bookings...</div>;
   if (!currentUser || !isAdminUser(currentUser)) return null;
 
-  const handleBookingFound = (booking) => {
-    // Highlight or navigate to the found booking
-    console.log('Found booking:', booking);
-    // You could scroll to the booking or open it in a modal
-  };
-
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -195,8 +189,7 @@ export default function AdminBookings() {
         </Button>
 
         <BookingReferenceSearch 
-          onBookingFound={handleBookingFound}
-          onError={console.error}
+          onError={() => {}}
         />
         
         <Card className="border-0 shadow-lg">

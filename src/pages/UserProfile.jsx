@@ -69,27 +69,21 @@ export default function UserProfile() {
       // Get current logged-in user
       const loggedInUser = await User.me();
       setCurrentUser(loggedInUser);
-      console.log('Logged in user:', loggedInUser.full_name, 'Type:', loggedInUser.user_type);
       
       // Check if admin is viewing another user's profile
       const urlParams = new URLSearchParams(window.location.search);
       const userId = urlParams.get('userId');
-      console.log('userId parameter:', userId);
       
       let userToLoad = loggedInUser;
       
       if (userId && isAdminUser(loggedInUser)) {
         // Admin can view other profiles; keep self-profile in editable mode.
         const isSelfProfile = userId === loggedInUser.id;
-        console.log('Admin profile navigation:', { userId, isSelfProfile });
         if (!isSelfProfile) {
           setIsViewingAsAdmin(true);
         }
         const targetUser = await User.get(userId);
         userToLoad = targetUser;
-        console.log('Loaded user:', userToLoad.full_name);
-      } else {
-        console.log('User viewing own profile');
       }
       
       setFormData({

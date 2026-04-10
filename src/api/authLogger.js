@@ -33,7 +33,6 @@ export const AuthLogger = {
         logEntry.created_at
       ]);
 
-      console.log(`📝 Auth event logged: ${eventType} for ${userEmail} - ${success ? 'SUCCESS' : 'FAILED'}`);
       return logEntry.id;
 
     } catch (error) {
@@ -119,26 +118,20 @@ export const AuthNotificationService = {
 
       if (success) {
         // Send welcome email to user
-        console.log('📧 Sending welcome email...');
         await EmailService.sendWelcomeEmail(userEmail, userName, userType);
 
         // Notify admin of successful signup
-        console.log('📧 Notifying admin of successful signup...');
         await EmailService.notifyAdminOfSignup(userEmail, userType, true);
 
-        console.log('✅ Signup notifications completed successfully');
         return { success: true, logId };
 
       } else {
         // Send failure notification to user
-        console.log('📧 Sending failure notification to user...');
         await EmailService.sendSignupFailureEmail(userEmail, userName);
 
         // Notify admin of failed signup
-        console.log('📧 Notifying admin of failed signup...');
         await EmailService.notifyAdminOfSignup(userEmail, userType, false, errorDetails);
 
-        console.log('⚠️ Signup failure notifications completed');
         return { success: false, logId, notified: true };
       }
 
@@ -173,7 +166,6 @@ export const AuthNotificationService = {
 
         // If 3+ failed attempts in an hour, notify admin
         if (userFailures.length >= 3) {
-          console.log('🚨 Multiple signin failures detected, notifying admin...');
           await EmailService.notifyAdminOfSignup(
             userEmail, 
             'user', 

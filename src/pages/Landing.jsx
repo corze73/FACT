@@ -71,7 +71,6 @@ export default function Landing() {
           if (cachedUser) {
             try {
               me = JSON.parse(cachedUser);
-              console.log('Using cached user data:', me);
             } catch (e) {
               console.error('Failed to parse cached user:', e);
             }

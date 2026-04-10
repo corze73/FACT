@@ -13,16 +13,11 @@ import { formatDistanceToNow } from 'date-fns';
 const MESSAGES_CURRENT_USER_QUERY_KEY = ['messages', 'current-user'];
 
 async function loadConversations(currentUser) {
-    console.log('Messages: Loading for user:', currentUser.id, currentUser.full_name);
-
     if (isAdminUser(currentUser)) {
         const [allBookings, directThreads] = await Promise.all([
             Booking.list('-updated_date', 50),
             apiClient.getDirectThreads()
         ]);
-
-        console.log('Admin: All bookings loaded:', allBookings.length);
-        console.log('Admin: Direct threads loaded:', directThreads.length);
 
         const bookingIds = allBookings.map((booking) => booking.id);
         const messages = bookingIds.length
@@ -82,24 +77,16 @@ async function loadConversations(currentUser) {
         Booking.filter({ coach_id: currentUser.id }, '-created_at')
     ]);
 
-    console.log('Filtered bookings:', {
-        client: clientBookings.length,
-        coach: coachBookings.length
-    });
-
     const allBookingsMap = new Map();
     [...clientBookings, ...coachBookings].forEach((booking) => {
         allBookingsMap.set(booking.id, booking);
     });
     const combinedBookings = Array.from(allBookingsMap.values());
-    console.log('Combined bookings:', combinedBookings.length, combinedBookings);
 
     const bookingIds = combinedBookings.map((booking) => booking.id);
-    console.log('Booking IDs for messages:', bookingIds);
     const messages = bookingIds.length
         ? await Message.filter({ booking_id: { in: bookingIds } }, '-created_date')
         : [];
-    console.log('Messages loaded:', messages.length);
 
     const lastMessages = {};
     messages.forEach((message) => {
@@ -114,8 +101,6 @@ async function loadConversations(currentUser) {
         const otherName = isClientView ? (booking.coach_name || 'Coach') : (booking.client_name || 'Client');
         const otherAvatar = isClientView ? booking.coach_avatar : booking.client_avatar;
 
-        console.log('Processing booking:', booking.id, 'Other user:', otherName, 'Last message:', lastMessage?.content);
-
         return {
             type: 'booking',
             booking_id: booking.id,
@@ -128,11 +113,8 @@ async function loadConversations(currentUser) {
         };
     });
 
-    console.log('Final conversations (booking-based):', bookingConversations.length);
-
     try {
         const directThreads = await apiClient.getDirectThreads();
-        console.log('Non-admin: Direct threads loaded:', directThreads.length);
 
         if (!directThreads.length) {
             return bookingConversations;

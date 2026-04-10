@@ -7,11 +7,8 @@ import { db } from '../databaseClient.js';
  * Runs every hour to check for payments ready to be released
  */
 export const startPaymentAutomation = () => {
-  console.log('Starting payment automation cron jobs...');
-
   // Run every hour to process payment releases
   cron.schedule('0 * * * *', async () => {
-    console.log('Running payment release automation...');
     try {
       await PaymentAutomation.processPaymentReleases();
     } catch (error) {
@@ -21,7 +18,6 @@ export const startPaymentAutomation = () => {
 
   // Run every hour to process refunds
   cron.schedule('15 * * * *', async () => {
-    console.log('Running refund automation...');
     try {
       await PaymentAutomation.processRefunds();
     } catch (error) {
@@ -31,15 +27,12 @@ export const startPaymentAutomation = () => {
 
   // Run once a day to clean up old data
   cron.schedule('0 2 * * *', async () => {
-    console.log('Running daily cleanup...');
     try {
       await cleanupOldData();
     } catch (error) {
       console.error('Cleanup automation failed:', error);
     }
   });
-
-  console.log('Payment automation cron jobs started successfully');
 };
 
 /**
@@ -61,8 +54,6 @@ async function cleanupOldData() {
     AND session_end < NOW() - INTERVAL '30 days'
     AND archived = false
   `);
-
-  console.log('Daily cleanup completed');
 }
 
 /**
@@ -70,17 +61,14 @@ async function cleanupOldData() {
  */
 export const manualTriggers = {
   async processPaymentReleases() {
-    console.log('Manually triggering payment releases...');
     await PaymentAutomation.processPaymentReleases();
   },
 
   async processRefunds() {
-    console.log('Manually triggering refunds...');
     await PaymentAutomation.processRefunds();
   },
 
   async cleanupData() {
-    console.log('Manually triggering cleanup...');
     await cleanupOldData();
   }
 };

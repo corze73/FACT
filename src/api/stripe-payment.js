@@ -236,7 +236,7 @@ export const StripePaymentAPI = {
           break;
           
         default:
-          console.log(`Unhandled event type: ${event.type}`);
+          break;
       }
     } catch (error) {
       console.error('Error handling webhook:', error);
@@ -268,7 +268,6 @@ export const StripePaymentAPI = {
 
   async handleChargeDispute(dispute) {
     // Handle Stripe disputes (different from session disputes)
-    console.log('Stripe dispute created:', dispute.id);
     // Implement dispute handling logic
   }
 };
@@ -292,8 +291,6 @@ export const PaymentAutomation = {
       for (const booking of bookingsToRelease) {
         await this.releasePaymentToCoach(booking);
       }
-
-      console.log(`Released ${bookingsToRelease.length} payments`);
     } catch (error) {
       console.error('Error processing payment releases:', error);
     }
@@ -314,8 +311,6 @@ export const PaymentAutomation = {
       // 1. Transfer funds to coach's Stripe Connect account
       // 2. Send email notifications
       // 3. Update coach earnings
-
-      console.log(`Payment released for booking ${booking.id}`);
     } catch (error) {
       console.error(`Error releasing payment for booking ${booking.id}:`, error);
     }
@@ -373,7 +368,6 @@ export const PaymentAutomation = {
                  WHERE id = $1`,
                 [booking.id]
               );
-              console.log(`✅ Full refund processed for booking ${booking.id} - Coach no-show`);
               break;
 
             case 'client_no_show':
@@ -386,7 +380,6 @@ export const PaymentAutomation = {
                  WHERE id = $1`,
                 [booking.id]
               );
-              console.log(`💰 Payment released to coach for booking ${booking.id} - Client no-show`);
               break;
 
             case 'dispute_client_favor':
@@ -399,7 +392,6 @@ export const PaymentAutomation = {
                  WHERE id = $1`,
                 [booking.id]
               );
-              console.log(`⚖️ Dispute refund processed for booking ${booking.id} - Client favor`);
               break;
 
             case 'cancelled':
@@ -409,15 +401,12 @@ export const PaymentAutomation = {
                 `UPDATE bookings SET payment_status = 'refunded' WHERE id = $1`,
                 [booking.id]
               );
-              console.log(`🔄 Cancellation refund processed for booking ${booking.id}`);
               break;
           }
         } catch (error) {
           console.error(`❌ Error processing ${booking.scenario} for booking ${booking.id}:`, error);
         }
       }
-
-      console.log(`📊 Processed ${scenarios.length} payment scenarios`);
     } catch (error) {
       console.error('Error processing refunds:', error);
     }

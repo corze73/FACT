@@ -49,8 +49,6 @@ export default function Layout({ children, currentPageName }) {
   // Real-time notifications setup
   useEffect(() => {
     if (!currentUser) return;
-
-    console.log('Real-time notifications disabled during Neon migration');
     
     // TODO: Implement real-time notifications with WebSockets or polling
     // when needed for Neon database

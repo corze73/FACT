@@ -42,7 +42,6 @@ export const EmailService = {
         // Update email log as sent
         await this.updateEmailStatus(emailLog.id, 'sent', info.messageId);
         
-        console.log(`📧 Email sent: ${subject} to ${to} - Message ID: ${info.messageId}`);
         return { success: true, emailId: emailLog.id, messageId: info.messageId };
 
       } catch (smtpError) {

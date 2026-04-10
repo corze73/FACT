@@ -11,9 +11,7 @@ export default function UserStatus() {
       try {
         const user = await User.me();
         setCurrentUser(user);
-        console.log('Current logged in user:', user);
       } catch (err) {
-        console.log('No user logged in:', err.message);
         setError(err.message);
       } finally {
         setLoading(false);
