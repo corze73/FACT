@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   ActivityIndicator,
   Image,
@@ -15,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeUserType } from '@fact/domain';
-import { getCurrentProfile, mobileApi, mobileAuth, signInWithEmail, signOut } from './src/lib/mobileAuth';
+import { getCurrentProfile, mobileApi, mobileAuth, signInWithEmail, signOut, uploadComplianceAsset } from './src/lib/mobileAuth';
 
 const factIcon = require('./assets/icon.png');
 
@@ -254,8 +255,10 @@ function formatAvailabilityWindow(record) {
 function buildCoachComplianceForm(source) {
   return {
     qualification_type: source?.qualification_type || '',
+    qualification_file_url: source?.qualification_file_url || '',
     has_background_check: Boolean(source?.has_background_check),
     background_check_type: source?.background_check_type || '',
+    background_check_file_url: source?.background_check_file_url || '',
     background_check_expires_at: formatDateInputValue(source?.background_check_expires_at),
   };
 }
@@ -1232,6 +1235,8 @@ function CoachOperationsScreen({
   profileError,
   complianceSubmitting,
   complianceError,
+  uploadSubmitting,
+  uploadError,
   availabilitySubmitting,
   availabilityError,
   recurringSubmitting,
@@ -1245,6 +1250,7 @@ function CoachOperationsScreen({
   onAvailabilityFormChange,
   onRecurringFormChange,
   onSaveCompliance,
+  onUploadComplianceDocument,
   onSaveAvailability,
   onSaveRecurring,
   onEditAvailability,
@@ -1448,6 +1454,8 @@ function CoachOperationsScreen({
                 <Text style={styles.cardCopy}>Qualification status: {qualificationStatus}</Text>
                 <Text style={styles.cardCopy}>Background check status: {backgroundStatus}</Text>
                 <Text style={styles.cardCopy}>Expiry: {profile?.background_check_expires_at ? formatSessionDate(profile.background_check_expires_at) : 'Not set'}</Text>
+                <Text style={styles.cardCopy}>Qualification file: {complianceForm.qualification_file_url ? 'Uploaded' : 'Missing'}</Text>
+                <Text style={styles.cardCopy}>Background file: {complianceForm.background_check_file_url ? 'Uploaded' : 'Missing'}</Text>
                 {profile?.verification_notes ? (
                   <Text style={styles.cardCopy}>Verification notes: {profile.verification_notes}</Text>
                 ) : null}
@@ -1465,6 +1473,24 @@ function CoachOperationsScreen({
                     style={styles.inputDark}
                     value={complianceForm.qualification_type}
                   />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Qualification document</Text>
+                  <View style={styles.inlineButtonRow}>
+                    <Pressable
+                      disabled={uploadSubmitting}
+                      onPress={() => onUploadComplianceDocument('qualification')}
+                      style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || uploadSubmitting) && styles.actionButtonPressed]}
+                    >
+                      <Text style={styles.inlinePrimaryButtonText}>Upload qualification file</Text>
+                    </Pressable>
+                  </View>
+                  {complianceForm.qualification_file_url ? (
+                    <Text style={styles.helperText}>Qualification file selected and uploaded.</Text>
+                  ) : (
+                    <Text style={styles.helperText}>Allowed formats: PDF, JPG, PNG.</Text>
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -1499,6 +1525,24 @@ function CoachOperationsScreen({
                     </View>
 
                     <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabelLight}>Background check document</Text>
+                      <View style={styles.inlineButtonRow}>
+                        <Pressable
+                          disabled={uploadSubmitting}
+                          onPress={() => onUploadComplianceDocument('background_check')}
+                          style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || uploadSubmitting) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlinePrimaryButtonText}>Upload background file</Text>
+                        </Pressable>
+                      </View>
+                      {complianceForm.background_check_file_url ? (
+                        <Text style={styles.helperText}>Background check file selected and uploaded.</Text>
+                      ) : (
+                        <Text style={styles.helperText}>Required when background check is marked as recorded.</Text>
+                      )}
+                    </View>
+
+                    <View style={styles.inputGroup}>
                       <Text style={styles.inputLabelLight}>Expiry date</Text>
                       <TextInput
                         onChangeText={(value) => onComplianceChange('background_check_expires_at', value)}
@@ -1513,6 +1557,7 @@ function CoachOperationsScreen({
                   </>
                 ) : null}
 
+                {uploadError ? <Text style={styles.errorTextLight}>{uploadError}</Text> : null}
                 {complianceError ? <Text style={styles.errorTextLight}>{complianceError}</Text> : null}
 
                 <Pressable
@@ -2062,6 +2107,8 @@ export default function App() {
   const [coachComplianceForm, setCoachComplianceForm] = useState(buildCoachComplianceForm(null));
   const [coachComplianceSubmitting, setCoachComplianceSubmitting] = useState(false);
   const [coachComplianceError, setCoachComplianceError] = useState('');
+  const [coachComplianceUploadSubmitting, setCoachComplianceUploadSubmitting] = useState(false);
+  const [coachComplianceUploadError, setCoachComplianceUploadError] = useState('');
   const [coachAvailability, setCoachAvailability] = useState([]);
   const [coachAvailabilityForm, setCoachAvailabilityForm] = useState(buildAvailabilityForm());
   const [coachAvailabilitySubmitting, setCoachAvailabilitySubmitting] = useState(false);
@@ -2361,6 +2408,7 @@ export default function App() {
       setCoachAvailabilityError('');
       setCoachRecurringError('');
       setCoachComplianceError('');
+      setCoachComplianceUploadError('');
       setCoachAvailabilityForm(buildAvailabilityForm());
       setCoachRecurringForm(buildRecurringAvailabilityForm());
     } catch (error) {
@@ -2527,6 +2575,7 @@ export default function App() {
     setCoachProfileForm(buildCoachProfileForm(null));
     setCoachComplianceError('');
     setCoachComplianceForm(buildCoachComplianceForm(null));
+    setCoachComplianceUploadError('');
     setCoachAvailabilityError('');
     setCoachAvailability([]);
     setCoachAvailabilityForm(buildAvailabilityForm());
@@ -2644,8 +2693,12 @@ export default function App() {
     try {
       const updated = await mobileApi.updateCompliance({
         qualification_type: coachComplianceForm.qualification_type,
+        qualification_file_url: coachComplianceForm.qualification_file_url || null,
         has_background_check: coachComplianceForm.has_background_check,
         background_check_type: coachComplianceForm.has_background_check ? coachComplianceForm.background_check_type : null,
+        background_check_file_url: coachComplianceForm.has_background_check
+          ? (coachComplianceForm.background_check_file_url || null)
+          : null,
         background_check_expires_at: coachComplianceForm.has_background_check
           ? (coachComplianceForm.background_check_expires_at || null)
           : null,
@@ -2661,6 +2714,49 @@ export default function App() {
       setCoachComplianceError(error?.message || 'Unable to update compliance.');
     } finally {
       setCoachComplianceSubmitting(false);
+    }
+  };
+
+  const handleUploadComplianceDocument = async (type) => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    setCoachComplianceUploadSubmitting(true);
+    setCoachComplianceUploadError('');
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        multiple: false,
+        copyToCacheDirectory: true,
+        type: ['application/pdf', 'image/jpeg', 'image/png'],
+      });
+
+      if (result.canceled || !result.assets?.[0]) {
+        return;
+      }
+
+      const selected = result.assets[0];
+      const uploadedUrl = await uploadComplianceAsset(selected, type === 'qualification' ? 'qualification' : 'background_check');
+
+      setCoachComplianceForm((previousForm) => {
+        if (type === 'qualification') {
+          return {
+            ...previousForm,
+            qualification_file_url: uploadedUrl,
+          };
+        }
+
+        return {
+          ...previousForm,
+          has_background_check: true,
+          background_check_file_url: uploadedUrl,
+        };
+      });
+    } catch (error) {
+      setCoachComplianceUploadError(error?.message || 'Unable to upload document.');
+    } finally {
+      setCoachComplianceUploadSubmitting(false);
     }
   };
 
@@ -3182,6 +3278,8 @@ export default function App() {
             profileError={coachProfileError}
             complianceSubmitting={coachComplianceSubmitting}
             complianceError={coachComplianceError}
+            uploadSubmitting={coachComplianceUploadSubmitting}
+            uploadError={coachComplianceUploadError}
             availabilitySubmitting={coachAvailabilitySubmitting}
             availabilityError={coachAvailabilityError}
             recurringSubmitting={coachRecurringSubmitting}
@@ -3192,6 +3290,7 @@ export default function App() {
             onProfileToggle={handleCoachProfileToggle}
             onSaveProfile={handleSaveCoachProfile}
             onComplianceChange={handleComplianceChange}
+            onUploadComplianceDocument={handleUploadComplianceDocument}
             onAvailabilityFormChange={handleAvailabilityFormChange}
             onRecurringFormChange={handleRecurringFormChange}
             onSaveCompliance={handleSaveCompliance}

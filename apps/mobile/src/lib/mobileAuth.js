@@ -77,3 +77,56 @@ export async function getCurrentProfile() {
 
   return mobileApi.getUser(user.id);
 }
+
+const inferMimeType = (fileName = '') => {
+  const lower = String(fileName || '').toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  return 'application/pdf';
+};
+
+export async function uploadComplianceAsset(asset, documentType = 'qualification') {
+  const uri = asset?.uri;
+  if (!uri) {
+    throw new Error('No file selected.');
+  }
+
+  const name = asset?.name || `${documentType}-${Date.now()}.pdf`;
+  const type = asset?.mimeType || inferMimeType(name);
+  const token = await mobileAuth.getStoredAuthToken();
+
+  const formData = new FormData();
+  formData.append('file', {
+    uri,
+    name,
+    type,
+  });
+  formData.append('document_type', documentType);
+
+  const response = await fetch(`${API_BASE}/uploads`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || 'Upload failed');
+  }
+
+  const uploadedUrl = data?.data?.url;
+  if (!uploadedUrl) {
+    throw new Error('Upload did not return a file URL.');
+  }
+
+  return uploadedUrl;
+}
