@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeUserType } from '@fact/domain';
-import { getCurrentProfile, mobileAuth, signInWithEmail, signOut } from './src/lib/mobileAuth';
+import { getCurrentProfile, mobileApi, mobileAuth, signInWithEmail, signOut } from './src/lib/mobileAuth';
 
 const factIcon = require('./assets/icon.png');
 
@@ -63,10 +63,122 @@ async function openHref(href) {
   await Linking.openURL(href);
 }
 
-function AuthenticatedHome({ currentUser, profile, loadingProfile, onSignOut }) {
+function formatServiceType(value) {
+  return String(value || 'session')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatSessionDate(value) {
+  if (!value) return 'Date TBD';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Date TBD';
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatPrice(value) {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? `GBP ${amount}` : 'GBP 0';
+}
+
+function buildDashboardState(accountType, payload) {
+  if (accountType === 'admin') {
+    const userStats = payload.userStats || {};
+    const bookingStats = payload.bookingStats || {};
+    const bookings = Array.isArray(payload.recentBookings) ? payload.recentBookings : [];
+
+    return {
+      eyebrow: 'Admin overview',
+      heading: 'Platform activity at a glance',
+      subheading: 'A native summary of accounts, coaches, clients, and booking flow.',
+      stats: [
+        { label: 'Accounts', value: userStats.total_accounts || 0 },
+        { label: 'Coaches', value: userStats.total_coaches || 0 },
+        { label: 'Clients', value: userStats.total_clients || 0 },
+        { label: 'Bookings', value: bookingStats.total || 0 },
+      ],
+      spotlight: [
+        { label: 'Pending', value: bookingStats.pending || 0 },
+        { label: 'Confirmed', value: bookingStats.confirmed || 0 },
+        { label: 'Completed', value: bookingStats.completed || 0 },
+      ],
+      bookings,
+      bookingsTitle: 'Recent bookings',
+      emptyBookingsText: 'No bookings available yet.',
+      primaryLink: { label: 'Open Admin Dashboard', href: 'https://findacoachtoday.com/admindashboard' },
+      secondaryLink: { label: 'Open Admin Operations', href: 'https://findacoachtoday.com/adminoperations' },
+    };
+  }
+
+  const bookings = Array.isArray(payload.bookings) ? payload.bookings : [];
+  const pendingCount = bookings.filter((booking) => booking.status === 'pending').length;
+  const confirmedCount = bookings.filter((booking) => booking.status === 'confirmed').length;
+  const completedCount = bookings.filter((booking) => booking.status === 'completed').length;
+
+  if (accountType === 'coach') {
+    return {
+      eyebrow: 'Coach dashboard',
+      heading: 'Your schedule and requests',
+      subheading: 'Manage booking requests and upcoming sessions without leaving the app.',
+      stats: [
+        { label: 'Pending', value: pendingCount },
+        { label: 'Upcoming', value: confirmedCount },
+        { label: 'Completed', value: completedCount },
+      ],
+      spotlight: [
+        { label: 'Total sessions', value: bookings.length },
+        { label: 'Latest status', value: bookings[0]?.status || 'none' },
+      ],
+      bookings,
+      bookingsTitle: 'Your sessions',
+      emptyBookingsText: 'No coach sessions found yet.',
+      primaryLink: { label: 'Open Coach Dashboard', href: 'https://findacoachtoday.com/coachdashboard' },
+      secondaryLink: { label: 'Open Messages', href: 'https://findacoachtoday.com/messages' },
+    };
+  }
+
+  return {
+    eyebrow: 'Client dashboard',
+    heading: 'Your upcoming coaching activity',
+    subheading: 'See upcoming sessions and move into the full product only when you need deeper tools.',
+    stats: [
+      { label: 'Upcoming', value: confirmedCount },
+      { label: 'Pending', value: pendingCount },
+      { label: 'Completed', value: completedCount },
+    ],
+    spotlight: [
+      { label: 'Total bookings', value: bookings.length },
+      { label: 'Next session', value: bookings[0]?.session_time || 'TBD' },
+    ],
+    bookings,
+    bookingsTitle: 'Your bookings',
+    emptyBookingsText: 'No client bookings found yet.',
+    primaryLink: { label: 'Open My Bookings', href: 'https://findacoachtoday.com/mybookings' },
+    secondaryLink: { label: 'Browse Coaches', href: 'https://findacoachtoday.com/findcoaches' },
+  };
+}
+
+function BookingCard({ booking }) {
+  return (
+    <View style={styles.bookingCard}>
+      <View style={styles.bookingHeader}>
+        <Text style={styles.bookingTitle}>{formatServiceType(booking.service_type)}</Text>
+        <Text style={styles.bookingStatus}>{booking.status || 'pending'}</Text>
+      </View>
+      <Text style={styles.bookingMeta}>{formatSessionDate(booking.session_date || booking.booking_date)}</Text>
+      <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
+    </View>
+  );
+}
+
+function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onSignOut }) {
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
   const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
-  const isAdmin = accountType === 'admin';
+  const resolvedDashboard = dashboard || buildDashboardState(accountType, {});
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -84,12 +196,27 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, onSignOut }) 
           <Text style={styles.eyebrow}>Native session active</Text>
           <Text style={styles.title}>Welcome back, {displayName}.</Text>
           <Text style={styles.subtitle}>
-            You are signed in as {accountType}. Native login is working; the remaining product areas can move over screen by screen.
+            You are signed in as {accountType}. Native login is working, and this screen now reflects your role instead of dropping straight into the browser.
           </Text>
         </View>
       </ImageBackground>
 
       <View style={styles.content}>
+        <View style={styles.sectionHeaderCompact}>
+          <Text style={styles.sectionEyebrow}>{resolvedDashboard.eyebrow}</Text>
+          <Text style={styles.sectionTitle}>{resolvedDashboard.heading}</Text>
+          <Text style={styles.sectionSubtitle}>{resolvedDashboard.subheading}</Text>
+        </View>
+
+        <View style={styles.statsGrid}>
+          {resolvedDashboard.stats.map((item) => (
+            <View key={item.label} style={styles.statTile}>
+              <Text style={styles.statLabel}>{item.label}</Text>
+              <Text style={styles.statValue}>{item.value}</Text>
+            </View>
+          ))}
+        </View>
+
         <View style={styles.featureGrid}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Account</Text>
@@ -100,26 +227,66 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, onSignOut }) 
             <Text style={styles.cardCopy}>{accountType}</Text>
           </View>
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Profile status</Text>
+            <Text style={styles.cardTitle}>Session</Text>
             <Text style={styles.cardCopy}>{loadingProfile ? 'Refreshing profile...' : 'Signed in on device'}</Text>
           </View>
         </View>
 
+        <View style={styles.spotlightRow}>
+          {resolvedDashboard.spotlight.map((item) => (
+            <View key={item.label} style={styles.spotlightCard}>
+              <Text style={styles.spotlightLabel}>{item.label}</Text>
+              <Text style={styles.spotlightValue}>{item.value}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.sectionHeaderCompact}>
+          <Text style={styles.sectionEyebrow}>{resolvedDashboard.bookingsTitle}</Text>
+          {dashboardLoading ? <Text style={styles.sectionSubtitle}>Refreshing native dashboard data...</Text> : null}
+          {dashboardError ? <Text style={styles.errorText}>{dashboardError}</Text> : null}
+        </View>
+
+        {dashboardLoading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading your dashboard</Text>
+          </View>
+        ) : resolvedDashboard.bookings.length > 0 ? (
+          <View style={styles.bookingList}>
+            {resolvedDashboard.bookings.slice(0, 5).map((booking) => (
+              <BookingCard key={booking.id} booking={booking} />
+            ))}
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardCopy}>{resolvedDashboard.emptyBookingsText}</Text>
+          </View>
+        )}
+
         <View style={styles.actionGroupSignedIn}>
           <Pressable
-            onPress={() => openHref(isAdmin ? 'https://findacoachtoday.com/admindashboard' : 'https://findacoachtoday.com/mybookings')}
+            onPress={() => openHref(resolvedDashboard.primaryLink.href)}
             style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
           >
-            <Text style={styles.actionTitle}>Open {isAdmin ? 'Admin Dashboard' : 'My Bookings'}</Text>
-            <Text style={styles.actionBody}>Use the web dashboard for the areas that have not been migrated yet.</Text>
+            <Text style={styles.actionTitle}>{resolvedDashboard.primaryLink.label}</Text>
+            <Text style={styles.actionBody}>Use the web dashboard only for the deeper tools that have not been migrated yet.</Text>
           </Pressable>
 
           <Pressable
-            onPress={() => openHref('https://findacoachtoday.com/findcoaches')}
+            onPress={() => openHref(resolvedDashboard.secondaryLink.href)}
             style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
           >
-            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Browse coaches</Text>
-            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Keep exploring coaches while the native experience expands.</Text>
+            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>{resolvedDashboard.secondaryLink.label}</Text>
+            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Keep moving inside the product while the native experience expands.</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onRefresh}
+            style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Refresh dashboard</Text>
+            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Pull the latest stats and bookings from the live API.</Text>
           </Pressable>
 
           <Pressable
@@ -216,6 +383,48 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboard, setDashboard] = useState(null);
+
+  const loadDashboard = async (nextUser, nextProfile) => {
+    if (!nextUser?.id) {
+      setDashboard(null);
+      setDashboardError('');
+      return;
+    }
+
+    const accountType = normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client');
+    setDashboardLoading(true);
+    setDashboardError('');
+
+    try {
+      if (accountType === 'admin') {
+        const [userStats, bookingStats, recentBookings] = await Promise.all([
+          mobileApi.getUsers({ stats: '1' }),
+          mobileApi.getBookingStats(),
+          mobileApi.getBookings({ view: 'admin_list', limit: 5, offset: 0, orderBy: '-created_at' }),
+        ]);
+
+        setDashboard(buildDashboardState(accountType, { userStats, bookingStats, recentBookings }));
+        return;
+      }
+
+      const bookings = await mobileApi.getBookings({
+        [accountType === 'coach' ? 'coach_id' : 'client_id']: nextUser.id,
+        limit: 8,
+        offset: 0,
+        orderBy: accountType === 'coach' ? 'booking_date' : '-booking_date',
+      });
+
+      setDashboard(buildDashboardState(accountType, { bookings: Array.isArray(bookings) ? bookings : bookings?.data || [] }));
+    } catch (error) {
+      setDashboard(buildDashboardState(accountType, {}));
+      setDashboardError(error?.message || 'Unable to load dashboard data.');
+    } finally {
+      setDashboardLoading(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -232,12 +441,17 @@ export default function App() {
           setProfileLoading(true);
           try {
             const nextProfile = await getCurrentProfile();
-            if (active) setProfile(nextProfile);
+            if (active) {
+              setProfile(nextProfile);
+              await loadDashboard(storedUser, nextProfile);
+            }
           } catch {
             if (active) setProfile(null);
           } finally {
             if (active) setProfileLoading(false);
           }
+        } else if (active) {
+          setDashboard(null);
         }
       } finally {
         if (active) setBootstrapping(false);
@@ -252,6 +466,8 @@ export default function App() {
       setView(nextUser ? 'account' : 'home');
       if (!nextUser) {
         setProfile(null);
+        setDashboard(null);
+        setDashboardError('');
       }
     });
 
@@ -273,6 +489,7 @@ export default function App() {
       try {
         const nextProfile = await getCurrentProfile();
         setProfile(nextProfile);
+        await loadDashboard(signedInUser, nextProfile);
       } finally {
         setProfileLoading(false);
       }
@@ -290,6 +507,8 @@ export default function App() {
     setErrorMessage('');
     setProfile(null);
     setCurrentUser(null);
+    setDashboard(null);
+    setDashboardError('');
     setView('home');
   };
 
@@ -326,6 +545,10 @@ export default function App() {
             currentUser={currentUser}
             profile={profile}
             loadingProfile={profileLoading}
+            dashboardLoading={dashboardLoading}
+            dashboardError={dashboardError}
+            dashboard={dashboard}
+            onRefresh={() => loadDashboard(currentUser, profile)}
             onSignOut={handleSignOut}
           />
         ) : (
@@ -671,6 +894,103 @@ const styles = StyleSheet.create({
   },
   featureGrid: {
     gap: 14,
+  },
+  sectionHeaderCompact: {
+    marginBottom: 18,
+  },
+  sectionSubtitle: {
+    color: '#94a3b8',
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 6,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 14,
+  },
+  statTile: {
+    backgroundColor: '#0f172a',
+    borderColor: '#1e3a8a',
+    borderRadius: 18,
+    borderWidth: 1,
+    minWidth: '47%',
+    padding: 16,
+  },
+  statLabel: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statValue: {
+    color: '#f8fafc',
+    fontSize: 28,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  spotlightRow: {
+    gap: 12,
+    marginTop: 14,
+    marginBottom: 18,
+  },
+  spotlightCard: {
+    backgroundColor: '#101826',
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  spotlightLabel: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  spotlightValue: {
+    color: '#f59e0b',
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  dashboardLoadingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  bookingList: {
+    gap: 12,
+    marginBottom: 10,
+  },
+  bookingCard: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 18,
+  },
+  bookingHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  bookingTitle: {
+    color: '#f8fafc',
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    marginRight: 10,
+  },
+  bookingStatus: {
+    color: '#f59e0b',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  bookingMeta: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    lineHeight: 20,
   },
   card: {
     backgroundColor: '#0f172a',
