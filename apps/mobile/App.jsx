@@ -1303,6 +1303,9 @@ function CoachOperationsScreen({
   const backgroundStatus = profile?.has_background_check
     ? formatStatusLabel(profile?.background_check_status)
     : 'Not provided';
+  const clip1Status = normalizeVideoUrl(profileForm.video_clip_1);
+  const clip2Status = normalizeVideoUrl(profileForm.video_clip_2);
+  const clip3Status = normalizeVideoUrl(profileForm.video_clip_3);
 
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
@@ -1445,6 +1448,22 @@ function CoachOperationsScreen({
                     style={styles.inputDark}
                     value={profileForm.video_clip_1}
                   />
+                  <View style={styles.inlineButtonRow}>
+                    <Pressable
+                      disabled={!profileForm.video_clip_1 || !clip1Status.ok}
+                      onPress={() => openHref(profileForm.video_clip_1)}
+                      style={({ pressed }) => [styles.inlineSecondaryButton, (!profileForm.video_clip_1 || !clip1Status.ok || pressed) && styles.actionButtonPressed]}
+                    >
+                      <Text style={styles.inlineSecondaryButtonText}>Open clip 1</Text>
+                    </Pressable>
+                  </View>
+                  {!profileForm.video_clip_1 ? (
+                    <Text style={styles.helperText}>Optional link.</Text>
+                  ) : clip1Status.ok ? (
+                    <Text style={styles.helperText}>Valid YouTube/Vimeo link.</Text>
+                  ) : (
+                    <Text style={styles.errorTextLight}>{clip1Status.error}</Text>
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -1458,6 +1477,20 @@ function CoachOperationsScreen({
                     style={styles.inputDark}
                     value={profileForm.video_clip_2}
                   />
+                  <View style={styles.inlineButtonRow}>
+                    <Pressable
+                      disabled={!profileForm.video_clip_2 || !clip2Status.ok}
+                      onPress={() => openHref(profileForm.video_clip_2)}
+                      style={({ pressed }) => [styles.inlineSecondaryButton, (!profileForm.video_clip_2 || !clip2Status.ok || pressed) && styles.actionButtonPressed]}
+                    >
+                      <Text style={styles.inlineSecondaryButtonText}>Open clip 2</Text>
+                    </Pressable>
+                  </View>
+                  {!profileForm.video_clip_2 ? null : clip2Status.ok ? (
+                    <Text style={styles.helperText}>Valid YouTube/Vimeo link.</Text>
+                  ) : (
+                    <Text style={styles.errorTextLight}>{clip2Status.error}</Text>
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -1471,6 +1504,20 @@ function CoachOperationsScreen({
                     style={styles.inputDark}
                     value={profileForm.video_clip_3}
                   />
+                  <View style={styles.inlineButtonRow}>
+                    <Pressable
+                      disabled={!profileForm.video_clip_3 || !clip3Status.ok}
+                      onPress={() => openHref(profileForm.video_clip_3)}
+                      style={({ pressed }) => [styles.inlineSecondaryButton, (!profileForm.video_clip_3 || !clip3Status.ok || pressed) && styles.actionButtonPressed]}
+                    >
+                      <Text style={styles.inlineSecondaryButtonText}>Open clip 3</Text>
+                    </Pressable>
+                  </View>
+                  {!profileForm.video_clip_3 ? null : clip3Status.ok ? (
+                    <Text style={styles.helperText}>Valid YouTube/Vimeo link.</Text>
+                  ) : (
+                    <Text style={styles.errorTextLight}>{clip3Status.error}</Text>
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
