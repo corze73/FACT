@@ -79,6 +79,9 @@ const adminCaseStatuses = ['open', 'in_progress', 'blocked', 'resolved'];
 const adminCasePriorities = ['low', 'normal', 'high', 'critical'];
 const adminDisputeStatuses = ['open', 'under_review', 'resolved', 'closed'];
 const adminDisputeDecisions = ['refund_full', 'refund_partial', 'no_refund', 'other'];
+const adminCaseFilterOptions = ['all', 'open', 'in_progress', 'blocked', 'resolved'];
+const adminDisputeFilterOptions = ['all', 'open', 'under_review', 'resolved', 'closed'];
+const adminVerificationFilterOptions = ['pending', 'verified', 'rejected', 'incomplete'];
 
 async function openHref(href) {
   const supported = await Linking.canOpenURL(href);
@@ -1119,9 +1122,14 @@ function AdminOperationsScreen({
   disputes,
   expiring,
   verifications,
+  caseFilter,
+  disputeFilter,
   caseDrafts,
   disputeDrafts,
   verificationFilter,
+  caseTotal,
+  disputeTotal,
+  verificationTotal,
   verificationNotes,
   caseSubmittingId,
   disputeSubmittingId,
@@ -1129,6 +1137,9 @@ function AdminOperationsScreen({
   caseError,
   disputeError,
   verificationError,
+  caseSuccess,
+  disputeSuccess,
+  verificationSuccess,
   loading,
   errorMessage,
   inviteEmail,
@@ -1148,6 +1159,11 @@ function AdminOperationsScreen({
   onAssignCaseToCurrentAdmin,
   onSaveDispute,
   onAssignDisputeToCurrentAdmin,
+  onCaseFilterChange,
+  onDisputeFilterChange,
+  onLoadMoreCases,
+  onLoadMoreDisputes,
+  onLoadMoreVerifications,
   onVerificationFilterChange,
   onVerificationNoteChange,
   onUpdateVerification,
@@ -1267,7 +1283,20 @@ function AdminOperationsScreen({
 
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Recent cases</Text>
+                <View style={styles.recipientToggleRow}>
+                  {adminCaseFilterOptions.map((status) => (
+                    <Pressable
+                      key={`case-filter-${status}`}
+                      onPress={() => onCaseFilterChange(status)}
+                      style={[styles.recipientToggle, caseFilter === status && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, caseFilter === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.metaCaption}>Showing {cases.length} of {caseTotal}</Text>
                 {caseError ? <Text style={styles.errorTextLight}>{caseError}</Text> : null}
+                {caseSuccess ? <Text style={styles.successTextLight}>{caseSuccess}</Text> : null}
                 {cases.length > 0 ? cases.slice(0, 4).map((item) => {
                   const draft = caseDrafts[item.id] || buildAdminCaseDraft(item);
                   const submitting = caseSubmittingId === item.id;
@@ -1347,11 +1376,29 @@ function AdminOperationsScreen({
                     </View>
                   );
                 }) : <Text style={styles.cardCopy}>No cases available.</Text>}
+                {cases.length < caseTotal ? (
+                  <Pressable onPress={onLoadMoreCases} style={({ pressed }) => [styles.inlineActionButton, styles.loadMoreButton, pressed && styles.actionButtonPressed]}>
+                    <Text style={styles.inlineActionButtonText}>Load more cases</Text>
+                  </Pressable>
+                ) : null}
               </View>
 
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Recent disputes</Text>
+                <View style={styles.recipientToggleRow}>
+                  {adminDisputeFilterOptions.map((status) => (
+                    <Pressable
+                      key={`dispute-filter-${status}`}
+                      onPress={() => onDisputeFilterChange(status)}
+                      style={[styles.recipientToggle, disputeFilter === status && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, disputeFilter === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.metaCaption}>Showing {disputes.length} of {disputeTotal}</Text>
                 {disputeError ? <Text style={styles.errorTextLight}>{disputeError}</Text> : null}
+                {disputeSuccess ? <Text style={styles.successTextLight}>{disputeSuccess}</Text> : null}
                 {disputes.length > 0 ? disputes.slice(0, 4).map((item) => {
                   const draft = disputeDrafts[item.id] || buildAdminDisputeDraft(item);
                   const submitting = disputeSubmittingId === item.id;
@@ -1442,6 +1489,11 @@ function AdminOperationsScreen({
                     </View>
                   );
                 }) : <Text style={styles.cardCopy}>No disputes available.</Text>}
+                {disputes.length < disputeTotal ? (
+                  <Pressable onPress={onLoadMoreDisputes} style={({ pressed }) => [styles.inlineActionButton, styles.loadMoreButton, pressed && styles.actionButtonPressed]}>
+                    <Text style={styles.inlineActionButtonText}>Load more disputes</Text>
+                  </Pressable>
+                ) : null}
               </View>
 
               <View style={styles.card}>
@@ -1458,7 +1510,7 @@ function AdminOperationsScreen({
                 <Text style={styles.cardTitle}>Coach verifications</Text>
 
                 <View style={styles.recipientToggleRow}>
-                  {['pending', 'verified', 'rejected'].map((status) => (
+                  {adminVerificationFilterOptions.map((status) => (
                     <Pressable
                       key={status}
                       onPress={() => onVerificationFilterChange(status)}
@@ -1469,7 +1521,10 @@ function AdminOperationsScreen({
                   ))}
                 </View>
 
+                <Text style={styles.metaCaption}>Showing {verifications.length} of {verificationTotal}</Text>
+
                 {verificationError ? <Text style={styles.errorTextLight}>{verificationError}</Text> : null}
+                {verificationSuccess ? <Text style={styles.successTextLight}>{verificationSuccess}</Text> : null}
 
                 {verifications.length > 0 ? verifications.map((coach) => {
                   const noteDraft = verificationNotes[coach.id] ?? (coach.verification_notes || '');
@@ -1532,6 +1587,11 @@ function AdminOperationsScreen({
                     </View>
                   );
                 }) : <Text style={styles.cardCopy}>No coaches found for this verification status.</Text>}
+                {verifications.length < verificationTotal ? (
+                  <Pressable onPress={onLoadMoreVerifications} style={({ pressed }) => [styles.inlineActionButton, styles.loadMoreButton, pressed && styles.actionButtonPressed]}>
+                    <Text style={styles.inlineActionButtonText}>Load more verifications</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           </>
@@ -2501,6 +2561,14 @@ export default function App() {
   const [adminOpsDisputes, setAdminOpsDisputes] = useState([]);
   const [adminOpsExpiring, setAdminOpsExpiring] = useState([]);
   const [adminVerifications, setAdminVerifications] = useState([]);
+  const [adminCaseFilter, setAdminCaseFilter] = useState('all');
+  const [adminDisputeFilter, setAdminDisputeFilter] = useState('all');
+  const [adminCaseLimit, setAdminCaseLimit] = useState(5);
+  const [adminDisputeLimit, setAdminDisputeLimit] = useState(5);
+  const [adminVerificationLimit, setAdminVerificationLimit] = useState(6);
+  const [adminCaseTotal, setAdminCaseTotal] = useState(0);
+  const [adminDisputeTotal, setAdminDisputeTotal] = useState(0);
+  const [adminVerificationTotal, setAdminVerificationTotal] = useState(0);
   const [adminCaseDrafts, setAdminCaseDrafts] = useState({});
   const [adminDisputeDrafts, setAdminDisputeDrafts] = useState({});
   const [adminVerificationFilter, setAdminVerificationFilter] = useState('pending');
@@ -2511,6 +2579,9 @@ export default function App() {
   const [adminCaseError, setAdminCaseError] = useState('');
   const [adminDisputeError, setAdminDisputeError] = useState('');
   const [adminVerificationError, setAdminVerificationError] = useState('');
+  const [adminCaseSuccess, setAdminCaseSuccess] = useState('');
+  const [adminDisputeSuccess, setAdminDisputeSuccess] = useState('');
+  const [adminVerificationSuccess, setAdminVerificationSuccess] = useState('');
   const [adminInviteEmail, setAdminInviteEmail] = useState('');
   const [adminInviteScope, setAdminInviteScope] = useState('support');
   const [adminInviteHours, setAdminInviteHours] = useState('72');
@@ -2761,7 +2832,7 @@ export default function App() {
     }
   };
 
-  const loadAdminOperations = async (nextUser = currentUser, nextProfile = profile, filterOverride = null) => {
+  const loadAdminOperations = async (nextUser = currentUser, nextProfile = profile, options = {}) => {
     if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
       setAdminOpsOverview(null);
       setAdminOpsWeekly(null);
@@ -2769,6 +2840,9 @@ export default function App() {
       setAdminOpsDisputes([]);
       setAdminOpsExpiring([]);
       setAdminVerifications([]);
+      setAdminCaseTotal(0);
+      setAdminDisputeTotal(0);
+      setAdminVerificationTotal(0);
       setAdminCaseError('');
       setAdminDisputeError('');
       setAdminVerificationError('');
@@ -2783,14 +2857,19 @@ export default function App() {
     setAdminVerificationError('');
 
     try {
-      const selectedFilter = String(filterOverride || adminVerificationFilter || 'pending');
+      const selectedVerificationFilter = String(options.verificationFilter ?? adminVerificationFilter ?? 'pending');
+      const selectedCaseFilter = String(options.caseFilter ?? adminCaseFilter ?? 'all');
+      const selectedDisputeFilter = String(options.disputeFilter ?? adminDisputeFilter ?? 'all');
+      const selectedCaseLimit = Number(options.caseLimit ?? adminCaseLimit ?? 5);
+      const selectedDisputeLimit = Number(options.disputeLimit ?? adminDisputeLimit ?? 5);
+      const selectedVerificationLimit = Number(options.verificationLimit ?? adminVerificationLimit ?? 6);
       const [overview, weekly, casesResponse, disputesResponse, expiringResponse, verificationsResponse] = await Promise.all([
         mobileApi.getAdminOpsOverview(),
         mobileApi.getWeeklyOpsReport(),
-        mobileApi.listAdminCases({ include_total: 1, limit: 5, offset: 0 }),
-        mobileApi.listBookingDisputes({ include_total: 1, limit: 5, offset: 0 }),
+        mobileApi.listAdminCases({ include_total: 1, limit: selectedCaseLimit, offset: 0, ...(selectedCaseFilter !== 'all' ? { status: selectedCaseFilter } : {}) }),
+        mobileApi.listBookingDisputes({ include_total: 1, limit: selectedDisputeLimit, offset: 0, ...(selectedDisputeFilter !== 'all' ? { status: selectedDisputeFilter } : {}) }),
         mobileApi.listComplianceExpiring({ include_total: 1, limit: 5, offset: 0, days: 30 }),
-        mobileApi.getAdminVerifications({ status: selectedFilter, include_total: 1, limit: 6, offset: 0 }),
+        mobileApi.getAdminVerifications({ status: selectedVerificationFilter, include_total: 1, limit: selectedVerificationLimit, offset: 0 }),
       ]);
 
       setAdminOpsOverview(overview || null);
@@ -2799,24 +2878,34 @@ export default function App() {
       const disputeRows = disputesResponse?.data || [];
       setAdminOpsCases(caseRows);
       setAdminOpsDisputes(disputeRows);
+      setAdminCaseTotal(Number(casesResponse?.total || caseRows.length || 0));
+      setAdminDisputeTotal(Number(disputesResponse?.total || disputeRows.length || 0));
       setAdminOpsExpiring(expiringResponse?.data || []);
       const verificationRows = verificationsResponse?.data || [];
       setAdminVerifications(verificationRows);
+      setAdminVerificationTotal(Number(verificationsResponse?.total || verificationRows.length || 0));
       setAdminCaseDrafts((previousDrafts) => {
         const nextDrafts = { ...previousDrafts };
         caseRows.forEach((item) => {
-          if (nextDrafts[item.id] === undefined) {
-            nextDrafts[item.id] = buildAdminCaseDraft(item);
-          }
+          nextDrafts[item.id] = {
+            ...(nextDrafts[item.id] || buildAdminCaseDraft(item)),
+            status: nextDrafts[item.id]?.status ?? item.status ?? 'open',
+            priority: nextDrafts[item.id]?.priority ?? item.priority ?? 'normal',
+            description: nextDrafts[item.id]?.description ?? item.description ?? '',
+          };
         });
         return nextDrafts;
       });
       setAdminDisputeDrafts((previousDrafts) => {
         const nextDrafts = { ...previousDrafts };
         disputeRows.forEach((item) => {
-          if (nextDrafts[item.id] === undefined) {
-            nextDrafts[item.id] = buildAdminDisputeDraft(item);
-          }
+          nextDrafts[item.id] = {
+            ...(nextDrafts[item.id] || buildAdminDisputeDraft(item)),
+            status: nextDrafts[item.id]?.status ?? item.status ?? 'open',
+            decision: nextDrafts[item.id]?.decision ?? item.decision ?? 'other',
+            resolution_notes: nextDrafts[item.id]?.resolution_notes ?? item.resolution_notes ?? '',
+            refund_amount: nextDrafts[item.id]?.refund_amount ?? (item.refund_amount === null || item.refund_amount === undefined ? '' : String(item.refund_amount)),
+          };
         });
         return nextDrafts;
       });
@@ -2849,6 +2938,7 @@ export default function App() {
         [field]: value,
       },
     }));
+    setAdminCaseSuccess('');
   };
 
   const handleAdminDisputeDraftChange = (disputeId, field, value) => {
@@ -2859,6 +2949,7 @@ export default function App() {
         [field]: value,
       },
     }));
+    setAdminDisputeSuccess('');
   };
 
   const handleSaveAdminCase = async (item, override = {}) => {
@@ -2869,6 +2960,7 @@ export default function App() {
     const draft = adminCaseDrafts[item.id] || buildAdminCaseDraft(item);
     setAdminCaseSubmittingId(item.id);
     setAdminCaseError('');
+    setAdminCaseSuccess('');
 
     try {
       const response = await mobileApi.updateAdminCase(item.id, {
@@ -2886,7 +2978,8 @@ export default function App() {
         ...previousDrafts,
         [item.id]: buildAdminCaseDraft({ ...item, ...nextData }),
       }));
-      await loadAdminOperations(currentUser, profile, adminVerificationFilter);
+      setAdminCaseSuccess(override.owner_admin_id ? 'Case assigned to you.' : override.status === 'resolved' ? 'Case resolved.' : 'Case saved.');
+      await loadAdminOperations(currentUser, profile);
     } catch (error) {
       setAdminCaseError(error?.message || 'Unable to update case.');
     } finally {
@@ -2910,6 +3003,7 @@ export default function App() {
     const refundAmountText = String(override.refund_amount ?? draft.refund_amount ?? '').trim();
     setAdminDisputeSubmittingId(item.id);
     setAdminDisputeError('');
+    setAdminDisputeSuccess('');
 
     try {
       const response = await mobileApi.updateBookingDispute(item.id, {
@@ -2928,7 +3022,8 @@ export default function App() {
         ...previousDrafts,
         [item.id]: buildAdminDisputeDraft({ ...item, ...nextData }),
       }));
-      await loadAdminOperations(currentUser, profile, adminVerificationFilter);
+      setAdminDisputeSuccess(override.assigned_admin_id ? 'Dispute assigned to you.' : override.status === 'resolved' ? 'Dispute resolved.' : 'Dispute saved.');
+      await loadAdminOperations(currentUser, profile);
     } catch (error) {
       setAdminDisputeError(error?.message || 'Unable to update dispute.');
     } finally {
@@ -2950,6 +3045,7 @@ export default function App() {
 
     setAdminVerificationSubmittingId(coach.id);
     setAdminVerificationError('');
+    setAdminVerificationSuccess('');
 
     const noteDraft = String(adminVerificationNotes[coach.id] ?? coach.verification_notes ?? '').trim();
     const payload = {
@@ -2969,7 +3065,8 @@ export default function App() {
         ...previousNotes,
         [coach.id]: noteDraft,
       }));
-      await loadAdminOperations(currentUser, profile, adminVerificationFilter);
+      setAdminVerificationSuccess(`Verification marked ${formatStatusLabel(nextStatus)}.`);
+      await loadAdminOperations(currentUser, profile);
     } catch (error) {
       setAdminVerificationError(error?.message || 'Unable to update verification.');
     } finally {
@@ -3152,12 +3249,23 @@ export default function App() {
     setAdminOpsDisputes([]);
     setAdminOpsExpiring([]);
     setAdminVerifications([]);
+    setAdminCaseFilter('all');
+    setAdminDisputeFilter('all');
+    setAdminCaseLimit(5);
+    setAdminDisputeLimit(5);
+    setAdminVerificationLimit(6);
+    setAdminCaseTotal(0);
+    setAdminDisputeTotal(0);
+    setAdminVerificationTotal(0);
     setAdminCaseDrafts({});
     setAdminDisputeDrafts({});
     setAdminVerificationNotes({});
     setAdminCaseError('');
     setAdminDisputeError('');
     setAdminVerificationError('');
+    setAdminCaseSuccess('');
+    setAdminDisputeSuccess('');
+    setAdminVerificationSuccess('');
     setAdminCaseSubmittingId(null);
     setAdminDisputeSubmittingId(null);
     setAdminVerificationSubmittingId(null);
@@ -3869,9 +3977,14 @@ export default function App() {
             disputes={adminOpsDisputes}
             expiring={adminOpsExpiring}
             verifications={adminVerifications}
+            caseFilter={adminCaseFilter}
+            disputeFilter={adminDisputeFilter}
             caseDrafts={adminCaseDrafts}
             disputeDrafts={adminDisputeDrafts}
             verificationFilter={adminVerificationFilter}
+            caseTotal={adminCaseTotal}
+            disputeTotal={adminDisputeTotal}
+            verificationTotal={adminVerificationTotal}
             verificationNotes={adminVerificationNotes}
             caseSubmittingId={adminCaseSubmittingId}
             disputeSubmittingId={adminDisputeSubmittingId}
@@ -3879,6 +3992,9 @@ export default function App() {
             caseError={adminCaseError}
             disputeError={adminDisputeError}
             verificationError={adminVerificationError}
+            caseSuccess={adminCaseSuccess}
+            disputeSuccess={adminDisputeSuccess}
+            verificationSuccess={adminVerificationSuccess}
             loading={adminOpsLoading}
             errorMessage={adminOpsError}
             inviteEmail={adminInviteEmail}
@@ -3898,9 +4014,38 @@ export default function App() {
             onAssignCaseToCurrentAdmin={handleAssignAdminCaseToCurrentAdmin}
             onSaveDispute={handleSaveBookingDispute}
             onAssignDisputeToCurrentAdmin={handleAssignBookingDisputeToCurrentAdmin}
+            onCaseFilterChange={async (status) => {
+              setAdminCaseFilter(status);
+              setAdminCaseLimit(5);
+              setAdminCaseSuccess('');
+              await loadAdminOperations(currentUser, profile, { caseFilter: status, caseLimit: 5 });
+            }}
+            onDisputeFilterChange={async (status) => {
+              setAdminDisputeFilter(status);
+              setAdminDisputeLimit(5);
+              setAdminDisputeSuccess('');
+              await loadAdminOperations(currentUser, profile, { disputeFilter: status, disputeLimit: 5 });
+            }}
+            onLoadMoreCases={async () => {
+              const nextLimit = adminCaseLimit + 5;
+              setAdminCaseLimit(nextLimit);
+              await loadAdminOperations(currentUser, profile, { caseLimit: nextLimit });
+            }}
+            onLoadMoreDisputes={async () => {
+              const nextLimit = adminDisputeLimit + 5;
+              setAdminDisputeLimit(nextLimit);
+              await loadAdminOperations(currentUser, profile, { disputeLimit: nextLimit });
+            }}
+            onLoadMoreVerifications={async () => {
+              const nextLimit = adminVerificationLimit + 6;
+              setAdminVerificationLimit(nextLimit);
+              await loadAdminOperations(currentUser, profile, { verificationLimit: nextLimit });
+            }}
             onVerificationFilterChange={async (status) => {
               setAdminVerificationFilter(status);
-              await loadAdminOperations(currentUser, profile, status);
+              setAdminVerificationLimit(6);
+              setAdminVerificationSuccess('');
+              await loadAdminOperations(currentUser, profile, { verificationFilter: status, verificationLimit: 6 });
             }}
             onVerificationNoteChange={handleVerificationNoteChange}
             onUpdateVerification={handleUpdateVerification}
@@ -4241,6 +4386,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  loadMoreButton: {
+    marginBottom: 0,
+    marginTop: 14,
+  },
   inputGroup: {
     marginBottom: 16,
   },
@@ -4284,6 +4433,12 @@ const styles = StyleSheet.create({
   },
   errorTextLight: {
     color: '#fca5a5',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  successTextLight: {
+    color: '#86efac',
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 14,
@@ -4824,6 +4979,12 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 15,
     lineHeight: 22,
+  },
+  metaCaption: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
   },
   compactListRow: {
     borderBottomColor: '#1e293b',
