@@ -75,6 +75,11 @@ const ageGroups = [
   { value: 'seniors', label: 'Seniors (35+)' },
 ];
 
+const adminCaseStatuses = ['open', 'in_progress', 'blocked', 'resolved'];
+const adminCasePriorities = ['low', 'normal', 'high', 'critical'];
+const adminDisputeStatuses = ['open', 'under_review', 'resolved', 'closed'];
+const adminDisputeDecisions = ['refund_full', 'refund_partial', 'no_refund', 'other'];
+
 async function openHref(href) {
   const supported = await Linking.canOpenURL(href);
   if (!supported) {
@@ -283,6 +288,23 @@ function buildRecurringAvailabilityForm(record = null) {
     startTime: record?.start_time || '09:00',
     endTime: record?.end_time || '10:00',
     isActive: record?.is_active !== false,
+  };
+}
+
+function buildAdminCaseDraft(record = null) {
+  return {
+    status: record?.status || 'open',
+    priority: record?.priority || 'normal',
+    description: record?.description || '',
+  };
+}
+
+function buildAdminDisputeDraft(record = null) {
+  return {
+    status: record?.status || 'open',
+    decision: record?.decision || 'other',
+    resolution_notes: record?.resolution_notes || '',
+    refund_amount: record?.refund_amount === null || record?.refund_amount === undefined ? '' : String(record.refund_amount),
   };
 }
 
@@ -1097,9 +1119,15 @@ function AdminOperationsScreen({
   disputes,
   expiring,
   verifications,
+  caseDrafts,
+  disputeDrafts,
   verificationFilter,
   verificationNotes,
+  caseSubmittingId,
+  disputeSubmittingId,
   verificationSubmittingId,
+  caseError,
+  disputeError,
   verificationError,
   loading,
   errorMessage,
@@ -1114,6 +1142,12 @@ function AdminOperationsScreen({
   onBack,
   onRefresh,
   onCreateInvite,
+  onCaseDraftChange,
+  onDisputeDraftChange,
+  onSaveCase,
+  onAssignCaseToCurrentAdmin,
+  onSaveDispute,
+  onAssignDisputeToCurrentAdmin,
   onVerificationFilterChange,
   onVerificationNoteChange,
   onUpdateVerification,
@@ -1233,22 +1267,181 @@ function AdminOperationsScreen({
 
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Recent cases</Text>
-                {cases.length > 0 ? cases.slice(0, 4).map((item) => (
-                  <View key={item.id} style={styles.compactListRow}>
-                    <Text style={styles.compactListTitle}>{item.title}</Text>
-                    <Text style={styles.compactListMeta}>{item.status} • {item.priority}</Text>
-                  </View>
-                )) : <Text style={styles.cardCopy}>No cases available.</Text>}
+                {caseError ? <Text style={styles.errorTextLight}>{caseError}</Text> : null}
+                {cases.length > 0 ? cases.slice(0, 4).map((item) => {
+                  const draft = caseDrafts[item.id] || buildAdminCaseDraft(item);
+                  const submitting = caseSubmittingId === item.id;
+                  return (
+                    <View key={item.id} style={styles.availabilityCard}>
+                      <Text style={styles.compactListTitle}>{item.title}</Text>
+                      <Text style={styles.compactListMeta}>{formatStatusLabel(item.status)} • {formatStatusLabel(item.priority)}</Text>
+                      <Text style={styles.compactListMeta}>Category: {formatStatusLabel(item.category)}</Text>
+                      <Text style={styles.compactListMeta}>Owner: {item.owner_name || 'Unassigned'}</Text>
+                      {item.target_name ? <Text style={styles.compactListMeta}>Target: {item.target_name}</Text> : null}
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Case notes</Text>
+                        <TextInput
+                          multiline={true}
+                          onChangeText={(value) => onCaseDraftChange(item.id, 'description', value)}
+                          placeholder="Add notes or resolution context"
+                          placeholderTextColor="#64748b"
+                          style={[styles.inputDark, styles.notesInput]}
+                          value={draft.description}
+                        />
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Status</Text>
+                        <View style={styles.recipientToggleRow}>
+                          {adminCaseStatuses.map((status) => (
+                            <Pressable
+                              key={`${item.id}-${status}`}
+                              onPress={() => onCaseDraftChange(item.id, 'status', status)}
+                              style={[styles.recipientToggle, draft.status === status && styles.recipientToggleActive]}
+                            >
+                              <Text style={[styles.recipientToggleText, draft.status === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Priority</Text>
+                        <View style={styles.recipientToggleRow}>
+                          {adminCasePriorities.map((priority) => (
+                            <Pressable
+                              key={`${item.id}-${priority}`}
+                              onPress={() => onCaseDraftChange(item.id, 'priority', priority)}
+                              style={[styles.recipientToggle, draft.priority === priority && styles.recipientToggleActive]}
+                            >
+                              <Text style={[styles.recipientToggleText, draft.priority === priority && styles.recipientToggleTextActive]}>{formatStatusLabel(priority)}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={styles.inlineButtonRow}>
+                        <Pressable
+                          disabled={submitting}
+                          onPress={() => onAssignCaseToCurrentAdmin(item)}
+                          style={({ pressed }) => [styles.inlineSecondaryButton, (pressed || submitting) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlineSecondaryButtonText}>Assign to me</Text>
+                        </Pressable>
+                        <Pressable
+                          disabled={submitting}
+                          onPress={() => onSaveCase(item)}
+                          style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || submitting) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlinePrimaryButtonText}>{submitting ? 'Saving...' : 'Save case'}</Text>
+                        </Pressable>
+                        <Pressable
+                          disabled={submitting}
+                          onPress={() => onSaveCase(item, { status: 'resolved' })}
+                          style={({ pressed }) => [styles.inlineDangerButton, (pressed || submitting) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlineDangerButtonText}>Resolve</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }) : <Text style={styles.cardCopy}>No cases available.</Text>}
               </View>
 
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Recent disputes</Text>
-                {disputes.length > 0 ? disputes.slice(0, 4).map((item) => (
-                  <View key={item.id} style={styles.compactListRow}>
-                    <Text style={styles.compactListTitle}>{item.reason || 'Booking dispute'}</Text>
-                    <Text style={styles.compactListMeta}>{item.status} {item.booking_id ? `• ${item.booking_id.slice(0, 8)}` : ''}</Text>
-                  </View>
-                )) : <Text style={styles.cardCopy}>No disputes available.</Text>}
+                {disputeError ? <Text style={styles.errorTextLight}>{disputeError}</Text> : null}
+                {disputes.length > 0 ? disputes.slice(0, 4).map((item) => {
+                  const draft = disputeDrafts[item.id] || buildAdminDisputeDraft(item);
+                  const submitting = disputeSubmittingId === item.id;
+                  return (
+                    <View key={item.id} style={styles.availabilityCard}>
+                      <Text style={styles.compactListTitle}>{item.reason || 'Booking dispute'}</Text>
+                      <Text style={styles.compactListMeta}>{formatStatusLabel(item.status)} {item.booking_id ? `• ${item.booking_id.slice(0, 8)}` : ''}</Text>
+                      <Text style={styles.compactListMeta}>Assigned: {item.assigned_admin_name || 'Unassigned'}</Text>
+                      {item.decision ? <Text style={styles.compactListMeta}>Decision: {formatStatusLabel(item.decision)}</Text> : null}
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Dispute status</Text>
+                        <View style={styles.recipientToggleRow}>
+                          {adminDisputeStatuses.map((status) => (
+                            <Pressable
+                              key={`${item.id}-${status}`}
+                              onPress={() => onDisputeDraftChange(item.id, 'status', status)}
+                              style={[styles.recipientToggle, draft.status === status && styles.recipientToggleActive]}
+                            >
+                              <Text style={[styles.recipientToggleText, draft.status === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Decision</Text>
+                        <View style={styles.recipientToggleRow}>
+                          {adminDisputeDecisions.map((decision) => (
+                            <Pressable
+                              key={`${item.id}-${decision}`}
+                              onPress={() => onDisputeDraftChange(item.id, 'decision', decision)}
+                              style={[styles.recipientToggle, draft.decision === decision && styles.recipientToggleActive]}
+                            >
+                              <Text style={[styles.recipientToggleText, draft.decision === decision && styles.recipientToggleTextActive]}>{formatStatusLabel(decision)}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Refund amount</Text>
+                        <TextInput
+                          keyboardType="decimal-pad"
+                          onChangeText={(value) => onDisputeDraftChange(item.id, 'refund_amount', value)}
+                          placeholder="0"
+                          placeholderTextColor="#64748b"
+                          style={styles.inputDark}
+                          value={draft.refund_amount}
+                        />
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Resolution notes</Text>
+                        <TextInput
+                          multiline={true}
+                          onChangeText={(value) => onDisputeDraftChange(item.id, 'resolution_notes', value)}
+                          placeholder="Document refund logic, contact attempts, or outcome"
+                          placeholderTextColor="#64748b"
+                          style={[styles.inputDark, styles.notesInput]}
+                          value={draft.resolution_notes}
+                        />
+                      </View>
+
+                      <View style={styles.inlineButtonRow}>
+                        <Pressable
+                          disabled={submitting}
+                          onPress={() => onAssignDisputeToCurrentAdmin(item)}
+                          style={({ pressed }) => [styles.inlineSecondaryButton, (pressed || submitting) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlineSecondaryButtonText}>Assign to me</Text>
+                        </Pressable>
+                        <Pressable
+                          disabled={submitting}
+                          onPress={() => onSaveDispute(item)}
+                          style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || submitting) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlinePrimaryButtonText}>{submitting ? 'Saving...' : 'Save dispute'}</Text>
+                        </Pressable>
+                        <Pressable
+                          disabled={submitting}
+                          onPress={() => onSaveDispute(item, { status: 'resolved' })}
+                          style={({ pressed }) => [styles.inlineDangerButton, (pressed || submitting) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlineDangerButtonText}>Resolve</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }) : <Text style={styles.cardCopy}>No disputes available.</Text>}
               </View>
 
               <View style={styles.card}>
@@ -2308,9 +2501,15 @@ export default function App() {
   const [adminOpsDisputes, setAdminOpsDisputes] = useState([]);
   const [adminOpsExpiring, setAdminOpsExpiring] = useState([]);
   const [adminVerifications, setAdminVerifications] = useState([]);
+  const [adminCaseDrafts, setAdminCaseDrafts] = useState({});
+  const [adminDisputeDrafts, setAdminDisputeDrafts] = useState({});
   const [adminVerificationFilter, setAdminVerificationFilter] = useState('pending');
   const [adminVerificationNotes, setAdminVerificationNotes] = useState({});
+  const [adminCaseSubmittingId, setAdminCaseSubmittingId] = useState(null);
+  const [adminDisputeSubmittingId, setAdminDisputeSubmittingId] = useState(null);
   const [adminVerificationSubmittingId, setAdminVerificationSubmittingId] = useState(null);
+  const [adminCaseError, setAdminCaseError] = useState('');
+  const [adminDisputeError, setAdminDisputeError] = useState('');
   const [adminVerificationError, setAdminVerificationError] = useState('');
   const [adminInviteEmail, setAdminInviteEmail] = useState('');
   const [adminInviteScope, setAdminInviteScope] = useState('support');
@@ -2570,6 +2769,8 @@ export default function App() {
       setAdminOpsDisputes([]);
       setAdminOpsExpiring([]);
       setAdminVerifications([]);
+      setAdminCaseError('');
+      setAdminDisputeError('');
       setAdminVerificationError('');
       setAdminOpsError('');
       return;
@@ -2577,6 +2778,8 @@ export default function App() {
 
     setAdminOpsLoading(true);
     setAdminOpsError('');
+    setAdminCaseError('');
+    setAdminDisputeError('');
     setAdminVerificationError('');
 
     try {
@@ -2592,17 +2795,35 @@ export default function App() {
 
       setAdminOpsOverview(overview || null);
       setAdminOpsWeekly(weekly || null);
-      setAdminOpsCases(casesResponse?.data || []);
-      setAdminOpsDisputes(disputesResponse?.data || []);
+      const caseRows = casesResponse?.data || [];
+      const disputeRows = disputesResponse?.data || [];
+      setAdminOpsCases(caseRows);
+      setAdminOpsDisputes(disputeRows);
       setAdminOpsExpiring(expiringResponse?.data || []);
       const verificationRows = verificationsResponse?.data || [];
       setAdminVerifications(verificationRows);
+      setAdminCaseDrafts((previousDrafts) => {
+        const nextDrafts = { ...previousDrafts };
+        caseRows.forEach((item) => {
+          if (nextDrafts[item.id] === undefined) {
+            nextDrafts[item.id] = buildAdminCaseDraft(item);
+          }
+        });
+        return nextDrafts;
+      });
+      setAdminDisputeDrafts((previousDrafts) => {
+        const nextDrafts = { ...previousDrafts };
+        disputeRows.forEach((item) => {
+          if (nextDrafts[item.id] === undefined) {
+            nextDrafts[item.id] = buildAdminDisputeDraft(item);
+          }
+        });
+        return nextDrafts;
+      });
       setAdminVerificationNotes((previousNotes) => {
         const nextNotes = { ...previousNotes };
         verificationRows.forEach((item) => {
-          if (nextNotes[item.id] === undefined) {
-            nextNotes[item.id] = item.verification_notes || '';
-          }
+          nextNotes[item.id] = item.verification_notes || '';
         });
         return nextNotes;
       });
@@ -2618,6 +2839,108 @@ export default function App() {
       ...previousNotes,
       [coachId]: value,
     }));
+  };
+
+  const handleAdminCaseDraftChange = (caseId, field, value) => {
+    setAdminCaseDrafts((previousDrafts) => ({
+      ...previousDrafts,
+      [caseId]: {
+        ...(previousDrafts[caseId] || buildAdminCaseDraft()),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleAdminDisputeDraftChange = (disputeId, field, value) => {
+    setAdminDisputeDrafts((previousDrafts) => ({
+      ...previousDrafts,
+      [disputeId]: {
+        ...(previousDrafts[disputeId] || buildAdminDisputeDraft()),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveAdminCase = async (item, override = {}) => {
+    if (!item?.id) {
+      return;
+    }
+
+    const draft = adminCaseDrafts[item.id] || buildAdminCaseDraft(item);
+    setAdminCaseSubmittingId(item.id);
+    setAdminCaseError('');
+
+    try {
+      const response = await mobileApi.updateAdminCase(item.id, {
+        status: override.status || draft.status,
+        priority: override.priority || draft.priority,
+        description: override.description !== undefined ? override.description : draft.description,
+        ...(override.owner_admin_id !== undefined ? { owner_admin_id: override.owner_admin_id } : {}),
+      });
+      const nextData = response?.data || response || {};
+
+      setAdminOpsCases((previousRows) => previousRows.map((row) => (
+        row.id === item.id ? { ...row, ...nextData } : row
+      )));
+      setAdminCaseDrafts((previousDrafts) => ({
+        ...previousDrafts,
+        [item.id]: buildAdminCaseDraft({ ...item, ...nextData }),
+      }));
+      await loadAdminOperations(currentUser, profile, adminVerificationFilter);
+    } catch (error) {
+      setAdminCaseError(error?.message || 'Unable to update case.');
+    } finally {
+      setAdminCaseSubmittingId(null);
+    }
+  };
+
+  const handleAssignAdminCaseToCurrentAdmin = async (item) => {
+    if (!currentUser?.id) {
+      return;
+    }
+    await handleSaveAdminCase(item, { owner_admin_id: currentUser.id });
+  };
+
+  const handleSaveBookingDispute = async (item, override = {}) => {
+    if (!item?.id) {
+      return;
+    }
+
+    const draft = adminDisputeDrafts[item.id] || buildAdminDisputeDraft(item);
+    const refundAmountText = String(override.refund_amount ?? draft.refund_amount ?? '').trim();
+    setAdminDisputeSubmittingId(item.id);
+    setAdminDisputeError('');
+
+    try {
+      const response = await mobileApi.updateBookingDispute(item.id, {
+        status: override.status || draft.status,
+        decision: override.decision || draft.decision,
+        resolution_notes: override.resolution_notes !== undefined ? override.resolution_notes : draft.resolution_notes,
+        ...(override.assigned_admin_id !== undefined ? { assigned_admin_id: override.assigned_admin_id } : {}),
+        ...(refundAmountText ? { refund_amount: Number(refundAmountText) } : {}),
+      });
+      const nextData = response?.data || response || {};
+
+      setAdminOpsDisputes((previousRows) => previousRows.map((row) => (
+        row.id === item.id ? { ...row, ...nextData } : row
+      )));
+      setAdminDisputeDrafts((previousDrafts) => ({
+        ...previousDrafts,
+        [item.id]: buildAdminDisputeDraft({ ...item, ...nextData }),
+      }));
+      await loadAdminOperations(currentUser, profile, adminVerificationFilter);
+    } catch (error) {
+      setAdminDisputeError(error?.message || 'Unable to update dispute.');
+    } finally {
+      setAdminDisputeSubmittingId(null);
+    }
+  };
+
+  const handleAssignBookingDisputeToCurrentAdmin = async (item) => {
+    if (!currentUser?.id) {
+      return;
+    }
+    await handleSaveBookingDispute(item, { assigned_admin_id: currentUser.id });
   };
 
   const handleUpdateVerification = async (coach, nextStatus) => {
@@ -2829,8 +3152,14 @@ export default function App() {
     setAdminOpsDisputes([]);
     setAdminOpsExpiring([]);
     setAdminVerifications([]);
+    setAdminCaseDrafts({});
+    setAdminDisputeDrafts({});
     setAdminVerificationNotes({});
+    setAdminCaseError('');
+    setAdminDisputeError('');
     setAdminVerificationError('');
+    setAdminCaseSubmittingId(null);
+    setAdminDisputeSubmittingId(null);
     setAdminVerificationSubmittingId(null);
     setAdminOpsError('');
     setBookingsViewItems([]);
@@ -3540,9 +3869,15 @@ export default function App() {
             disputes={adminOpsDisputes}
             expiring={adminOpsExpiring}
             verifications={adminVerifications}
+            caseDrafts={adminCaseDrafts}
+            disputeDrafts={adminDisputeDrafts}
             verificationFilter={adminVerificationFilter}
             verificationNotes={adminVerificationNotes}
+            caseSubmittingId={adminCaseSubmittingId}
+            disputeSubmittingId={adminDisputeSubmittingId}
             verificationSubmittingId={adminVerificationSubmittingId}
+            caseError={adminCaseError}
+            disputeError={adminDisputeError}
             verificationError={adminVerificationError}
             loading={adminOpsLoading}
             errorMessage={adminOpsError}
@@ -3557,6 +3892,12 @@ export default function App() {
             onBack={() => setView('account')}
             onRefresh={() => loadAdminOperations(currentUser, profile)}
             onCreateInvite={handleCreateAdminInvite}
+            onCaseDraftChange={handleAdminCaseDraftChange}
+            onDisputeDraftChange={handleAdminDisputeDraftChange}
+            onSaveCase={handleSaveAdminCase}
+            onAssignCaseToCurrentAdmin={handleAssignAdminCaseToCurrentAdmin}
+            onSaveDispute={handleSaveBookingDispute}
+            onAssignDisputeToCurrentAdmin={handleAssignBookingDisputeToCurrentAdmin}
             onVerificationFilterChange={async (status) => {
               setAdminVerificationFilter(status);
               await loadAdminOperations(currentUser, profile, status);
