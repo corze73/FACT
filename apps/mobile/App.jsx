@@ -1,5 +1,6 @@
 import React from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeUserType } from '@fact/domain';
 
 const architecturePillars = [
@@ -11,32 +12,34 @@ const architecturePillars = [
 
 export default function App() {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.container}>
-        <Text style={styles.eyebrow}>FACT Mobile</Text>
-        <Text style={styles.title}>Native shell is live in the monorepo.</Text>
-        <Text style={styles.subtitle}>
-          This app is wired to the shared packages and ready for the first mobile auth and API screens.
-        </Text>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Shared package check</Text>
-          <Text style={styles.cardCopy}>
-            normalizeUserType('coach') = <Text style={styles.cardValue}>{normalizeUserType('coach')}</Text>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.container}>
+          <Text style={styles.eyebrow}>FACT Mobile</Text>
+          <Text style={styles.title}>Native shell is live in the monorepo.</Text>
+          <Text style={styles.subtitle}>
+            This app is wired to the shared packages and ready for the first mobile auth and API screens.
           </Text>
-        </View>
 
-        <View style={styles.list}>
-          {architecturePillars.map((item) => (
-            <View key={item} style={styles.listRow}>
-              <View style={styles.dot} />
-              <Text style={styles.listText}>{item}</Text>
-            </View>
-          ))}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Shared package check</Text>
+            <Text style={styles.cardCopy}>
+              normalizeUserType('coach') = <Text style={styles.cardValue}>{normalizeUserType('coach')}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.list}>
+            {architecturePillars.map((item) => (
+              <View key={item} style={styles.listRow}>
+                <View style={styles.dot} />
+                <Text style={styles.listText}>{item}</Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
