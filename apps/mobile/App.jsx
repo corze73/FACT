@@ -80,6 +80,18 @@ function formatSessionDate(value) {
   });
 }
 
+function getBookingDateValue(booking) {
+  return booking?.session_date || booking?.booking_date || null;
+}
+
+function formatBookingLocation(booking) {
+  const type = String(booking?.location?.type || booking?.location_type || 'online')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  const address = booking?.location?.address || booking?.location_address;
+  return address ? `${type} • ${address}` : type;
+}
+
 function formatPrice(value) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? `GBP ${amount}` : 'GBP 0';
@@ -169,13 +181,125 @@ function BookingCard({ booking }) {
         <Text style={styles.bookingTitle}>{formatServiceType(booking.service_type)}</Text>
         <Text style={styles.bookingStatus}>{booking.status || 'pending'}</Text>
       </View>
-      <Text style={styles.bookingMeta}>{formatSessionDate(booking.session_date || booking.booking_date)}</Text>
+      <Text style={styles.bookingMeta}>{formatSessionDate(getBookingDateValue(booking))}</Text>
       <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
     </View>
   );
 }
 
-function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onSignOut }) {
+function BookingListScreen({ accountType, bookings, loading, errorMessage, onBack, onRefresh, onSelectBooking }) {
+  const title = accountType === 'admin' ? 'Booking Queue' : accountType === 'coach' ? 'Coach Sessions' : 'My Bookings';
+  const subtitle = accountType === 'admin'
+    ? 'Review recent booking activity from the native app.'
+    : accountType === 'coach'
+      ? 'See requests, confirmed sessions, and history in one place.'
+      : 'Review your upcoming and past bookings without leaving the app.';
+
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent}>
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>{title}</Text>
+        <Text style={styles.signInTitleDark}>{title}</Text>
+        <Text style={styles.signInSubtitleDark}>{subtitle}</Text>
+
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+          <Text style={styles.inlineActionButtonText}>Refresh</Text>
+        </Pressable>
+
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading bookings...</Text>
+          </View>
+        ) : bookings.length > 0 ? (
+          <View style={styles.bookingListLarge}>
+            {bookings.map((booking) => (
+              <Pressable key={booking.id} onPress={() => onSelectBooking(booking)} style={({ pressed }) => [styles.bookingCard, pressed && styles.actionButtonPressed]}>
+                <View style={styles.bookingHeader}>
+                  <Text style={styles.bookingTitle}>{formatServiceType(booking.service_type)}</Text>
+                  <Text style={styles.bookingStatus}>{booking.status || 'pending'}</Text>
+                </View>
+                <Text style={styles.bookingMeta}>{formatSessionDate(getBookingDateValue(booking))}</Text>
+                <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
+                <Text style={styles.bookingMeta}>{formatBookingLocation(booking)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardCopy}>No bookings available yet.</Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function BookingDetailScreen({ booking, onBack, onOpenMessages }) {
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent}>
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Booking Detail</Text>
+        <Text style={styles.signInTitleDark}>{formatServiceType(booking.service_type)}</Text>
+        <Text style={styles.signInSubtitleDark}>Reference {booking.reference_code || 'Pending'}</Text>
+
+        <View style={styles.featureGrid}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Status</Text>
+            <Text style={styles.cardCopy}>{booking.status || 'pending'}</Text>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Date</Text>
+            <Text style={styles.cardCopy}>{formatSessionDate(getBookingDateValue(booking))}</Text>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Time</Text>
+            <Text style={styles.cardCopy}>{booking.session_time || 'Time TBD'}</Text>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Price</Text>
+            <Text style={styles.cardCopy}>{formatPrice(booking.total_price || booking.price)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Location</Text>
+          <Text style={styles.cardCopy}>{formatBookingLocation(booking)}</Text>
+        </View>
+
+        {booking.client_notes ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Client notes</Text>
+            <Text style={styles.cardCopy}>{booking.client_notes}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.actionGroupSignedIn}>
+          <Pressable onPress={onOpenMessages} style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}>
+            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Open messages on web</Text>
+            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Conversation UI is still web-based for now.</Text>
+          </Pressable>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onSignOut }) {
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
   const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
   const resolvedDashboard = dashboard || buildDashboardState(accountType, {});
@@ -266,11 +390,19 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
 
         <View style={styles.actionGroupSignedIn}>
           <Pressable
-            onPress={() => openHref(resolvedDashboard.primaryLink.href)}
+            onPress={onOpenBookings}
             style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
           >
-            <Text style={styles.actionTitle}>{resolvedDashboard.primaryLink.label}</Text>
-            <Text style={styles.actionBody}>Use the web dashboard only for the deeper tools that have not been migrated yet.</Text>
+            <Text style={styles.actionTitle}>Open native bookings</Text>
+            <Text style={styles.actionBody}>Stay in the app for booking lists and booking detail.</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => openHref(resolvedDashboard.primaryLink.href)}
+            style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>{resolvedDashboard.primaryLink.label}</Text>
+            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Use the web dashboard only for the deeper tools that have not been migrated yet.</Text>
           </Pressable>
 
           <Pressable
@@ -330,7 +462,7 @@ function SignInScreen({ email, password, errorMessage, submitting, onEmailChange
               autoComplete="email"
               keyboardType="email-address"
               onChangeText={onEmailChange}
-              placeholder="support@findacoachtoday.com"
+              placeholder="name@example.com"
               placeholderTextColor="#64748b"
               style={styles.input}
               value={email}
@@ -386,6 +518,10 @@ export default function App() {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState('');
   const [dashboard, setDashboard] = useState(null);
+  const [bookingsViewLoading, setBookingsViewLoading] = useState(false);
+  const [bookingsViewError, setBookingsViewError] = useState('');
+  const [bookingsViewItems, setBookingsViewItems] = useState([]);
+  const [selectedBooking, setSelectedBooking] = useState(null);
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -423,6 +559,38 @@ export default function App() {
       setDashboardError(error?.message || 'Unable to load dashboard data.');
     } finally {
       setDashboardLoading(false);
+    }
+  };
+
+  const loadBookingsView = async (nextUser, nextProfile) => {
+    if (!nextUser?.id) {
+      setBookingsViewItems([]);
+      setBookingsViewError('');
+      return;
+    }
+
+    const accountType = normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client');
+    setBookingsViewLoading(true);
+    setBookingsViewError('');
+
+    try {
+      const response = await mobileApi.getBookings(
+        accountType === 'admin'
+          ? { view: 'admin_list', limit: 20, offset: 0, orderBy: '-created_at' }
+          : {
+              [accountType === 'coach' ? 'coach_id' : 'client_id']: nextUser.id,
+              limit: 20,
+              offset: 0,
+              orderBy: '-booking_date',
+            }
+      );
+
+      setBookingsViewItems(Array.isArray(response) ? response : response?.data || []);
+    } catch (error) {
+      setBookingsViewItems([]);
+      setBookingsViewError(error?.message || 'Unable to load bookings.');
+    } finally {
+      setBookingsViewLoading(false);
     }
   };
 
@@ -468,6 +636,9 @@ export default function App() {
         setProfile(null);
         setDashboard(null);
         setDashboardError('');
+        setBookingsViewItems([]);
+        setBookingsViewError('');
+        setSelectedBooking(null);
       }
     });
 
@@ -509,6 +680,9 @@ export default function App() {
     setCurrentUser(null);
     setDashboard(null);
     setDashboardError('');
+    setBookingsViewItems([]);
+    setBookingsViewError('');
+    setSelectedBooking(null);
     setView('home');
   };
 
@@ -540,6 +714,25 @@ export default function App() {
             onBack={() => setView('home')}
             onSubmit={handleSignIn}
           />
+        ) : view === 'bookings' ? (
+          <BookingListScreen
+            accountType={normalizeUserType(profile?.user_type || currentUser?.user_type || 'client')}
+            bookings={bookingsViewItems}
+            loading={bookingsViewLoading}
+            errorMessage={bookingsViewError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadBookingsView(currentUser, profile)}
+            onSelectBooking={(booking) => {
+              setSelectedBooking(booking);
+              setView('booking_detail');
+            }}
+          />
+        ) : view === 'booking_detail' && selectedBooking ? (
+          <BookingDetailScreen
+            booking={selectedBooking}
+            onBack={() => setView('bookings')}
+            onOpenMessages={() => openHref(`https://findacoachtoday.com/conversation?booking_id=${selectedBooking.id}`)}
+          />
         ) : currentUser ? (
           <AuthenticatedHome
             currentUser={currentUser}
@@ -549,6 +742,10 @@ export default function App() {
             dashboardError={dashboardError}
             dashboard={dashboard}
             onRefresh={() => loadDashboard(currentUser, profile)}
+            onOpenBookings={async () => {
+              await loadBookingsView(currentUser, profile);
+              setView('bookings');
+            }}
             onSignOut={handleSignOut}
           />
         ) : (
@@ -700,8 +897,23 @@ const styles = StyleSheet.create({
     padding: 22,
     marginTop: 18,
   },
+  signInCardDark: {
+    backgroundColor: '#08111f',
+    borderColor: '#1e3a8a',
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 22,
+    marginTop: 18,
+  },
   signInTitle: {
     color: '#08111f',
+    fontSize: 28,
+    fontWeight: '800',
+    lineHeight: 34,
+    marginBottom: 10,
+  },
+  signInTitleDark: {
+    color: '#f8fafc',
     fontSize: 28,
     fontWeight: '800',
     lineHeight: 34,
@@ -712,6 +924,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 22,
+  },
+  signInSubtitleDark: {
+    color: '#cbd5e1',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 18,
+  },
+  inlineActionButton: {
+    alignSelf: 'flex-start',
+    borderColor: '#243041',
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  inlineActionButtonText: {
+    color: '#e2e8f0',
+    fontSize: 14,
+    fontWeight: '700',
   },
   inputGroup: {
     marginBottom: 16,
@@ -960,6 +1192,9 @@ const styles = StyleSheet.create({
   bookingList: {
     gap: 12,
     marginBottom: 10,
+  },
+  bookingListLarge: {
+    gap: 12,
   },
   bookingCard: {
     backgroundColor: '#0f172a',
