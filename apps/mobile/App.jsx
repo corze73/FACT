@@ -273,6 +273,25 @@ function buildAvailabilityForm(record = null) {
   };
 }
 
+function buildRecurringAvailabilityForm(record = null) {
+  return {
+    id: record?.id || null,
+    dayOfWeek: record?.day_of_week !== undefined && record?.day_of_week !== null ? String(record.day_of_week) : '1',
+    startTime: record?.start_time || '09:00',
+    endTime: record?.end_time || '10:00',
+    isActive: record?.is_active !== false,
+  };
+}
+
+function formatRecurringAvailabilityWindow(record) {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayIndex = Number(record?.day_of_week);
+  const dayLabel = Number.isInteger(dayIndex) && dayIndex >= 0 && dayIndex <= 6 ? days[dayIndex] : 'Unknown day';
+  const start = String(record?.start_time || '--:--').slice(0, 5);
+  const end = String(record?.end_time || '--:--').slice(0, 5);
+  return `${dayLabel} • ${start} - ${end}`;
+}
+
 function buildCoachProfileForm(source) {
   return {
     full_name: source?.full_name || '',
@@ -1204,7 +1223,9 @@ function CoachOperationsScreen({
   profileForm,
   complianceForm,
   availability,
+  recurringAvailability,
   availabilityForm,
+  recurringForm,
   loading,
   errorMessage,
   profileSubmitting,
@@ -1213,6 +1234,8 @@ function CoachOperationsScreen({
   complianceError,
   availabilitySubmitting,
   availabilityError,
+  recurringSubmitting,
+  recurringError,
   onBack,
   onRefresh,
   onProfileChange,
@@ -1220,11 +1243,16 @@ function CoachOperationsScreen({
   onSaveProfile,
   onComplianceChange,
   onAvailabilityFormChange,
+  onRecurringFormChange,
   onSaveCompliance,
   onSaveAvailability,
+  onSaveRecurring,
   onEditAvailability,
   onDeleteAvailability,
+  onEditRecurring,
+  onDeleteRecurring,
   onResetAvailabilityForm,
+  onResetRecurringForm,
 }) {
   const qualificationStatus = formatStatusLabel(profile?.qualification_status);
   const backgroundStatus = profile?.has_background_check
@@ -1271,8 +1299,8 @@ function CoachOperationsScreen({
                 <Text style={styles.statValue}>{availability.length}</Text>
               </View>
               <View style={styles.statTile}>
-                <Text style={styles.statLabel}>Verified At</Text>
-                <Text style={styles.statValueSmall}>{profile?.verified_at ? formatSessionDate(profile.verified_at) : 'Pending'}</Text>
+                <Text style={styles.statLabel}>Recurring Slots</Text>
+                <Text style={styles.statValue}>{recurringAvailability.length}</Text>
               </View>
             </View>
 
@@ -1623,6 +1651,114 @@ function CoachOperationsScreen({
                   </View>
                 )) : <Text style={styles.cardCopy}>No one-off availability blocks yet.</Text>}
               </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{recurringForm.id ? 'Edit recurring slot' : 'Create recurring slot'}</Text>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Day of week</Text>
+                  <View style={styles.chipGrid}>
+                    {[
+                      { value: '0', label: 'Sun' },
+                      { value: '1', label: 'Mon' },
+                      { value: '2', label: 'Tue' },
+                      { value: '3', label: 'Wed' },
+                      { value: '4', label: 'Thu' },
+                      { value: '5', label: 'Fri' },
+                      { value: '6', label: 'Sat' },
+                    ].map((day) => (
+                      <Pressable
+                        key={day.value}
+                        onPress={() => onRecurringFormChange('dayOfWeek', day.value)}
+                        style={[
+                          styles.selectionChip,
+                          recurringForm.dayOfWeek === day.value && styles.selectionChipActive,
+                        ]}
+                      >
+                        <Text style={[
+                          styles.selectionChipText,
+                          recurringForm.dayOfWeek === day.value && styles.selectionChipTextActive,
+                        ]}>{day.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.dualInputRow}>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>Start time</Text>
+                    <TextInput
+                      onChangeText={(value) => onRecurringFormChange('startTime', value)}
+                      placeholder="09:00"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={recurringForm.startTime}
+                    />
+                  </View>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>End time</Text>
+                    <TextInput
+                      onChangeText={(value) => onRecurringFormChange('endTime', value)}
+                      placeholder="10:00"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={recurringForm.endTime}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Slot status</Text>
+                  <View style={styles.recipientToggleRow}>
+                    <Pressable
+                      onPress={() => onRecurringFormChange('isActive', true)}
+                      style={[styles.recipientToggle, recurringForm.isActive && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, recurringForm.isActive && styles.recipientToggleTextActive]}>Active</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => onRecurringFormChange('isActive', false)}
+                      style={[styles.recipientToggle, !recurringForm.isActive && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, !recurringForm.isActive && styles.recipientToggleTextActive]}>Paused</Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {recurringError ? <Text style={styles.errorTextLight}>{recurringError}</Text> : null}
+
+                <View style={styles.inlineButtonRow}>
+                  <Pressable
+                    disabled={recurringSubmitting}
+                    onPress={onSaveRecurring}
+                    style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || recurringSubmitting) && styles.actionButtonPressed]}
+                  >
+                    <Text style={styles.inlinePrimaryButtonText}>{recurringForm.id ? 'Update recurring slot' : 'Create recurring slot'}</Text>
+                  </Pressable>
+
+                  <Pressable onPress={onResetRecurringForm} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                    <Text style={styles.inlineSecondaryButtonText}>{recurringForm.id ? 'Cancel edit' : 'Clear form'}</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Weekly recurring schedule</Text>
+                {recurringAvailability.length > 0 ? recurringAvailability.map((item) => (
+                  <View key={item.id} style={styles.availabilityCard}>
+                    <Text style={styles.compactListTitle}>{formatRecurringAvailabilityWindow(item)}</Text>
+                    <Text style={styles.compactListMeta}>{item.is_active === false ? 'Paused recurring slot' : 'Active recurring slot'}</Text>
+                    <View style={styles.inlineButtonRow}>
+                      <Pressable onPress={() => onEditRecurring(item)} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                        <Text style={styles.inlineSecondaryButtonText}>Edit</Text>
+                      </Pressable>
+                      <Pressable onPress={() => onDeleteRecurring(item)} style={({ pressed }) => [styles.inlineDangerButton, pressed && styles.actionButtonPressed]}>
+                        <Text style={styles.inlineDangerButtonText}>Delete</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )) : <Text style={styles.cardCopy}>No recurring weekly slots yet.</Text>}
+              </View>
             </View>
           </>
         )}
@@ -1930,6 +2066,10 @@ export default function App() {
   const [coachAvailabilityForm, setCoachAvailabilityForm] = useState(buildAvailabilityForm());
   const [coachAvailabilitySubmitting, setCoachAvailabilitySubmitting] = useState(false);
   const [coachAvailabilityError, setCoachAvailabilityError] = useState('');
+  const [coachRecurringAvailability, setCoachRecurringAvailability] = useState([]);
+  const [coachRecurringForm, setCoachRecurringForm] = useState(buildRecurringAvailabilityForm());
+  const [coachRecurringSubmitting, setCoachRecurringSubmitting] = useState(false);
+  const [coachRecurringError, setCoachRecurringError] = useState('');
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -2196,6 +2336,7 @@ export default function App() {
     if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'coach' || !nextUser?.id) {
       setCoachOpsError('');
       setCoachAvailability([]);
+      setCoachRecurringAvailability([]);
       return;
     }
 
@@ -2203,22 +2344,28 @@ export default function App() {
     setCoachOpsError('');
 
     try {
-      const [nextCoachProfile, availabilityResponse] = await Promise.all([
+      const [nextCoachProfile, availabilityResponse, recurringResponse] = await Promise.all([
         getCurrentProfile(),
         mobileApi.getCoachAvailability({ coach_id: nextUser.id }),
+        mobileApi.getCoachRecurringAvailability({ coach_id: nextUser.id }),
       ]);
 
       const availabilityItems = Array.isArray(availabilityResponse) ? availabilityResponse : [];
+      const recurringItems = Array.isArray(recurringResponse) ? recurringResponse : [];
       setProfile(nextCoachProfile);
       setCoachProfileForm(buildCoachProfileForm(nextCoachProfile));
       setCoachComplianceForm(buildCoachComplianceForm(nextCoachProfile));
       setCoachAvailability(availabilityItems);
+      setCoachRecurringAvailability(recurringItems);
       setCoachProfileError('');
       setCoachAvailabilityError('');
+      setCoachRecurringError('');
       setCoachComplianceError('');
       setCoachAvailabilityForm(buildAvailabilityForm());
+      setCoachRecurringForm(buildRecurringAvailabilityForm());
     } catch (error) {
       setCoachAvailability([]);
+      setCoachRecurringAvailability([]);
       setCoachOpsError(error?.message || 'Unable to load coach operations.');
     } finally {
       setCoachOpsLoading(false);
@@ -2383,6 +2530,9 @@ export default function App() {
     setCoachAvailabilityError('');
     setCoachAvailability([]);
     setCoachAvailabilityForm(buildAvailabilityForm());
+    setCoachRecurringError('');
+    setCoachRecurringAvailability([]);
+    setCoachRecurringForm(buildRecurringAvailabilityForm());
     setView('home');
   };
 
@@ -2562,6 +2712,107 @@ export default function App() {
       setCoachAvailabilityError(error?.message || 'Unable to save availability.');
     } finally {
       setCoachAvailabilitySubmitting(false);
+    }
+  };
+
+  const handleRecurringFormChange = (field, value) => {
+    setCoachRecurringForm((previousForm) => ({
+      ...previousForm,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveRecurringAvailability = async () => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    const safeDay = Number(coachRecurringForm.dayOfWeek);
+    const safeStart = String(coachRecurringForm.startTime || '').trim();
+    const safeEnd = String(coachRecurringForm.endTime || '').trim();
+    const timePattern = /^\d{2}:\d{2}$/;
+
+    if (!Number.isInteger(safeDay) || safeDay < 0 || safeDay > 6) {
+      setCoachRecurringError('Select a valid day of week.');
+      return;
+    }
+
+    if (!timePattern.test(safeStart) || !timePattern.test(safeEnd)) {
+      setCoachRecurringError('Enter time in HH:MM format.');
+      return;
+    }
+
+    if (safeStart >= safeEnd) {
+      setCoachRecurringError('End time must be later than start time.');
+      return;
+    }
+
+    setCoachRecurringSubmitting(true);
+    setCoachRecurringError('');
+
+    const payload = {
+      coach_id: currentUser.id,
+      day_of_week: safeDay,
+      start_time: safeStart,
+      end_time: safeEnd,
+      is_active: coachRecurringForm.isActive,
+    };
+
+    try {
+      const savedRecord = coachRecurringForm.id
+        ? await mobileApi.updateCoachRecurringAvailability(coachRecurringForm.id, payload)
+        : await mobileApi.createCoachRecurringAvailability(payload);
+
+      setCoachRecurringAvailability((previousItems) => {
+        if (coachRecurringForm.id) {
+          return previousItems
+            .map((item) => (item.id === savedRecord.id ? savedRecord : item))
+            .sort((left, right) => {
+              if (left.day_of_week === right.day_of_week) {
+                return String(left.start_time).localeCompare(String(right.start_time));
+              }
+              return Number(left.day_of_week) - Number(right.day_of_week);
+            });
+        }
+
+        return [...previousItems, savedRecord].sort((left, right) => {
+          if (left.day_of_week === right.day_of_week) {
+            return String(left.start_time).localeCompare(String(right.start_time));
+          }
+          return Number(left.day_of_week) - Number(right.day_of_week);
+        });
+      });
+      setCoachRecurringForm(buildRecurringAvailabilityForm());
+    } catch (error) {
+      setCoachRecurringError(error?.message || 'Unable to save recurring availability.');
+    } finally {
+      setCoachRecurringSubmitting(false);
+    }
+  };
+
+  const handleEditRecurringAvailability = (item) => {
+    setCoachRecurringError('');
+    setCoachRecurringForm(buildRecurringAvailabilityForm(item));
+  };
+
+  const handleDeleteRecurringAvailability = async (item) => {
+    if (!item?.id) {
+      return;
+    }
+
+    setCoachRecurringSubmitting(true);
+    setCoachRecurringError('');
+
+    try {
+      await mobileApi.deleteCoachRecurringAvailability(item.id);
+      setCoachRecurringAvailability((previousItems) => previousItems.filter((record) => record.id !== item.id));
+      if (coachRecurringForm.id === item.id) {
+        setCoachRecurringForm(buildRecurringAvailabilityForm());
+      }
+    } catch (error) {
+      setCoachRecurringError(error?.message || 'Unable to delete recurring availability.');
+    } finally {
+      setCoachRecurringSubmitting(false);
     }
   };
 
@@ -2922,7 +3173,9 @@ export default function App() {
             profileForm={coachProfileForm}
             complianceForm={coachComplianceForm}
             availability={coachAvailability}
+            recurringAvailability={coachRecurringAvailability}
             availabilityForm={coachAvailabilityForm}
+            recurringForm={coachRecurringForm}
             loading={coachOpsLoading}
             errorMessage={coachOpsError}
             profileSubmitting={coachProfileSubmitting}
@@ -2931,6 +3184,8 @@ export default function App() {
             complianceError={coachComplianceError}
             availabilitySubmitting={coachAvailabilitySubmitting}
             availabilityError={coachAvailabilityError}
+            recurringSubmitting={coachRecurringSubmitting}
+            recurringError={coachRecurringError}
             onBack={() => setView('account')}
             onRefresh={() => loadCoachOperations(currentUser, profile)}
             onProfileChange={handleCoachProfileChange}
@@ -2938,11 +3193,16 @@ export default function App() {
             onSaveProfile={handleSaveCoachProfile}
             onComplianceChange={handleComplianceChange}
             onAvailabilityFormChange={handleAvailabilityFormChange}
+            onRecurringFormChange={handleRecurringFormChange}
             onSaveCompliance={handleSaveCompliance}
             onSaveAvailability={handleSaveAvailability}
+            onSaveRecurring={handleSaveRecurringAvailability}
             onEditAvailability={handleEditAvailability}
             onDeleteAvailability={handleDeleteAvailability}
+            onEditRecurring={handleEditRecurringAvailability}
+            onDeleteRecurring={handleDeleteRecurringAvailability}
             onResetAvailabilityForm={() => setCoachAvailabilityForm(buildAvailabilityForm())}
+            onResetRecurringForm={() => setCoachRecurringForm(buildRecurringAvailabilityForm())}
           />
         ) : view === 'booking_detail' && selectedBooking ? (
           <BookingDetailScreen
