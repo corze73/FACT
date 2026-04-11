@@ -196,6 +196,63 @@ function formatFullDateTime(value) {
   });
 }
 
+function formatStatusLabel(value) {
+  return String(value || 'incomplete')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatAvailabilityWindow(record) {
+  if (!record?.start_date || !record?.end_date) {
+    return 'Schedule not set';
+  }
+
+  const start = new Date(record.start_date);
+  const end = new Date(record.end_date);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 'Schedule not set';
+  }
+
+  const sameDay = start.toDateString() === end.toDateString();
+  if (sameDay) {
+    return `${start.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })} • ${start.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })} - ${end.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })}`;
+  }
+
+  return `${formatFullDateTime(record.start_date)} → ${formatFullDateTime(record.end_date)}`;
+}
+
+function buildCoachComplianceForm(source) {
+  return {
+    qualification_type: source?.qualification_type || '',
+    has_background_check: Boolean(source?.has_background_check),
+    background_check_type: source?.background_check_type || '',
+    background_check_expires_at: formatDateInputValue(source?.background_check_expires_at),
+  };
+}
+
+function buildAvailabilityForm(record = null) {
+  return {
+    id: record?.id || null,
+    startDate: formatDateInputValue(record?.start_date),
+    startTime: formatTimeInputValue(record?.start_date) || '09:00',
+    endDate: formatDateInputValue(record?.end_date),
+    endTime: formatTimeInputValue(record?.end_date) || '10:00',
+    isAvailable: record?.is_available !== false,
+    locationOverride: record?.location_override || '',
+    notes: record?.notes || '',
+  };
+}
+
 function formatDateInputValue(value) {
   if (!value) return '';
   const date = new Date(value);
@@ -1108,7 +1165,295 @@ function AdminOperationsScreen({
   );
 }
 
-function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onOpenMessages, onOpenAdminOperations, onSignOut }) {
+function CoachOperationsScreen({
+  profile,
+  complianceForm,
+  availability,
+  availabilityForm,
+  loading,
+  errorMessage,
+  complianceSubmitting,
+  complianceError,
+  availabilitySubmitting,
+  availabilityError,
+  onBack,
+  onRefresh,
+  onComplianceChange,
+  onAvailabilityFormChange,
+  onSaveCompliance,
+  onSaveAvailability,
+  onEditAvailability,
+  onDeleteAvailability,
+  onResetAvailabilityForm,
+}) {
+  const qualificationStatus = formatStatusLabel(profile?.qualification_status);
+  const backgroundStatus = profile?.has_background_check
+    ? formatStatusLabel(profile?.background_check_status)
+    : 'Not provided';
+
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Coach Operations</Text>
+        <Text style={styles.signInTitleDark}>Compliance and availability on device</Text>
+        <Text style={styles.signInSubtitleDark}>Manage the coach-side operational work that already has stable backend support, without dropping back to the browser.</Text>
+
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+          <Text style={styles.inlineActionButtonText}>Refresh coach tools</Text>
+        </Pressable>
+
+        {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading coach operations...</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.statsGrid}>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Qualification</Text>
+                <Text style={styles.statValueSmall}>{qualificationStatus}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Background Check</Text>
+                <Text style={styles.statValueSmall}>{backgroundStatus}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Availability Blocks</Text>
+                <Text style={styles.statValue}>{availability.length}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Verified At</Text>
+                <Text style={styles.statValueSmall}>{profile?.verified_at ? formatSessionDate(profile.verified_at) : 'Pending'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.featureGrid}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Compliance snapshot</Text>
+                <Text style={styles.cardCopy}>Qualification status: {qualificationStatus}</Text>
+                <Text style={styles.cardCopy}>Background check status: {backgroundStatus}</Text>
+                <Text style={styles.cardCopy}>Expiry: {profile?.background_check_expires_at ? formatSessionDate(profile.background_check_expires_at) : 'Not set'}</Text>
+                {profile?.verification_notes ? (
+                  <Text style={styles.cardCopy}>Verification notes: {profile.verification_notes}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Update compliance</Text>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Qualification type</Text>
+                  <TextInput
+                    onChangeText={(value) => onComplianceChange('qualification_type', value)}
+                    placeholder="UEFA B, FA Level 2, academy coach..."
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={complianceForm.qualification_type}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Background check recorded</Text>
+                  <View style={styles.recipientToggleRow}>
+                    <Pressable
+                      onPress={() => onComplianceChange('has_background_check', true)}
+                      style={[styles.recipientToggle, complianceForm.has_background_check && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, complianceForm.has_background_check && styles.recipientToggleTextActive]}>Yes</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => onComplianceChange('has_background_check', false)}
+                      style={[styles.recipientToggle, !complianceForm.has_background_check && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, !complianceForm.has_background_check && styles.recipientToggleTextActive]}>No</Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {complianceForm.has_background_check ? (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabelLight}>Background check type</Text>
+                      <TextInput
+                        onChangeText={(value) => onComplianceChange('background_check_type', value)}
+                        placeholder="DBS, PVG, Garda vetting..."
+                        placeholderTextColor="#64748b"
+                        style={styles.inputDark}
+                        value={complianceForm.background_check_type}
+                      />
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabelLight}>Expiry date</Text>
+                      <TextInput
+                        onChangeText={(value) => onComplianceChange('background_check_expires_at', value)}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor="#64748b"
+                        style={styles.inputDark}
+                        value={complianceForm.background_check_expires_at}
+                      />
+                    </View>
+
+                    <Text style={styles.helperText}>This screen updates compliance metadata only. Document upload stays on web for now.</Text>
+                  </>
+                ) : null}
+
+                {complianceError ? <Text style={styles.errorTextLight}>{complianceError}</Text> : null}
+
+                <Pressable
+                  disabled={complianceSubmitting}
+                  onPress={onSaveCompliance}
+                  style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || complianceSubmitting) && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.actionTitle}>Save compliance details</Text>
+                  <Text style={styles.actionBody}>Send the live compliance metadata update through the shared profile endpoint.</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{availabilityForm.id ? 'Edit availability block' : 'Create availability block'}</Text>
+
+                <View style={styles.dualInputRow}>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>Start date</Text>
+                    <TextInput
+                      onChangeText={(value) => onAvailabilityFormChange('startDate', value)}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={availabilityForm.startDate}
+                    />
+                  </View>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>Start time</Text>
+                    <TextInput
+                      onChangeText={(value) => onAvailabilityFormChange('startTime', value)}
+                      placeholder="09:00"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={availabilityForm.startTime}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.dualInputRow}>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>End date</Text>
+                    <TextInput
+                      onChangeText={(value) => onAvailabilityFormChange('endDate', value)}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={availabilityForm.endDate}
+                    />
+                  </View>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>End time</Text>
+                    <TextInput
+                      onChangeText={(value) => onAvailabilityFormChange('endTime', value)}
+                      placeholder="10:00"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={availabilityForm.endTime}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Availability type</Text>
+                  <View style={styles.recipientToggleRow}>
+                    <Pressable
+                      onPress={() => onAvailabilityFormChange('isAvailable', true)}
+                      style={[styles.recipientToggle, availabilityForm.isAvailable && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, availabilityForm.isAvailable && styles.recipientToggleTextActive]}>Available</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => onAvailabilityFormChange('isAvailable', false)}
+                      style={[styles.recipientToggle, !availabilityForm.isAvailable && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, !availabilityForm.isAvailable && styles.recipientToggleTextActive]}>Unavailable</Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Location override</Text>
+                  <TextInput
+                    onChangeText={(value) => onAvailabilityFormChange('locationOverride', value)}
+                    placeholder="Pitch, gym, online, travel area..."
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={availabilityForm.locationOverride}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Notes</Text>
+                  <TextInput
+                    multiline={true}
+                    onChangeText={(value) => onAvailabilityFormChange('notes', value)}
+                    placeholder="Add context for clients or admin staff"
+                    placeholderTextColor="#64748b"
+                    style={[styles.inputDark, styles.notesInput]}
+                    value={availabilityForm.notes}
+                  />
+                </View>
+
+                {availabilityError ? <Text style={styles.errorTextLight}>{availabilityError}</Text> : null}
+
+                <View style={styles.inlineButtonRow}>
+                  <Pressable
+                    disabled={availabilitySubmitting}
+                    onPress={onSaveAvailability}
+                    style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || availabilitySubmitting) && styles.actionButtonPressed]}
+                  >
+                    <Text style={styles.inlinePrimaryButtonText}>{availabilityForm.id ? 'Update block' : 'Create block'}</Text>
+                  </Pressable>
+
+                  <Pressable onPress={onResetAvailabilityForm} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                    <Text style={styles.inlineSecondaryButtonText}>{availabilityForm.id ? 'Cancel edit' : 'Clear form'}</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Upcoming availability</Text>
+                {availability.length > 0 ? availability.map((item) => (
+                  <View key={item.id} style={styles.availabilityCard}>
+                    <Text style={styles.compactListTitle}>{formatAvailabilityWindow(item)}</Text>
+                    <Text style={styles.compactListMeta}>{item.is_available === false ? 'Unavailable block' : 'Available block'}</Text>
+                    {item.location_override ? <Text style={styles.compactListMeta}>Location: {item.location_override}</Text> : null}
+                    {item.notes ? <Text style={styles.compactListMeta}>{item.notes}</Text> : null}
+                    <View style={styles.inlineButtonRow}>
+                      <Pressable onPress={() => onEditAvailability(item)} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                        <Text style={styles.inlineSecondaryButtonText}>Edit</Text>
+                      </Pressable>
+                      <Pressable onPress={() => onDeleteAvailability(item)} style={({ pressed }) => [styles.inlineDangerButton, pressed && styles.actionButtonPressed]}>
+                        <Text style={styles.inlineDangerButtonText}>Delete</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )) : <Text style={styles.cardCopy}>No one-off availability blocks yet.</Text>}
+              </View>
+            </View>
+          </>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onOpenMessages, onOpenAdminOperations, onOpenCoachOperations, onSignOut }) {
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
   const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
   const resolvedDashboard = dashboard || buildDashboardState(accountType, {});
@@ -1205,6 +1550,16 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
             >
               <Text style={styles.actionTitle}>Open admin operations</Text>
               <Text style={styles.actionBody}>Review ops metrics, cases, disputes, compliance, and invites in the app.</Text>
+            </Pressable>
+          ) : null}
+
+          {accountType === 'coach' ? (
+            <Pressable
+              onPress={onOpenCoachOperations}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Open coach operations</Text>
+              <Text style={styles.actionBody}>Manage compliance details and live availability blocks inside the app.</Text>
             </Pressable>
           ) : null}
 
@@ -1385,6 +1740,15 @@ export default function App() {
   const [adminInviteHours, setAdminInviteHours] = useState('72');
   const [adminInviteSubmitting, setAdminInviteSubmitting] = useState(false);
   const [adminInviteError, setAdminInviteError] = useState('');
+  const [coachOpsLoading, setCoachOpsLoading] = useState(false);
+  const [coachOpsError, setCoachOpsError] = useState('');
+  const [coachComplianceForm, setCoachComplianceForm] = useState(buildCoachComplianceForm(null));
+  const [coachComplianceSubmitting, setCoachComplianceSubmitting] = useState(false);
+  const [coachComplianceError, setCoachComplianceError] = useState('');
+  const [coachAvailability, setCoachAvailability] = useState([]);
+  const [coachAvailabilityForm, setCoachAvailabilityForm] = useState(buildAvailabilityForm());
+  const [coachAvailabilitySubmitting, setCoachAvailabilitySubmitting] = useState(false);
+  const [coachAvailabilityError, setCoachAvailabilityError] = useState('');
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -1647,6 +2011,37 @@ export default function App() {
     }
   };
 
+  const loadCoachOperations = async (nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'coach' || !nextUser?.id) {
+      setCoachOpsError('');
+      setCoachAvailability([]);
+      return;
+    }
+
+    setCoachOpsLoading(true);
+    setCoachOpsError('');
+
+    try {
+      const [nextCoachProfile, availabilityResponse] = await Promise.all([
+        getCurrentProfile(),
+        mobileApi.getCoachAvailability({ coach_id: nextUser.id }),
+      ]);
+
+      const availabilityItems = Array.isArray(availabilityResponse) ? availabilityResponse : [];
+      setProfile(nextCoachProfile);
+      setCoachComplianceForm(buildCoachComplianceForm(nextCoachProfile));
+      setCoachAvailability(availabilityItems);
+      setCoachAvailabilityError('');
+      setCoachComplianceError('');
+      setCoachAvailabilityForm(buildAvailabilityForm());
+    } catch (error) {
+      setCoachAvailability([]);
+      setCoachOpsError(error?.message || 'Unable to load coach operations.');
+    } finally {
+      setCoachOpsLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -1797,7 +2192,146 @@ export default function App() {
     setAdminInviteScope('support');
     setAdminInviteHours('72');
     setAdminInviteError('');
+    setCoachOpsError('');
+    setCoachComplianceError('');
+    setCoachComplianceForm(buildCoachComplianceForm(null));
+    setCoachAvailabilityError('');
+    setCoachAvailability([]);
+    setCoachAvailabilityForm(buildAvailabilityForm());
     setView('home');
+  };
+
+  const handleComplianceChange = (field, value) => {
+    setCoachComplianceForm((previousForm) => {
+      if (field === 'has_background_check' && value === false) {
+        return {
+          ...previousForm,
+          has_background_check: false,
+          background_check_type: '',
+          background_check_expires_at: '',
+        };
+      }
+
+      return {
+        ...previousForm,
+        [field]: value,
+      };
+    });
+  };
+
+  const handleAvailabilityFormChange = (field, value) => {
+    setCoachAvailabilityForm((previousForm) => ({
+      ...previousForm,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveCompliance = async () => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    setCoachComplianceSubmitting(true);
+    setCoachComplianceError('');
+
+    try {
+      const updated = await mobileApi.updateCompliance({
+        qualification_type: coachComplianceForm.qualification_type,
+        has_background_check: coachComplianceForm.has_background_check,
+        background_check_type: coachComplianceForm.has_background_check ? coachComplianceForm.background_check_type : null,
+        background_check_expires_at: coachComplianceForm.has_background_check
+          ? (coachComplianceForm.background_check_expires_at || null)
+          : null,
+      });
+
+      const mergedProfile = {
+        ...(profile || {}),
+        ...(updated?.data || updated || {}),
+      };
+      setProfile(mergedProfile);
+      setCoachComplianceForm(buildCoachComplianceForm(mergedProfile));
+    } catch (error) {
+      setCoachComplianceError(error?.message || 'Unable to update compliance.');
+    } finally {
+      setCoachComplianceSubmitting(false);
+    }
+  };
+
+  const handleSaveAvailability = async () => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    const startDateTime = buildIsoDateTime(coachAvailabilityForm.startDate, coachAvailabilityForm.startTime);
+    const endDateTime = buildIsoDateTime(coachAvailabilityForm.endDate, coachAvailabilityForm.endTime);
+    if (!startDateTime || !endDateTime) {
+      setCoachAvailabilityError('Enter valid start and end values in the format YYYY-MM-DD and HH:MM.');
+      return;
+    }
+
+    if (new Date(startDateTime).getTime() >= new Date(endDateTime).getTime()) {
+      setCoachAvailabilityError('End time must be after the start time.');
+      return;
+    }
+
+    setCoachAvailabilitySubmitting(true);
+    setCoachAvailabilityError('');
+
+    const payload = {
+      coach_id: currentUser.id,
+      start_date: startDateTime,
+      end_date: endDateTime,
+      is_available: coachAvailabilityForm.isAvailable,
+      location_override: coachAvailabilityForm.locationOverride,
+      notes: coachAvailabilityForm.notes,
+    };
+
+    try {
+      const savedRecord = coachAvailabilityForm.id
+        ? await mobileApi.updateCoachAvailability(coachAvailabilityForm.id, payload)
+        : await mobileApi.createCoachAvailability(payload);
+
+      setCoachAvailability((previousItems) => {
+        if (coachAvailabilityForm.id) {
+          return previousItems
+            .map((item) => (item.id === savedRecord.id ? savedRecord : item))
+            .sort((left, right) => new Date(left.start_date) - new Date(right.start_date));
+        }
+
+        return [...previousItems, savedRecord].sort((left, right) => new Date(left.start_date) - new Date(right.start_date));
+      });
+      setCoachAvailabilityForm(buildAvailabilityForm());
+    } catch (error) {
+      setCoachAvailabilityError(error?.message || 'Unable to save availability.');
+    } finally {
+      setCoachAvailabilitySubmitting(false);
+    }
+  };
+
+  const handleEditAvailability = (item) => {
+    setCoachAvailabilityError('');
+    setCoachAvailabilityForm(buildAvailabilityForm(item));
+  };
+
+  const handleDeleteAvailability = async (item) => {
+    if (!item?.id) {
+      return;
+    }
+
+    setCoachAvailabilitySubmitting(true);
+    setCoachAvailabilityError('');
+
+    try {
+      await mobileApi.deleteCoachAvailability(item.id);
+      setCoachAvailability((previousItems) => previousItems.filter((record) => record.id !== item.id));
+      if (coachAvailabilityForm.id === item.id) {
+        setCoachAvailabilityForm(buildAvailabilityForm());
+      }
+    } catch (error) {
+      setCoachAvailabilityError(error?.message || 'Unable to delete availability.');
+    } finally {
+      setCoachAvailabilitySubmitting(false);
+    }
   };
 
   const handleSendBookingMessage = async () => {
@@ -2125,6 +2659,28 @@ export default function App() {
             onRefresh={() => loadAdminOperations(currentUser, profile)}
             onCreateInvite={handleCreateAdminInvite}
           />
+        ) : view === 'coach_operations' ? (
+          <CoachOperationsScreen
+            profile={profile}
+            complianceForm={coachComplianceForm}
+            availability={coachAvailability}
+            availabilityForm={coachAvailabilityForm}
+            loading={coachOpsLoading}
+            errorMessage={coachOpsError}
+            complianceSubmitting={coachComplianceSubmitting}
+            complianceError={coachComplianceError}
+            availabilitySubmitting={coachAvailabilitySubmitting}
+            availabilityError={coachAvailabilityError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadCoachOperations(currentUser, profile)}
+            onComplianceChange={handleComplianceChange}
+            onAvailabilityFormChange={handleAvailabilityFormChange}
+            onSaveCompliance={handleSaveCompliance}
+            onSaveAvailability={handleSaveAvailability}
+            onEditAvailability={handleEditAvailability}
+            onDeleteAvailability={handleDeleteAvailability}
+            onResetAvailabilityForm={() => setCoachAvailabilityForm(buildAvailabilityForm())}
+          />
         ) : view === 'booking_detail' && selectedBooking ? (
           <BookingDetailScreen
             booking={selectedBooking}
@@ -2211,6 +2767,10 @@ export default function App() {
             onOpenAdminOperations={async () => {
               await loadAdminOperations(currentUser, profile);
               setView('admin_operations');
+            }}
+            onOpenCoachOperations={async () => {
+              await loadCoachOperations(currentUser, profile);
+              setView('coach_operations');
             }}
             onOpenBookings={async () => {
               await loadBookingsView(currentUser, profile);
@@ -2660,6 +3220,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 6,
   },
+  statValueSmall: {
+    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 24,
+    marginTop: 6,
+  },
   spotlightRow: {
     gap: 12,
     marginTop: 14,
@@ -2766,6 +3333,83 @@ const styles = StyleSheet.create({
   conversationPreviewUnread: {
     color: '#f8fafc',
     fontWeight: '700',
+  },
+  helperText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  dualInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  dualInputColumn: {
+    flex: 1,
+  },
+  notesInput: {
+    minHeight: 96,
+    textAlignVertical: 'top',
+  },
+  inlineButtonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  inlinePrimaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#f59e0b',
+    borderRadius: 14,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  inlinePrimaryButtonText: {
+    color: '#08111f',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  inlineSecondaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  inlineSecondaryButtonText: {
+    color: '#e2e8f0',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  inlineDangerButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(185, 28, 28, 0.18)',
+    borderColor: '#7f1d1d',
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  inlineDangerButtonText: {
+    color: '#fecaca',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  availabilityCard: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
   },
   unreadDot: {
     backgroundColor: '#ef4444',
