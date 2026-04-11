@@ -219,6 +219,31 @@ function buildIsoDateTime(dateValue, timeValue) {
   return composed.toISOString();
 }
 
+function getDirectConversationName(thread, currentUser) {
+  if (thread?.other_user_name) {
+    return thread.other_user_name;
+  }
+
+  const otherType = normalizeUserType(thread?.other_user_type || 'client');
+  if (otherType === 'admin') {
+    return 'Support Team';
+  }
+
+  if (thread?.other_user_id === currentUser?.id) {
+    return 'You';
+  }
+
+  return 'Conversation';
+}
+
+function getDirectMessageDisplayName(message, directThread, currentUser) {
+  if (message?.sender_id === currentUser?.id) {
+    return 'You';
+  }
+
+  return getDirectConversationName(directThread, currentUser);
+}
+
 function buildDashboardState(accountType, payload) {
   if (accountType === 'admin') {
     const userStats = payload.userStats || {};
@@ -743,6 +768,116 @@ function BookingMessagesScreen({
   );
 }
 
+function DirectMessagesScreen({
+  thread,
+  currentUser,
+  messages,
+  loading,
+  errorMessage,
+  draft,
+  sending,
+  onDraftChange,
+  onBack,
+  onRefresh,
+  onSend,
+}) {
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, [messages.length]);
+
+  return (
+    <KeyboardAvoidingView behavior="padding" style={styles.safeArea}>
+      <View style={styles.messagesShell}>
+        <View style={styles.signInHeader}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.signInCardDark}>
+          <Text style={styles.sectionEyebrow}>Direct Messages</Text>
+          <Text style={styles.signInTitleDark}>{getDirectConversationName(thread, currentUser)}</Text>
+          <Text style={styles.signInSubtitleDark}>Direct support and admin conversations now stay in the app too.</Text>
+
+          <View style={styles.messageMetaRow}>
+            <Text style={styles.messageMetaPill}>Direct conversation</Text>
+            <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+              <Text style={styles.inlineActionButtonText}>Refresh</Text>
+            </Pressable>
+          </View>
+
+          {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={styles.messagesList}
+            keyboardShouldPersistTaps="handled"
+          >
+            {loading ? (
+              <View style={styles.dashboardLoadingRow}>
+                <ActivityIndicator color="#f59e0b" />
+                <Text style={styles.cardCopy}>Loading conversation...</Text>
+              </View>
+            ) : messages.length > 0 ? (
+              messages.map((message) => {
+                const isOwnMessage = message.sender_id === currentUser?.id;
+                return (
+                  <View
+                    key={message.id || `${message.sender_id}-${message.created_date}-${message.content}`}
+                    style={[
+                      styles.messageBubble,
+                      isOwnMessage ? styles.messageBubbleOwn : styles.messageBubbleOther,
+                    ]}
+                  >
+                    <Text style={[styles.messageSender, isOwnMessage && styles.messageSenderOwn]}>
+                      {getDirectMessageDisplayName(message, thread, currentUser)}
+                    </Text>
+                    <Text style={[styles.messageBody, isOwnMessage && styles.messageBodyOwn]}>{message.content}</Text>
+                    <Text style={[styles.messageTimestamp, isOwnMessage && styles.messageTimestampOwn]}>
+                      {formatMessageTime(message.created_date || message.updated_at)}
+                    </Text>
+                  </View>
+                );
+              })
+            ) : (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>No messages yet</Text>
+                <Text style={styles.cardCopy}>Start a direct conversation here. Draft text stays on device until a send succeeds.</Text>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.messageComposer}>
+            <TextInput
+              multiline={true}
+              onChangeText={onDraftChange}
+              placeholder="Write a message"
+              placeholderTextColor="#64748b"
+              style={styles.messageInput}
+              textAlignVertical="top"
+              value={draft}
+            />
+            <Pressable
+              disabled={sending || !String(draft || '').trim()}
+              onPress={onSend}
+              style={({ pressed }) => [
+                styles.submitButton,
+                styles.messageSendButton,
+                (pressed || sending || !String(draft || '').trim()) && styles.actionButtonPressed,
+                !String(draft || '').trim() && styles.messageSendButtonDisabled,
+              ]}
+            >
+              {sending ? <ActivityIndicator color="#08111f" /> : <Text style={styles.submitButtonText}>Send</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
 function MessagesInboxScreen({ conversations, loading, errorMessage, onBack, onRefresh, onOpenConversation }) {
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent}>
@@ -772,15 +907,19 @@ function MessagesInboxScreen({ conversations, loading, errorMessage, onBack, onR
           <View style={styles.bookingListLarge}>
             {conversations.map((conversation) => (
               <Pressable
-                key={conversation.booking_id}
-                onPress={() => onOpenConversation(conversation.booking)}
+                key={conversation.booking_id || conversation.direct_user_id}
+                onPress={() => onOpenConversation(conversation)}
                 style={({ pressed }) => [styles.conversationCard, pressed && styles.actionButtonPressed]}
               >
                 <View style={styles.conversationHeader}>
                   <Text style={[styles.bookingTitle, !conversation.is_read && styles.conversationUnreadTitle]}>{conversation.other_user_name}</Text>
                   <Text style={styles.conversationTime}>{formatRelativeMessageTime(conversation.last_message_date)}</Text>
                 </View>
-                <Text style={styles.bookingMeta}>{formatServiceType(conversation.booking.service_type)} • {formatSessionDate(getBookingDateValue(conversation.booking))}</Text>
+                <Text style={styles.bookingMeta}>
+                  {conversation.type === 'direct'
+                    ? 'Direct support thread'
+                    : `${formatServiceType(conversation.booking.service_type)} • ${formatSessionDate(getBookingDateValue(conversation.booking))}`}
+                </Text>
                 <Text style={[styles.conversationPreview, !conversation.is_read && styles.conversationPreviewUnread]} numberOfLines={2}>
                   {conversation.last_message}
                 </Text>
@@ -1041,6 +1180,10 @@ export default function App() {
   const [bookingMessagesError, setBookingMessagesError] = useState('');
   const [messageDrafts, setMessageDrafts] = useState({});
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [selectedDirectThread, setSelectedDirectThread] = useState(null);
+  const [directMessages, setDirectMessages] = useState([]);
+  const [directMessagesLoading, setDirectMessagesLoading] = useState(false);
+  const [directMessagesError, setDirectMessagesError] = useState('');
   const [recipientForAdmin, setRecipientForAdmin] = useState('client');
   const [messageConversations, setMessageConversations] = useState([]);
   const [messageConversationsLoading, setMessageConversationsLoading] = useState(false);
@@ -1154,6 +1297,38 @@ export default function App() {
     }
   };
 
+  const loadDirectMessages = async (thread = selectedDirectThread, nextUser = currentUser) => {
+    if (!thread?.direct_user_id || !nextUser?.id) {
+      setDirectMessages([]);
+      setDirectMessagesError('');
+      return;
+    }
+
+    setDirectMessagesLoading(true);
+    setDirectMessagesError('');
+
+    try {
+      const response = await mobileApi.getDirectMessages(thread.direct_user_id);
+      const nextMessages = Array.isArray(response) ? response : [];
+      setDirectMessages(nextMessages);
+
+      const unreadMessages = nextMessages.filter((message) => message.receiver_id === nextUser.id && !message.is_read);
+      if (unreadMessages.length > 0) {
+        setDirectMessages((previousMessages) => previousMessages.map((message) => (
+          unreadMessages.some((unread) => unread.id === message.id)
+            ? { ...message, is_read: true }
+            : message
+        )));
+
+        await Promise.allSettled(unreadMessages.map((message) => mobileApi.markMessageRead(message.id)));
+      }
+    } catch (error) {
+      setDirectMessagesError(error?.message || 'Unable to load direct messages.');
+    } finally {
+      setDirectMessagesLoading(false);
+    }
+  };
+
   const loadMessageConversations = async (nextUser = currentUser, nextProfile = profile) => {
     if (!nextUser?.id) {
       setMessageConversations([]);
@@ -1166,7 +1341,8 @@ export default function App() {
     setMessageConversationsError('');
 
     try {
-      const response = await mobileApi.getBookings(
+      const [response, directThreadsResponse] = await Promise.all([
+        mobileApi.getBookings(
         accountType === 'admin'
           ? { view: 'admin_list', limit: 20, offset: 0, orderBy: '-updated_at' }
           : {
@@ -1175,7 +1351,9 @@ export default function App() {
               offset: 0,
               orderBy: '-updated_at',
             }
-      );
+        ),
+        mobileApi.getDirectThreads(),
+      ]);
 
       const bookings = Array.isArray(response) ? response : response?.data || [];
       const messageResults = await Promise.allSettled(
@@ -1199,7 +1377,39 @@ export default function App() {
       const conversations = messageResults
         .filter((result) => result.status === 'fulfilled')
         .map((result) => result.value)
-        .sort((left, right) => new Date(right.last_message_date) - new Date(left.last_message_date));
+        ;
+
+      const directThreads = Array.isArray(directThreadsResponse) ? directThreadsResponse : [];
+      const directUsers = await Promise.allSettled(
+        directThreads.map(async (thread) => {
+          const user = await mobileApi.getUser(thread.other_user_id);
+          return {
+            ...thread,
+            other_user_name: normalizeUserType(user?.user_type || 'client') === 'admin'
+              ? 'Support Team'
+              : (user?.full_name || thread.other_user_id || 'Support Team'),
+            other_user_type: user?.user_type || 'client',
+          };
+        })
+      );
+
+      const directConversations = directUsers
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => {
+          const thread = result.value;
+          return {
+            type: 'direct',
+            direct_user_id: thread.other_user_id,
+            other_user_name: thread.other_user_name,
+            other_user_type: thread.other_user_type,
+            last_message: thread.content || 'Start a conversation',
+            last_message_date: thread.created_date,
+            is_read: thread.sender_id === nextUser.id || thread.is_read,
+          };
+        });
+
+      conversations.push(...directConversations);
+      conversations.sort((left, right) => new Date(right.last_message_date) - new Date(left.last_message_date));
 
       setMessageConversations(conversations);
     } catch (error) {
@@ -1285,6 +1495,27 @@ export default function App() {
     };
   }, [view, selectedBooking?.id, currentUser?.id]);
 
+  useEffect(() => {
+    if (view !== 'direct_messages' || !selectedDirectThread?.direct_user_id || !currentUser?.id) {
+      return undefined;
+    }
+
+    let active = true;
+
+    const refreshMessages = async () => {
+      if (!active) return;
+      await loadDirectMessages(selectedDirectThread, currentUser);
+    };
+
+    refreshMessages();
+    const intervalId = setInterval(refreshMessages, 15000);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
+  }, [view, selectedDirectThread?.direct_user_id, currentUser?.id]);
+
   const handleSignIn = async () => {
     setErrorMessage('');
     setSubmitting(true);
@@ -1320,6 +1551,12 @@ export default function App() {
     setBookingsViewItems([]);
     setBookingsViewError('');
     setSelectedBooking(null);
+    setSelectedDirectThread(null);
+    setDirectMessages([]);
+    setDirectMessagesError('');
+    setSelectedDirectThread(null);
+    setDirectMessages([]);
+    setDirectMessagesError('');
     setBookingMessages([]);
     setBookingMessagesError('');
     setMessageConversations([]);
@@ -1378,6 +1615,55 @@ export default function App() {
       await loadBookingMessages(selectedBooking, currentUser);
     } catch (error) {
       setBookingMessagesError(`${error?.message || 'Unable to send message.'} Draft kept on this device.`);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleSendDirectMessage = async () => {
+    if (!selectedDirectThread?.direct_user_id || !currentUser?.id) {
+      return;
+    }
+
+    const draftKey = `direct-${selectedDirectThread.direct_user_id}`;
+    const draft = String(messageDrafts[draftKey] || '');
+    const trimmedDraft = draft.trim();
+    if (!trimmedDraft) {
+      return;
+    }
+
+    setSendingMessage(true);
+    setDirectMessagesError('');
+
+    try {
+      const createdMessage = await mobileApi.sendMessage({
+        sender_id: currentUser.id,
+        receiver_id: selectedDirectThread.direct_user_id,
+        content: trimmedDraft,
+      });
+
+      setDirectMessages((previousMessages) => [
+        ...previousMessages,
+        {
+          ...createdMessage,
+          content: trimmedDraft,
+          sender_id: currentUser.id,
+          receiver_id: selectedDirectThread.direct_user_id,
+          created_date: createdMessage?.created_date || new Date().toISOString(),
+          is_read: false,
+        },
+      ]);
+      setMessageDrafts((previousDrafts) => ({
+        ...previousDrafts,
+        [draftKey]: '',
+      }));
+
+      await Promise.allSettled([
+        loadDirectMessages(selectedDirectThread, currentUser),
+        loadMessageConversations(currentUser, profile),
+      ]);
+    } catch (error) {
+      setDirectMessagesError(`${error?.message || 'Unable to send message.'} Draft kept on this device.`);
     } finally {
       setSendingMessage(false);
     }
@@ -1538,11 +1824,23 @@ export default function App() {
             errorMessage={messageConversationsError}
             onBack={() => setView('account')}
             onRefresh={() => loadMessageConversations(currentUser, profile)}
-            onOpenConversation={(booking) => {
-              setSelectedBooking(booking);
+            onOpenConversation={async (conversation) => {
               setMessageOriginView('messages_inbox');
+
+              if (conversation.type === 'direct') {
+                setSelectedDirectThread(conversation);
+                setDirectMessages([]);
+                setDirectMessagesError('');
+                await loadDirectMessages(conversation, currentUser);
+                setView('direct_messages');
+                return;
+              }
+
+              setSelectedDirectThread(null);
+              setSelectedBooking(conversation.booking);
               setBookingMessages([]);
               setBookingMessagesError('');
+              await loadBookingMessages(conversation.booking, currentUser);
               setView('booking_messages');
             }}
           />
@@ -1598,6 +1896,23 @@ export default function App() {
             onBack={() => setView(messageOriginView)}
             onRefresh={() => loadBookingMessages(selectedBooking, currentUser)}
             onSend={handleSendBookingMessage}
+          />
+        ) : view === 'direct_messages' && selectedDirectThread ? (
+          <DirectMessagesScreen
+            thread={selectedDirectThread}
+            currentUser={currentUser}
+            messages={directMessages}
+            loading={directMessagesLoading}
+            errorMessage={directMessagesError}
+            draft={messageDrafts[`direct-${selectedDirectThread.direct_user_id}`] || ''}
+            sending={sendingMessage}
+            onDraftChange={(value) => setMessageDrafts((previousDrafts) => ({
+              ...previousDrafts,
+              [`direct-${selectedDirectThread.direct_user_id}`]: value,
+            }))}
+            onBack={() => setView(messageOriginView)}
+            onRefresh={() => loadDirectMessages(selectedDirectThread, currentUser)}
+            onSend={handleSendDirectMessage}
           />
         ) : currentUser ? (
           <AuthenticatedHome
