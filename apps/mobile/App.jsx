@@ -938,7 +938,177 @@ function MessagesInboxScreen({ conversations, loading, errorMessage, onBack, onR
   );
 }
 
-function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onOpenMessages, onSignOut }) {
+function AdminOperationsScreen({
+  overview,
+  weekly,
+  cases,
+  disputes,
+  expiring,
+  loading,
+  errorMessage,
+  inviteEmail,
+  inviteScope,
+  inviteHours,
+  inviteSubmitting,
+  inviteError,
+  onInviteEmailChange,
+  onInviteScopeChange,
+  onInviteHoursChange,
+  onBack,
+  onRefresh,
+  onCreateInvite,
+}) {
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Admin Operations</Text>
+        <Text style={styles.signInTitleDark}>Native ops command surface</Text>
+        <Text style={styles.signInSubtitleDark}>Monitor platform health, outstanding admin work, and send invites without dropping back to the web dashboard.</Text>
+
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+          <Text style={styles.inlineActionButtonText}>Refresh operations</Text>
+        </Pressable>
+
+        {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading admin operations...</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.statsGrid}>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Accounts</Text>
+                <Text style={styles.statValue}>{overview?.users?.total_accounts || 0}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Open Cases</Text>
+                <Text style={styles.statValue}>{overview?.operations?.open_cases || 0}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Open Disputes</Text>
+                <Text style={styles.statValue}>{overview?.operations?.open_disputes || 0}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Deletion Requests</Text>
+                <Text style={styles.statValue}>{overview?.operations?.pending_deletion_requests || 0}</Text>
+              </View>
+            </View>
+
+            <View style={styles.featureGrid}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Weekly activity</Text>
+                <Text style={styles.cardCopy}>New profiles: {weekly?.current_week?.new_profiles || 0}</Text>
+                <Text style={styles.cardCopy}>New bookings: {weekly?.current_week?.new_bookings || 0}</Text>
+                <Text style={styles.cardCopy}>Completed bookings: {weekly?.current_week?.completed_bookings || 0}</Text>
+                <Text style={styles.cardCopy}>Admin actions: {weekly?.current_week?.admin_actions || 0}</Text>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Reliability</Text>
+                <Text style={styles.cardCopy}>Auth events 24h: {overview?.reliability?.auth_events_24h || 0}</Text>
+                <Text style={styles.cardCopy}>Email failures 24h: {overview?.reliability?.email_failures_24h || 0}</Text>
+                <Text style={styles.cardCopy}>Expiring background checks: {overview?.operations?.expiring_background_checks_30d || 0}</Text>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Create admin invite</Text>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Email</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    onChangeText={onInviteEmailChange}
+                    placeholder="admin@example.com"
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={inviteEmail}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Scope</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    onChangeText={onInviteScopeChange}
+                    placeholder="support"
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={inviteScope}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Expires in hours</Text>
+                  <TextInput
+                    keyboardType="number-pad"
+                    onChangeText={onInviteHoursChange}
+                    placeholder="72"
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={inviteHours}
+                  />
+                </View>
+
+                {inviteError ? <Text style={styles.errorTextLight}>{inviteError}</Text> : null}
+
+                <Pressable
+                  disabled={inviteSubmitting}
+                  onPress={onCreateInvite}
+                  style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || inviteSubmitting) && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.actionTitle}>Send admin invite</Text>
+                  <Text style={styles.actionBody}>Issue an invitation using the live admin ops endpoint.</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Recent cases</Text>
+                {cases.length > 0 ? cases.slice(0, 4).map((item) => (
+                  <View key={item.id} style={styles.compactListRow}>
+                    <Text style={styles.compactListTitle}>{item.title}</Text>
+                    <Text style={styles.compactListMeta}>{item.status} • {item.priority}</Text>
+                  </View>
+                )) : <Text style={styles.cardCopy}>No cases available.</Text>}
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Recent disputes</Text>
+                {disputes.length > 0 ? disputes.slice(0, 4).map((item) => (
+                  <View key={item.id} style={styles.compactListRow}>
+                    <Text style={styles.compactListTitle}>{item.reason || 'Booking dispute'}</Text>
+                    <Text style={styles.compactListMeta}>{item.status} {item.booking_id ? `• ${item.booking_id.slice(0, 8)}` : ''}</Text>
+                  </View>
+                )) : <Text style={styles.cardCopy}>No disputes available.</Text>}
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Compliance expiring</Text>
+                {expiring.length > 0 ? expiring.slice(0, 4).map((item) => (
+                  <View key={item.id} style={styles.compactListRow}>
+                    <Text style={styles.compactListTitle}>{item.full_name || item.email || 'Coach'}</Text>
+                    <Text style={styles.compactListMeta}>{formatFullDateTime(item.background_check_expires_at)}</Text>
+                  </View>
+                )) : <Text style={styles.cardCopy}>No expiring compliance records.</Text>}
+              </View>
+            </View>
+          </>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onOpenMessages, onOpenAdminOperations, onSignOut }) {
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
   const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
   const resolvedDashboard = dashboard || buildDashboardState(accountType, {});
@@ -1028,6 +1198,16 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
         )}
 
         <View style={styles.actionGroupSignedIn}>
+          {accountType === 'admin' ? (
+            <Pressable
+              onPress={onOpenAdminOperations}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Open admin operations</Text>
+              <Text style={styles.actionBody}>Review ops metrics, cases, disputes, compliance, and invites in the app.</Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
             onPress={onOpenMessages}
             style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
@@ -1193,6 +1373,18 @@ export default function App() {
   const [bookingActionError, setBookingActionError] = useState('');
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
+  const [adminOpsLoading, setAdminOpsLoading] = useState(false);
+  const [adminOpsError, setAdminOpsError] = useState('');
+  const [adminOpsOverview, setAdminOpsOverview] = useState(null);
+  const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
+  const [adminOpsCases, setAdminOpsCases] = useState([]);
+  const [adminOpsDisputes, setAdminOpsDisputes] = useState([]);
+  const [adminOpsExpiring, setAdminOpsExpiring] = useState([]);
+  const [adminInviteEmail, setAdminInviteEmail] = useState('');
+  const [adminInviteScope, setAdminInviteScope] = useState('support');
+  const [adminInviteHours, setAdminInviteHours] = useState('72');
+  const [adminInviteSubmitting, setAdminInviteSubmitting] = useState(false);
+  const [adminInviteError, setAdminInviteError] = useState('');
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -1420,6 +1612,41 @@ export default function App() {
     }
   };
 
+  const loadAdminOperations = async (nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
+      setAdminOpsOverview(null);
+      setAdminOpsWeekly(null);
+      setAdminOpsCases([]);
+      setAdminOpsDisputes([]);
+      setAdminOpsExpiring([]);
+      setAdminOpsError('');
+      return;
+    }
+
+    setAdminOpsLoading(true);
+    setAdminOpsError('');
+
+    try {
+      const [overview, weekly, casesResponse, disputesResponse, expiringResponse] = await Promise.all([
+        mobileApi.getAdminOpsOverview(),
+        mobileApi.getWeeklyOpsReport(),
+        mobileApi.listAdminCases({ include_total: 1, limit: 5, offset: 0 }),
+        mobileApi.listBookingDisputes({ include_total: 1, limit: 5, offset: 0 }),
+        mobileApi.listComplianceExpiring({ include_total: 1, limit: 5, offset: 0, days: 30 }),
+      ]);
+
+      setAdminOpsOverview(overview || null);
+      setAdminOpsWeekly(weekly || null);
+      setAdminOpsCases(casesResponse?.data || []);
+      setAdminOpsDisputes(disputesResponse?.data || []);
+      setAdminOpsExpiring(expiringResponse?.data || []);
+    } catch (error) {
+      setAdminOpsError(error?.message || 'Unable to load admin operations.');
+    } finally {
+      setAdminOpsLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -1548,12 +1775,15 @@ export default function App() {
     setCurrentUser(null);
     setDashboard(null);
     setDashboardError('');
+    setAdminOpsOverview(null);
+    setAdminOpsWeekly(null);
+    setAdminOpsCases([]);
+    setAdminOpsDisputes([]);
+    setAdminOpsExpiring([]);
+    setAdminOpsError('');
     setBookingsViewItems([]);
     setBookingsViewError('');
     setSelectedBooking(null);
-    setSelectedDirectThread(null);
-    setDirectMessages([]);
-    setDirectMessagesError('');
     setSelectedDirectThread(null);
     setDirectMessages([]);
     setDirectMessagesError('');
@@ -1561,10 +1791,12 @@ export default function App() {
     setBookingMessagesError('');
     setMessageConversations([]);
     setMessageConversationsError('');
-    setMessageConversations([]);
-    setMessageConversationsError('');
     setMessageDrafts({});
     setRecipientForAdmin('client');
+    setAdminInviteEmail('');
+    setAdminInviteScope('support');
+    setAdminInviteHours('72');
+    setAdminInviteError('');
     setView('home');
   };
 
@@ -1666,6 +1898,34 @@ export default function App() {
       setDirectMessagesError(`${error?.message || 'Unable to send message.'} Draft kept on this device.`);
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  const handleCreateAdminInvite = async () => {
+    const safeEmail = String(adminInviteEmail || '').trim().toLowerCase();
+    const safeScope = String(adminInviteScope || '').trim() || 'support';
+    const safeHours = Number(adminInviteHours || 72);
+
+    if (!safeEmail) {
+      setAdminInviteError('Admin invite email is required.');
+      return;
+    }
+
+    setAdminInviteSubmitting(true);
+    setAdminInviteError('');
+
+    try {
+      await mobileApi.createAdminInvite({
+        email: safeEmail,
+        admin_scope: safeScope,
+        expires_in_hours: Number.isFinite(safeHours) ? safeHours : 72,
+      });
+      setAdminInviteEmail('');
+      await loadAdminOperations(currentUser, profile);
+    } catch (error) {
+      setAdminInviteError(error?.message || 'Unable to create admin invite.');
+    } finally {
+      setAdminInviteSubmitting(false);
     }
   };
 
@@ -1844,6 +2104,27 @@ export default function App() {
               setView('booking_messages');
             }}
           />
+        ) : view === 'admin_operations' ? (
+          <AdminOperationsScreen
+            overview={adminOpsOverview}
+            weekly={adminOpsWeekly}
+            cases={adminOpsCases}
+            disputes={adminOpsDisputes}
+            expiring={adminOpsExpiring}
+            loading={adminOpsLoading}
+            errorMessage={adminOpsError}
+            inviteEmail={adminInviteEmail}
+            inviteScope={adminInviteScope}
+            inviteHours={adminInviteHours}
+            inviteSubmitting={adminInviteSubmitting}
+            inviteError={adminInviteError}
+            onInviteEmailChange={setAdminInviteEmail}
+            onInviteScopeChange={setAdminInviteScope}
+            onInviteHoursChange={setAdminInviteHours}
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminOperations(currentUser, profile)}
+            onCreateInvite={handleCreateAdminInvite}
+          />
         ) : view === 'booking_detail' && selectedBooking ? (
           <BookingDetailScreen
             booking={selectedBooking}
@@ -1926,6 +2207,10 @@ export default function App() {
             onOpenMessages={async () => {
               await loadMessageConversations(currentUser, profile);
               setView('messages_inbox');
+            }}
+            onOpenAdminOperations={async () => {
+              await loadAdminOperations(currentUser, profile);
+              setView('admin_operations');
             }}
             onOpenBookings={async () => {
               await loadBookingsView(currentUser, profile);
@@ -2606,5 +2891,22 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 15,
     lineHeight: 22,
+  },
+  compactListRow: {
+    borderBottomColor: '#1e293b',
+    borderBottomWidth: 1,
+    paddingVertical: 10,
+  },
+  compactListTitle: {
+    color: '#f8fafc',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  compactListMeta: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
   },
 });
