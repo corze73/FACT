@@ -54,6 +54,26 @@ const featureCards = [
   },
 ];
 
+const coachingTypes = [
+  { value: 'striker', label: 'Striker & Finishing' },
+  { value: 'midfield', label: 'Midfield & Playmaking' },
+  { value: 'defense', label: 'Defense & Tackling' },
+  { value: 'goalkeeping', label: 'Goalkeeping' },
+  { value: 'fitness_conditioning', label: 'Fitness & Conditioning' },
+  { value: 'tactical_analysis', label: 'Tactical Analysis' },
+];
+
+const ageGroups = [
+  { value: 'under_8', label: 'Under 8s' },
+  { value: 'under_10', label: 'Under 10s' },
+  { value: 'under_12', label: 'Under 12s' },
+  { value: 'under_14', label: 'Under 14s' },
+  { value: 'under_16', label: 'Under 16s' },
+  { value: 'under_18', label: 'Under 18s' },
+  { value: 'adults', label: 'Adults (18+)' },
+  { value: 'seniors', label: 'Seniors (35+)' },
+];
+
 async function openHref(href) {
   const supported = await Linking.canOpenURL(href);
   if (!supported) {
@@ -250,6 +270,20 @@ function buildAvailabilityForm(record = null) {
     isAvailable: record?.is_available !== false,
     locationOverride: record?.location_override || '',
     notes: record?.notes || '',
+  };
+}
+
+function buildCoachProfileForm(source) {
+  return {
+    full_name: source?.full_name || '',
+    phone: source?.phone || '',
+    country: source?.country || '',
+    city: source?.city || '',
+    location: source?.location?.address || source?.location || '',
+    bio: source?.bio || '',
+    hourly_rate: String(source?.coach_profile?.hourly_rate ?? 50),
+    services_offered: Array.isArray(source?.coach_profile?.services_offered) ? source.coach_profile.services_offered : [],
+    age_groups: Array.isArray(source?.coach_profile?.age_groups) ? source.coach_profile.age_groups : [],
   };
 }
 
@@ -1167,17 +1201,23 @@ function AdminOperationsScreen({
 
 function CoachOperationsScreen({
   profile,
+  profileForm,
   complianceForm,
   availability,
   availabilityForm,
   loading,
   errorMessage,
+  profileSubmitting,
+  profileError,
   complianceSubmitting,
   complianceError,
   availabilitySubmitting,
   availabilityError,
   onBack,
   onRefresh,
+  onProfileChange,
+  onProfileToggle,
+  onSaveProfile,
   onComplianceChange,
   onAvailabilityFormChange,
   onSaveCompliance,
@@ -1237,6 +1277,144 @@ function CoachOperationsScreen({
             </View>
 
             <View style={styles.featureGrid}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Public coach profile</Text>
+
+                <View style={styles.dualInputRow}>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>Full name</Text>
+                    <TextInput
+                      onChangeText={(value) => onProfileChange('full_name', value)}
+                      placeholder="Coach name"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={profileForm.full_name}
+                    />
+                  </View>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>Phone</Text>
+                    <TextInput
+                      onChangeText={(value) => onProfileChange('phone', value)}
+                      placeholder="+44..."
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={profileForm.phone}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.dualInputRow}>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>Country</Text>
+                    <TextInput
+                      onChangeText={(value) => onProfileChange('country', value)}
+                      placeholder="Country"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={profileForm.country}
+                    />
+                  </View>
+                  <View style={styles.dualInputColumn}>
+                    <Text style={styles.inputLabelLight}>City</Text>
+                    <TextInput
+                      onChangeText={(value) => onProfileChange('city', value)}
+                      placeholder="City"
+                      placeholderTextColor="#64748b"
+                      style={styles.inputDark}
+                      value={profileForm.city}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Address</Text>
+                  <TextInput
+                    onChangeText={(value) => onProfileChange('location', value)}
+                    placeholder="Full address or base training location"
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={profileForm.location}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Public bio</Text>
+                  <TextInput
+                    multiline={true}
+                    onChangeText={(value) => onProfileChange('bio', value)}
+                    placeholder="Describe your coaching background and approach"
+                    placeholderTextColor="#64748b"
+                    style={[styles.inputDark, styles.notesInput]}
+                    value={profileForm.bio}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Hourly rate (£)</Text>
+                  <TextInput
+                    keyboardType="number-pad"
+                    onChangeText={(value) => onProfileChange('hourly_rate', value)}
+                    placeholder="50"
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={profileForm.hourly_rate}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Services offered</Text>
+                  <View style={styles.chipGrid}>
+                    {coachingTypes.map((item) => (
+                      <Pressable
+                        key={item.value}
+                        onPress={() => onProfileToggle('services_offered', item.value)}
+                        style={[
+                          styles.selectionChip,
+                          profileForm.services_offered.includes(item.value) && styles.selectionChipActive,
+                        ]}
+                      >
+                        <Text style={[
+                          styles.selectionChipText,
+                          profileForm.services_offered.includes(item.value) && styles.selectionChipTextActive,
+                        ]}>{item.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Age groups coached</Text>
+                  <View style={styles.chipGrid}>
+                    {ageGroups.map((item) => (
+                      <Pressable
+                        key={item.value}
+                        onPress={() => onProfileToggle('age_groups', item.value)}
+                        style={[
+                          styles.selectionChip,
+                          profileForm.age_groups.includes(item.value) && styles.selectionChipActive,
+                        ]}
+                      >
+                        <Text style={[
+                          styles.selectionChipText,
+                          profileForm.age_groups.includes(item.value) && styles.selectionChipTextActive,
+                        ]}>{item.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+
+                {profileError ? <Text style={styles.errorTextLight}>{profileError}</Text> : null}
+
+                <Pressable
+                  disabled={profileSubmitting}
+                  onPress={onSaveProfile}
+                  style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || profileSubmitting) && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.actionTitle}>Save public profile</Text>
+                  <Text style={styles.actionBody}>Update the same coach profile fields used by the web profile editor.</Text>
+                </Pressable>
+              </View>
+
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Compliance snapshot</Text>
                 <Text style={styles.cardCopy}>Qualification status: {qualificationStatus}</Text>
@@ -1742,6 +1920,9 @@ export default function App() {
   const [adminInviteError, setAdminInviteError] = useState('');
   const [coachOpsLoading, setCoachOpsLoading] = useState(false);
   const [coachOpsError, setCoachOpsError] = useState('');
+  const [coachProfileForm, setCoachProfileForm] = useState(buildCoachProfileForm(null));
+  const [coachProfileSubmitting, setCoachProfileSubmitting] = useState(false);
+  const [coachProfileError, setCoachProfileError] = useState('');
   const [coachComplianceForm, setCoachComplianceForm] = useState(buildCoachComplianceForm(null));
   const [coachComplianceSubmitting, setCoachComplianceSubmitting] = useState(false);
   const [coachComplianceError, setCoachComplianceError] = useState('');
@@ -2029,8 +2210,10 @@ export default function App() {
 
       const availabilityItems = Array.isArray(availabilityResponse) ? availabilityResponse : [];
       setProfile(nextCoachProfile);
+      setCoachProfileForm(buildCoachProfileForm(nextCoachProfile));
       setCoachComplianceForm(buildCoachComplianceForm(nextCoachProfile));
       setCoachAvailability(availabilityItems);
+      setCoachProfileError('');
       setCoachAvailabilityError('');
       setCoachComplianceError('');
       setCoachAvailabilityForm(buildAvailabilityForm());
@@ -2193,12 +2376,86 @@ export default function App() {
     setAdminInviteHours('72');
     setAdminInviteError('');
     setCoachOpsError('');
+    setCoachProfileError('');
+    setCoachProfileForm(buildCoachProfileForm(null));
     setCoachComplianceError('');
     setCoachComplianceForm(buildCoachComplianceForm(null));
     setCoachAvailabilityError('');
     setCoachAvailability([]);
     setCoachAvailabilityForm(buildAvailabilityForm());
     setView('home');
+  };
+
+  const handleCoachProfileChange = (field, value) => {
+    setCoachProfileForm((previousForm) => ({
+      ...previousForm,
+      [field]: value,
+    }));
+  };
+
+  const handleCoachProfileToggle = (field, value) => {
+    setCoachProfileForm((previousForm) => {
+      const currentValues = Array.isArray(previousForm[field]) ? previousForm[field] : [];
+      const nextValues = currentValues.includes(value)
+        ? currentValues.filter((item) => item !== value)
+        : [...currentValues, value];
+
+      return {
+        ...previousForm,
+        [field]: nextValues,
+      };
+    });
+  };
+
+  const handleSaveCoachProfile = async () => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    const safeCountry = String(coachProfileForm.country || '').trim();
+    const safeCity = String(coachProfileForm.city || '').trim();
+    const safeRate = Number(coachProfileForm.hourly_rate || 0);
+
+    if (!safeCountry || !safeCity) {
+      setCoachProfileError('Country and city are required for coach profiles.');
+      return;
+    }
+
+    if (!Number.isFinite(safeRate) || safeRate <= 0) {
+      setCoachProfileError('Hourly rate must be a valid number greater than zero.');
+      return;
+    }
+
+    setCoachProfileSubmitting(true);
+    setCoachProfileError('');
+
+    try {
+      const updated = await mobileApi.updateUser(currentUser.id, {
+        full_name: coachProfileForm.full_name,
+        phone: coachProfileForm.phone || null,
+        location: coachProfileForm.location || null,
+        country: safeCountry,
+        city: safeCity,
+        bio: coachProfileForm.bio || null,
+        coach_profile: {
+          hourly_rate: safeRate,
+          services_offered: coachProfileForm.services_offered,
+          age_groups: coachProfileForm.age_groups,
+        },
+      });
+
+      const mergedProfile = {
+        ...(profile || {}),
+        ...(updated || {}),
+      };
+      setProfile(mergedProfile);
+      setCoachProfileForm(buildCoachProfileForm(mergedProfile));
+      await loadDashboard(currentUser, mergedProfile);
+    } catch (error) {
+      setCoachProfileError(error?.message || 'Unable to update coach profile.');
+    } finally {
+      setCoachProfileSubmitting(false);
+    }
   };
 
   const handleComplianceChange = (field, value) => {
@@ -2662,17 +2919,23 @@ export default function App() {
         ) : view === 'coach_operations' ? (
           <CoachOperationsScreen
             profile={profile}
+            profileForm={coachProfileForm}
             complianceForm={coachComplianceForm}
             availability={coachAvailability}
             availabilityForm={coachAvailabilityForm}
             loading={coachOpsLoading}
             errorMessage={coachOpsError}
+            profileSubmitting={coachProfileSubmitting}
+            profileError={coachProfileError}
             complianceSubmitting={coachComplianceSubmitting}
             complianceError={coachComplianceError}
             availabilitySubmitting={coachAvailabilitySubmitting}
             availabilityError={coachAvailabilityError}
             onBack={() => setView('account')}
             onRefresh={() => loadCoachOperations(currentUser, profile)}
+            onProfileChange={handleCoachProfileChange}
+            onProfileToggle={handleCoachProfileToggle}
+            onSaveProfile={handleSaveCoachProfile}
             onComplianceChange={handleComplianceChange}
             onAvailabilityFormChange={handleAvailabilityFormChange}
             onSaveCompliance={handleSaveCompliance}
@@ -3410,6 +3673,31 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     padding: 16,
+  },
+  chipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  selectionChip: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  selectionChipActive: {
+    backgroundColor: '#1d4ed8',
+    borderColor: '#60a5fa',
+  },
+  selectionChipText: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  selectionChipTextActive: {
+    color: '#f8fafc',
   },
   unreadDot: {
     backgroundColor: '#ef4444',
