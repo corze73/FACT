@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "FACT Mobile",
+    "slug": "fact-mobile",
+    "scheme": "fact",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.findacoachtoday.mobile"
+    },
+    "android": {
+      "package": "com.findacoachtoday.mobile"
+    },
+    "plugins": [],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

@@ -433,6 +433,7 @@
   "scripts": {
     "dev": "npx netlify dev",
     "dev:web": "vite --config apps/web/vite.config.js --port 5173 --strictPort",
+    "dev:mobile": "npm run dev -w @fact/mobile",
     "dev:vite": "npm run dev:web",
     "check-env": "node check-env.js",
     "check-env:ci": "node check-env.js --ci",
@@ -481,6 +482,12 @@
     "qs": "^6.15.0",
     "tar": "^7.5.9",
     "fast-redact": "^3.5.1",
-    "pino": "^9.12.0"
+    "pino": "^9.12.0",
+    "@expo/vector-icons": "14.0.3",
+    "react-native": "0.74.5",
+    "expo": {
+      "@expo/vector-icons": "14.0.3",
+      "react-native": "0.74.5"
+    }
   }
 }

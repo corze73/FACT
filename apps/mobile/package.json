@@ -1,0 +1,24 @@
+{
+  "name": "@fact/mobile",
+  "private": true,
+  "version": "0.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@fact/api": "0.0.0",
+    "@fact/auth": "0.0.0",
+    "@fact/config": "0.0.0",
+    "@fact/domain": "0.0.0",
+    "@fact/types": "0.0.0",
+    "@expo/vector-icons": "^14.0.3",
+    "expo": "~51.0.39",
+    "expo-status-bar": "~1.12.1",
+    "react": "^18.2.0",
+    "react-native": "^0.74.5"
+  },
+  "scripts": {
+    "dev": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "web": "expo start --web"
+  }
+}
