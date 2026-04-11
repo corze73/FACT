@@ -1,17 +1,21 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   ImageBackground,
+  KeyboardAvoidingView,
   Linking,
   Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
+  TextInput,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeUserType } from '@fact/domain';
+import { getCurrentProfile, mobileAuth, signInWithEmail, signOut } from './src/lib/mobileAuth';
 
 const factIcon = require('./assets/icon.png');
 
@@ -24,8 +28,7 @@ const primaryActions = [
   },
   {
     label: 'Sign In',
-    description: 'Access bookings, messages, and your dashboard.',
-    href: 'https://findacoachtoday.com/login',
+    description: 'Use your FACT email and password directly in the app.',
     variant: 'secondary',
   },
   {
@@ -60,11 +63,272 @@ async function openHref(href) {
   await Linking.openURL(href);
 }
 
+function AuthenticatedHome({ currentUser, profile, loadingProfile, onSignOut }) {
+  const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
+  const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
+  const isAdmin = accountType === 'admin';
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1600&q=80' }}
+        style={styles.hero}
+        imageStyle={styles.heroImage}
+      >
+        <View style={styles.heroOverlay}>
+          <View style={styles.brandRow}>
+            <Image source={factIcon} style={styles.logo} />
+            <Text style={styles.brandText}>FACT Mobile</Text>
+          </View>
+
+          <Text style={styles.eyebrow}>Native session active</Text>
+          <Text style={styles.title}>Welcome back, {displayName}.</Text>
+          <Text style={styles.subtitle}>
+            You are signed in as {accountType}. Native login is working; the remaining product areas can move over screen by screen.
+          </Text>
+        </View>
+      </ImageBackground>
+
+      <View style={styles.content}>
+        <View style={styles.featureGrid}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Account</Text>
+            <Text style={styles.cardCopy}>{currentUser?.email}</Text>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Role</Text>
+            <Text style={styles.cardCopy}>{accountType}</Text>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Profile status</Text>
+            <Text style={styles.cardCopy}>{loadingProfile ? 'Refreshing profile...' : 'Signed in on device'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.actionGroupSignedIn}>
+          <Pressable
+            onPress={() => openHref(isAdmin ? 'https://findacoachtoday.com/admindashboard' : 'https://findacoachtoday.com/mybookings')}
+            style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={styles.actionTitle}>Open {isAdmin ? 'Admin Dashboard' : 'My Bookings'}</Text>
+            <Text style={styles.actionBody}>Use the web dashboard for the areas that have not been migrated yet.</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => openHref('https://findacoachtoday.com/findcoaches')}
+            style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Browse coaches</Text>
+            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Keep exploring coaches while the native experience expands.</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onSignOut}
+            style={({ pressed }) => [styles.actionButton, styles.actionButtonGhost, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={[styles.actionTitle, styles.actionTitleGhost]}>Sign out</Text>
+            <Text style={[styles.actionBody, styles.actionBodyGhost]}>Clear the local session on this device.</Text>
+          </Pressable>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function SignInScreen({ email, password, errorMessage, submitting, onEmailChange, onPasswordChange, onBack, onSubmit }) {
+  return (
+    <KeyboardAvoidingView behavior="padding" style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.signInHeader}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+          <View style={styles.brandRowCompact}>
+            <Image source={factIcon} style={styles.logoCompact} />
+            <Text style={styles.brandText}>FACT Mobile</Text>
+          </View>
+        </View>
+
+        <View style={styles.signInCard}>
+          <Text style={styles.sectionEyebrow}>Sign In</Text>
+          <Text style={styles.signInTitle}>Use your FACT account directly in the app</Text>
+          <Text style={styles.signInSubtitle}>
+            This removes the Safari handoff for email login and keeps the session inside FACT Mobile.
+          </Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Email address</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              onChangeText={onEmailChange}
+              placeholder="support@findacoachtoday.com"
+              placeholderTextColor="#64748b"
+              style={styles.input}
+              value={email}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Password</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoComplete="password"
+              onChangeText={onPasswordChange}
+              placeholder="Enter your password"
+              placeholderTextColor="#64748b"
+              secureTextEntry={true}
+              style={styles.input}
+              value={password}
+            />
+          </View>
+
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+          <Pressable
+            disabled={submitting}
+            onPress={onSubmit}
+            style={({ pressed }) => [
+              styles.submitButton,
+              (pressed || submitting) && styles.actionButtonPressed,
+            ]}
+          >
+            {submitting ? <ActivityIndicator color="#08111f" /> : <Text style={styles.submitButtonText}>Sign In</Text>}
+          </Pressable>
+
+          <Pressable onPress={() => openHref('https://findacoachtoday.com/forgotpassword')} style={styles.secondaryLinkButton}>
+            <Text style={styles.secondaryLinkText}>Forgot password?</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [bootstrapping, setBootstrapping] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [view, setView] = useState('home');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrate = async () => {
+      try {
+        await mobileAuth.init();
+        if (!active) return;
+        const storedUser = mobileAuth.currentUser;
+        setCurrentUser(storedUser);
+        setView(storedUser ? 'account' : 'home');
+
+        if (storedUser?.id) {
+          setProfileLoading(true);
+          try {
+            const nextProfile = await getCurrentProfile();
+            if (active) setProfile(nextProfile);
+          } catch {
+            if (active) setProfile(null);
+          } finally {
+            if (active) setProfileLoading(false);
+          }
+        }
+      } finally {
+        if (active) setBootstrapping(false);
+      }
+    };
+
+    hydrate();
+
+    const unsubscribe = mobileAuth.onAuthStateChange((nextUser) => {
+      if (!active) return;
+      setCurrentUser(nextUser);
+      setView(nextUser ? 'account' : 'home');
+      if (!nextUser) {
+        setProfile(null);
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleSignIn = async () => {
+    setErrorMessage('');
+    setSubmitting(true);
+    try {
+      const signedInUser = await signInWithEmail(email, password);
+      setCurrentUser(signedInUser);
+      setView('account');
+      setPassword('');
+      setProfileLoading(true);
+      try {
+        const nextProfile = await getCurrentProfile();
+        setProfile(nextProfile);
+      } finally {
+        setProfileLoading(false);
+      }
+    } catch (error) {
+      setErrorMessage(error?.message || 'Unable to sign in.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setEmail('');
+    setPassword('');
+    setErrorMessage('');
+    setProfile(null);
+    setCurrentUser(null);
+    setView('home');
+  };
+
+  if (bootstrapping) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+          <View style={styles.loadingScreen}>
+            <ActivityIndicator size="large" color="#f59e0b" />
+            <Text style={styles.loadingText}>Loading FACT Mobile</Text>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <StatusBar barStyle="light-content" />
+        {view === 'sign_in' ? (
+          <SignInScreen
+            email={email}
+            password={password}
+            errorMessage={errorMessage}
+            submitting={submitting}
+            onEmailChange={setEmail}
+            onPasswordChange={setPassword}
+            onBack={() => setView('home')}
+            onSubmit={handleSignIn}
+          />
+        ) : currentUser ? (
+          <AuthenticatedHome
+            currentUser={currentUser}
+            profile={profile}
+            loadingProfile={profileLoading}
+            onSignOut={handleSignOut}
+          />
+        ) : (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <ImageBackground
             source={{ uri: 'https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1600&q=80' }}
@@ -90,7 +354,20 @@ export default function App() {
               {primaryActions.map((action) => (
                 <Pressable
                   key={action.label}
-                  onPress={() => openHref(action.href)}
+                  onPress={() => {
+                    if (action.label === 'Sign In') {
+                      setErrorMessage('');
+                      setView('sign_in');
+                      return;
+                    }
+
+                    if (action.label === 'Find a Coach') {
+                      openHref('https://findacoachtoday.com/findcoaches');
+                      return;
+                    }
+
+                    openHref('https://findacoachtoday.com/register?type=coach');
+                  }}
                   style={({ pressed }) => [
                     styles.actionButton,
                     action.variant === 'primary' && styles.actionButtonPrimary,
@@ -136,6 +413,7 @@ export default function App() {
             </View>
           </View>
         </ScrollView>
+        )}
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -146,8 +424,118 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#08111f',
   },
+  loadingScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  loadingText: {
+    color: '#f8fafc',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   scrollContent: {
     paddingBottom: 32,
+  },
+  signInScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  signInHeader: {
+    marginBottom: 18,
+  },
+  brandRowCompact: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 18,
+  },
+  logoCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#243041',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  backButtonText: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  signInCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 24,
+    padding: 22,
+    marginTop: 18,
+  },
+  signInTitle: {
+    color: '#08111f',
+    fontSize: 28,
+    fontWeight: '800',
+    lineHeight: 34,
+    marginBottom: 10,
+  },
+  signInSubtitle: {
+    color: '#475569',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 22,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderColor: '#cbd5e1',
+    borderWidth: 1,
+    borderRadius: 16,
+    color: '#0f172a',
+    fontSize: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  errorText: {
+    color: '#b91c1c',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  submitButton: {
+    alignItems: 'center',
+    backgroundColor: '#f59e0b',
+    borderRadius: 16,
+    justifyContent: 'center',
+    minHeight: 54,
+    marginTop: 8,
+  },
+  submitButtonText: {
+    color: '#08111f',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  secondaryLinkButton: {
+    alignSelf: 'center',
+    marginTop: 18,
+  },
+  secondaryLinkText: {
+    color: '#2563eb',
+    fontSize: 15,
+    fontWeight: '600',
   },
   hero: {
     minHeight: 420,
@@ -190,6 +578,10 @@ const styles = StyleSheet.create({
   actionGroup: {
     gap: 14,
     marginTop: -28,
+  },
+  actionGroupSignedIn: {
+    gap: 14,
+    marginTop: 22,
   },
   actionButton: {
     borderRadius: 22,

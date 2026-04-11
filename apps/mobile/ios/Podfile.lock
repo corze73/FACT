@@ -1917,6 +1917,28 @@ PODS:
     - React-utils (= 0.83.4)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.83.4)
+  - RNCAsyncStorage (2.2.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -2004,6 +2026,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 EXTERNAL SOURCES:
@@ -2174,6 +2197,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  RNCAsyncStorage:
+    :path: "../node_modules/@react-native-async-storage/async-storage"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
@@ -2261,6 +2286,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 51f5a00e28b5ee93887a5c8f86928eaed3c690c5
   ReactCommon: f63857ae341c1f73b58bea001071acf306df0225
   ReactNativeDependencies: 516d961c6d2b785cd3a8093067bc12a659f9919e
+  RNCAsyncStorage: e85a99325df9eb0191a6ee2b2a842644c7eb29f4
   Yoga: acd565934addf7423687593ec490bd4491b2a802
 
 PODFILE CHECKSUM: b02d714f8ed9d1519fef6481761d42ceba1e9874
