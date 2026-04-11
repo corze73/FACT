@@ -97,6 +97,29 @@ function formatPrice(value) {
   return Number.isFinite(amount) ? `GBP ${amount}` : 'GBP 0';
 }
 
+function formatRelativeMessageTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMinutes = Math.round(diffMs / 60000);
+  if (diffMinutes < 1) return 'just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 function formatMessageTime(value) {
   if (!value) return 'Now';
   const date = new Date(value);
@@ -144,6 +167,19 @@ function getBookingMessageRecipient(booking, currentUser, recipientForAdmin) {
   }
 
   return { id: booking.coach_id, label: booking.coach_name || 'Coach' };
+}
+
+function getConversationLabel(booking, currentUser) {
+  const accountType = normalizeUserType(currentUser?.user_type || 'client');
+  if (accountType === 'admin') {
+    return `${booking?.client_name || 'Client'} ↔ ${booking?.coach_name || 'Coach'}`;
+  }
+
+  if (currentUser?.id === booking?.coach_id) {
+    return booking?.client_name || 'Client';
+  }
+
+  return booking?.coach_name || 'Coach';
 }
 
 function buildDashboardState(accountType, payload) {
@@ -292,7 +328,12 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
   );
 }
 
-function BookingDetailScreen({ booking, onBack, onOpenMessages }) {
+function BookingDetailScreen({ booking, currentUser, actionLoading, actionError, onBack, onOpenMessages, onConfirmBooking, onCancelBooking, onCompleteBooking }) {
+  const accountType = normalizeUserType(currentUser?.user_type || 'client');
+  const canConfirmBooking = booking.status === 'pending' && (accountType === 'coach' || accountType === 'admin');
+  const canCancelBooking = !['cancelled', 'completed'].includes(booking.status);
+  const canCompleteBooking = booking.status === 'confirmed' || booking.status === 'in_session';
+
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent}>
       <View style={styles.signInHeader}>
@@ -337,7 +378,42 @@ function BookingDetailScreen({ booking, onBack, onOpenMessages }) {
           </View>
         ) : null}
 
+        {actionError ? <Text style={styles.errorTextLight}>{actionError}</Text> : null}
+
         <View style={styles.actionGroupSignedIn}>
+          {canConfirmBooking ? (
+            <Pressable
+              disabled={actionLoading}
+              onPress={onConfirmBooking}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || actionLoading) && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Confirm booking</Text>
+              <Text style={styles.actionBody}>Accept this request and move it into a confirmed session.</Text>
+            </Pressable>
+          ) : null}
+
+          {canCompleteBooking ? (
+            <Pressable
+              disabled={actionLoading}
+              onPress={onCompleteBooking}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || actionLoading) && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Mark completed</Text>
+              <Text style={styles.actionBody}>Update the session status directly from mobile.</Text>
+            </Pressable>
+          ) : null}
+
+          {canCancelBooking ? (
+            <Pressable
+              disabled={actionLoading}
+              onPress={onCancelBooking}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonGhost, (pressed || actionLoading) && styles.actionButtonPressed]}
+            >
+              <Text style={[styles.actionTitle, styles.actionTitleGhost]}>Cancel booking</Text>
+              <Text style={[styles.actionBody, styles.actionBodyGhost]}>Cancel this booking without leaving the app.</Text>
+            </Pressable>
+          ) : null}
+
           <Pressable onPress={onOpenMessages} style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}>
             <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Open native messages</Text>
             <Text style={[styles.actionBody, styles.actionBodySecondary]}>Stay inside the app for the booking conversation.</Text>
@@ -493,7 +569,63 @@ function BookingMessagesScreen({
   );
 }
 
-function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onSignOut }) {
+function MessagesInboxScreen({ conversations, loading, errorMessage, onBack, onRefresh, onOpenConversation }) {
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent}>
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Messages</Text>
+        <Text style={styles.signInTitleDark}>Native inbox</Text>
+        <Text style={styles.signInSubtitleDark}>Open booking conversations directly in the app and drop to the web only for flows that still have not been migrated.</Text>
+
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+          <Text style={styles.inlineActionButtonText}>Refresh inbox</Text>
+        </Pressable>
+
+        {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading conversations...</Text>
+          </View>
+        ) : conversations.length > 0 ? (
+          <View style={styles.bookingListLarge}>
+            {conversations.map((conversation) => (
+              <Pressable
+                key={conversation.booking_id}
+                onPress={() => onOpenConversation(conversation.booking)}
+                style={({ pressed }) => [styles.conversationCard, pressed && styles.actionButtonPressed]}
+              >
+                <View style={styles.conversationHeader}>
+                  <Text style={[styles.bookingTitle, !conversation.is_read && styles.conversationUnreadTitle]}>{conversation.other_user_name}</Text>
+                  <Text style={styles.conversationTime}>{formatRelativeMessageTime(conversation.last_message_date)}</Text>
+                </View>
+                <Text style={styles.bookingMeta}>{formatServiceType(conversation.booking.service_type)} • {formatSessionDate(getBookingDateValue(conversation.booking))}</Text>
+                <Text style={[styles.conversationPreview, !conversation.is_read && styles.conversationPreviewUnread]} numberOfLines={2}>
+                  {conversation.last_message}
+                </Text>
+                {!conversation.is_read ? <View style={styles.unreadDot} /> : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>No messages yet</Text>
+            <Text style={styles.cardCopy}>Your booking conversations will appear here as they start.</Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onOpenMessages, onSignOut }) {
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
   const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
   const resolvedDashboard = dashboard || buildDashboardState(accountType, {});
@@ -583,6 +715,14 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
         )}
 
         <View style={styles.actionGroupSignedIn}>
+          <Pressable
+            onPress={onOpenMessages}
+            style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={styles.actionTitle}>Open native messages</Text>
+            <Text style={styles.actionBody}>Browse booking conversations in the app instead of jumping out to the website.</Text>
+          </Pressable>
+
           <Pressable
             onPress={onOpenBookings}
             style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
@@ -728,6 +868,12 @@ export default function App() {
   const [messageDrafts, setMessageDrafts] = useState({});
   const [sendingMessage, setSendingMessage] = useState(false);
   const [recipientForAdmin, setRecipientForAdmin] = useState('client');
+  const [messageConversations, setMessageConversations] = useState([]);
+  const [messageConversationsLoading, setMessageConversationsLoading] = useState(false);
+  const [messageConversationsError, setMessageConversationsError] = useState('');
+  const [messageOriginView, setMessageOriginView] = useState('booking_detail');
+  const [bookingActionLoading, setBookingActionLoading] = useState(false);
+  const [bookingActionError, setBookingActionError] = useState('');
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -829,6 +975,62 @@ export default function App() {
       setBookingMessagesError(error?.message || 'Unable to load booking messages.');
     } finally {
       setBookingMessagesLoading(false);
+    }
+  };
+
+  const loadMessageConversations = async (nextUser = currentUser, nextProfile = profile) => {
+    if (!nextUser?.id) {
+      setMessageConversations([]);
+      setMessageConversationsError('');
+      return;
+    }
+
+    const accountType = normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client');
+    setMessageConversationsLoading(true);
+    setMessageConversationsError('');
+
+    try {
+      const response = await mobileApi.getBookings(
+        accountType === 'admin'
+          ? { view: 'admin_list', limit: 20, offset: 0, orderBy: '-updated_at' }
+          : {
+              [accountType === 'coach' ? 'coach_id' : 'client_id']: nextUser.id,
+              limit: 20,
+              offset: 0,
+              orderBy: '-updated_at',
+            }
+      );
+
+      const bookings = Array.isArray(response) ? response : response?.data || [];
+      const messageResults = await Promise.allSettled(
+        bookings.map(async (booking) => {
+          const thread = await mobileApi.getMessages(booking.id);
+          const messages = Array.isArray(thread) ? thread : [];
+          const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+
+          return {
+            type: 'booking',
+            booking_id: booking.id,
+            booking,
+            other_user_name: getConversationLabel(booking, nextUser),
+            last_message: lastMessage?.content || 'Start a conversation',
+            last_message_date: lastMessage?.created_date || booking.updated_at || booking.created_at,
+            is_read: lastMessage ? (lastMessage.sender_id === nextUser.id || lastMessage.is_read) : true,
+          };
+        })
+      );
+
+      const conversations = messageResults
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value)
+        .sort((left, right) => new Date(right.last_message_date) - new Date(left.last_message_date));
+
+      setMessageConversations(conversations);
+    } catch (error) {
+      setMessageConversations([]);
+      setMessageConversationsError(error?.message || 'Unable to load messages inbox.');
+    } finally {
+      setMessageConversationsLoading(false);
     }
   };
 
@@ -944,6 +1146,10 @@ export default function App() {
     setSelectedBooking(null);
     setBookingMessages([]);
     setBookingMessagesError('');
+    setMessageConversations([]);
+    setMessageConversationsError('');
+    setMessageConversations([]);
+    setMessageConversationsError('');
     setMessageDrafts({});
     setRecipientForAdmin('client');
     setView('home');
@@ -1001,6 +1207,50 @@ export default function App() {
     }
   };
 
+  const syncUpdatedBooking = (updatedBooking) => {
+    setSelectedBooking(updatedBooking);
+    setBookingsViewItems((previousBookings) => previousBookings.map((booking) => (
+      booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
+    )));
+    setDashboard((previousDashboard) => {
+      if (!previousDashboard?.bookings) return previousDashboard;
+      return {
+        ...previousDashboard,
+        bookings: previousDashboard.bookings.map((booking) => (
+          booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
+        )),
+      };
+    });
+    setMessageConversations((previousConversations) => previousConversations.map((conversation) => (
+      conversation.booking_id === updatedBooking.id
+        ? { ...conversation, booking: { ...conversation.booking, ...updatedBooking } }
+        : conversation
+    )));
+  };
+
+  const performBookingAction = async (payload) => {
+    if (!selectedBooking?.id) {
+      return;
+    }
+
+    setBookingActionLoading(true);
+    setBookingActionError('');
+
+    try {
+      const updatedBooking = await mobileApi.updateBooking(selectedBooking.id, payload);
+      syncUpdatedBooking(updatedBooking);
+      await Promise.allSettled([
+        loadBookingsView(currentUser, profile),
+        loadDashboard(currentUser, profile),
+        loadMessageConversations(currentUser, profile),
+      ]);
+    } catch (error) {
+      setBookingActionError(error?.message || 'Unable to update booking.');
+    } finally {
+      setBookingActionLoading(false);
+    }
+  };
+
   if (bootstrapping) {
     return (
       <SafeAreaProvider>
@@ -1042,11 +1292,33 @@ export default function App() {
               setView('booking_detail');
             }}
           />
+        ) : view === 'messages_inbox' ? (
+          <MessagesInboxScreen
+            conversations={messageConversations}
+            loading={messageConversationsLoading}
+            errorMessage={messageConversationsError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadMessageConversations(currentUser, profile)}
+            onOpenConversation={(booking) => {
+              setSelectedBooking(booking);
+              setMessageOriginView('messages_inbox');
+              setBookingMessages([]);
+              setBookingMessagesError('');
+              setView('booking_messages');
+            }}
+          />
         ) : view === 'booking_detail' && selectedBooking ? (
           <BookingDetailScreen
             booking={selectedBooking}
+            currentUser={currentUser}
+            actionLoading={bookingActionLoading}
+            actionError={bookingActionError}
             onBack={() => setView('bookings')}
+            onConfirmBooking={() => performBookingAction({ accept: true })}
+            onCancelBooking={() => performBookingAction({ cancel: true })}
+            onCompleteBooking={() => performBookingAction({ status: 'completed' })}
             onOpenMessages={async () => {
+              setMessageOriginView('booking_detail');
               setBookingMessages([]);
               setBookingMessagesError('');
               await loadBookingMessages(selectedBooking, currentUser);
@@ -1068,7 +1340,7 @@ export default function App() {
               ...previousDrafts,
               [selectedBooking.id]: value,
             }))}
-            onBack={() => setView('booking_detail')}
+            onBack={() => setView(messageOriginView)}
             onRefresh={() => loadBookingMessages(selectedBooking, currentUser)}
             onSend={handleSendBookingMessage}
           />
@@ -1081,6 +1353,10 @@ export default function App() {
             dashboardError={dashboardError}
             dashboard={dashboard}
             onRefresh={() => loadDashboard(currentUser, profile)}
+            onOpenMessages={async () => {
+              await loadMessageConversations(currentUser, profile);
+              setView('messages_inbox');
+            }}
             onOpenBookings={async () => {
               await loadBookingsView(currentUser, profile);
               setView('bookings');
@@ -1585,6 +1861,49 @@ const styles = StyleSheet.create({
   },
   bookingListLarge: {
     gap: 12,
+  },
+  conversationCard: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 18,
+    position: 'relative',
+  },
+  conversationHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  conversationUnreadTitle: {
+    color: '#ffffff',
+  },
+  conversationTime: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  conversationPreview: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+    paddingRight: 14,
+  },
+  conversationPreviewUnread: {
+    color: '#f8fafc',
+    fontWeight: '700',
+  },
+  unreadDot: {
+    backgroundColor: '#ef4444',
+    borderRadius: 999,
+    height: 10,
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    width: 10,
   },
   messagesList: {
     gap: 10,
