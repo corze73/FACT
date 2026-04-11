@@ -102,6 +102,7 @@ export default function App() {
                   <Text
                     style={[
                       styles.actionTitle,
+                      action.variant === 'secondary' && styles.actionTitleSecondary,
                       action.variant === 'ghost' && styles.actionTitleGhost,
                     ]}
                   >
@@ -110,6 +111,7 @@ export default function App() {
                   <Text
                     style={[
                       styles.actionBody,
+                      action.variant === 'secondary' && styles.actionBodySecondary,
                       action.variant === 'ghost' && styles.actionBodyGhost,
                     ]}
                   >
@@ -183,11 +185,11 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 24,
-    paddingTop: 22,
+    paddingTop: 18,
   },
   actionGroup: {
     gap: 14,
-    marginTop: -56,
+    marginTop: -28,
   },
   actionButton: {
     borderRadius: 22,
@@ -219,11 +221,17 @@ const styles = StyleSheet.create({
   actionTitleGhost: {
     color: '#f8fafc',
   },
+  actionTitleSecondary: {
+    color: '#f8fafc',
+  },
   actionBody: {
     color: 'rgba(8, 17, 31, 0.8)',
     fontSize: 14,
     lineHeight: 20,
     marginTop: 6,
+  },
+  actionBodySecondary: {
+    color: '#dbe4f3',
   },
   actionBodyGhost: {
     color: '#cbd5e1',
