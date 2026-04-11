@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
+import { getStoredCurrentUser } from "@/api/databaseClient.js";
 import { showSuccess, showError } from "@/utils/notifications";
 import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
@@ -64,17 +65,8 @@ export default function Landing() {
     if (next === 'dashboard') {
       (async () => {
         try {
-          // Check localStorage first for cached user data
-          const cachedUser = localStorage.getItem('currentUser');
-          let me = null;
-          
-          if (cachedUser) {
-            try {
-              me = JSON.parse(cachedUser);
-            } catch (e) {
-              console.error('Failed to parse cached user:', e);
-            }
-          }
+          // Check cached session state first to avoid a redirect race immediately after login.
+          let me = await getStoredCurrentUser();
           
           // If no cached data, poll for authentication with exponential backoff
           if (!me) {

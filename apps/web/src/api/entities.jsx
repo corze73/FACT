@@ -1,5 +1,6 @@
 import apiClient from './apiClient';
 import { db, auth, sql } from './databaseClient';
+import { consumeAuthRedirect, signInWithGoogle, storeAuthRedirect } from '@/auth/browserAuth.js';
 import { normalizeUserList, normalizeUserRecord, normalizeUserType } from '@fact/domain';
 const dbAvailable = !!sql && !!db && typeof db.query === 'function';
 
@@ -235,73 +236,7 @@ export const User = {
 
   // Auth functions use Google OAuth + custom auth object
   async login() {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      throw new Error('Google OAuth not configured. Please set VITE_GOOGLE_CLIENT_ID in your .env file.');
-    }
-
-    if (!window.google) {
-      throw new Error('Google Identity Services not loaded. Please refresh the page.');
-    }
-
-    return new Promise((resolve, reject) => {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'email profile openid',
-        callback: async (tokenResponse) => {
-          try {
-            if (tokenResponse.error) {
-              throw new Error(tokenResponse.error);
-            }
-
-            // Get user info from Google
-            const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-            });
-
-            if (!userInfoResponse.ok) {
-              throw new Error('Failed to get user info from Google');
-            }
-
-            const googleUser = await userInfoResponse.json();
-
-            // Call login API function to check if user exists and create if needed
-            try {
-              const profile = await apiClient.createUser({
-                email: googleUser.email,
-                full_name: googleUser.name || '',
-                avatar_url: googleUser.picture || null
-              });
-
-              if (!profile || !profile.id) {
-                // If user already exists (409), try to fetch by email is not possible due to RLS.
-                // Ask user to refresh; subsequent app boot may have id in cache or API will allow GET with known id.
-                throw new Error(profile?.error || 'Profile creation/login did not return a user id');
-              }
-
-              // Set as current user with full profile data + auth token
-              await auth.setCurrentUser({
-                id: profile.id,
-                email: profile.email,
-                full_name: profile.full_name,
-                avatar_url: profile.avatar_url,
-                role: profile.role,
-                user_type: profile.user_type,
-                token: profile.token
-              });
-              resolve({ user: auth.currentUser });
-            } catch (apiError) {
-              console.error('Login API error:', apiError);
-              throw apiError;
-            }
-          } catch (error) {
-            reject(error);
-          }
-        }
-      });
-      
-      client.requestAccessToken();
-    });
+    return signInWithGoogle();
   },
 
   async logout() {
@@ -310,20 +245,12 @@ export const User = {
   },
 
   async loginWithRedirect(redirectUrl) {
-    // Store redirect URL for after login
-    if (redirectUrl) {
-      sessionStorage.setItem('authRedirect', redirectUrl);
-    }
+    storeAuthRedirect(redirectUrl);
     const result = await this.login();
-    try {
-      const target = sessionStorage.getItem('authRedirect');
-      if (target) {
-        sessionStorage.removeItem('authRedirect');
-        // Use a hard navigation to ensure app state (auth + DB context) is fully reloaded
-        window.location.href = target;
-      }
-    } catch {
-      // no-op; fallback to returning normally
+    const target = consumeAuthRedirect();
+    if (target) {
+      // Use a hard navigation to ensure app state (auth + DB context) is fully reloaded
+      window.location.href = target;
     }
     return result;
   },

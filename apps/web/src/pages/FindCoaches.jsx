@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
+import { getStoredCurrentUser } from "@/api/databaseClient.js";
 import { useCoaches } from "@/hooks/useQueries.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,14 +19,7 @@ import BookingModal from "../components/booking/BookingModal";
 
 const COACHES_PER_PAGE = 24;
 
-const getCachedCurrentUser = () => {
-  try {
-    const cachedUser = localStorage.getItem('currentUser');
-    return cachedUser ? JSON.parse(cachedUser) : null;
-  } catch {
-    return null;
-  }
-};
+const getCachedCurrentUser = async () => getStoredCurrentUser();
 
 export default function FindCoaches() {
   const navigate = useNavigate();
@@ -129,7 +123,7 @@ export default function FindCoaches() {
           return;
         }
 
-        const cachedUser = getCachedCurrentUser();
+        const cachedUser = await getCachedCurrentUser();
         if (cachedUser && !isAdminUser(cachedUser)) {
           setCurrentUser(cachedUser);
           devError("FindCoaches auth refresh failed; using cached user state:", error);

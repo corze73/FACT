@@ -4,30 +4,19 @@
  */
 
 import { createFactApiClient } from '@fact/api';
+import { auth, getStoredAuthToken } from './databaseClient.js';
 import { captureFrontendError } from '@/lib/monitoring.js';
 
 const API_BASE = import.meta.env.DEV 
   ? 'http://localhost:8888/.netlify/functions'  // Local dev with Netlify CLI
   : '/.netlify/functions';                       // Production
 
-const getAuthToken = () => {
-  try {
-    return localStorage.getItem('authToken');
-  } catch (error) {
-    console.error('Error reading auth token:', error);
-    return null;
-  }
-};
+const getAuthToken = () => getStoredAuthToken();
 
 const onUnauthorized = async () => {
-  try {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('currentUser');
-    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-      window.location.href = '/';
-    }
-  } catch {
-    // Ignore localStorage/window access failures
+  await auth.setCurrentUser(null);
+  if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+    window.location.href = '/';
   }
 };
 

@@ -9,6 +9,7 @@ import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 import { User, Booking, Message } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
+import { getStoredCurrentUser } from "@/api/databaseClient.js";
 // Toast and auth imports removed as unused
 import {
   Sidebar,
@@ -33,14 +34,7 @@ export default function Layout({ children, currentPageName }) {
     hasUnreadMessages: false
   });
 
-  const getCachedCurrentUser = () => {
-    try {
-      const cachedUser = localStorage.getItem('currentUser');
-      return cachedUser ? JSON.parse(cachedUser) : null;
-    } catch {
-      return null;
-    }
-  };
+  const getCachedCurrentUser = async () => getStoredCurrentUser();
 
   useEffect(() => {
     loadCurrentUser();
@@ -77,7 +71,7 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
 
-      setCurrentUser(getCachedCurrentUser());
+      setCurrentUser(await getCachedCurrentUser());
     }
   };
   

@@ -24,7 +24,7 @@ const defaultShouldCaptureError = (error: { status?: number; message?: string } 
 
 export interface CreateApiClientOptions {
   baseUrl: string;
-  getAuthToken?: () => string | null | undefined;
+  getAuthToken?: () => string | null | undefined | Promise<string | null | undefined>;
   onUnauthorized?: (error: { status?: number; message?: string; details?: unknown }) => void | Promise<void>;
   captureError?: (error: unknown, context: { source: string; endpoint: string; method: string; status?: number }) => void;
   shouldCaptureError?: (error: { status?: number; message?: string } | null | undefined) => boolean;
@@ -32,7 +32,7 @@ export interface CreateApiClientOptions {
 
 export class APIClient {
   private readonly baseUrl: string;
-  private readonly getAuthToken: () => string | null | undefined;
+  private readonly getAuthToken: () => string | null | undefined | Promise<string | null | undefined>;
   private readonly onUnauthorized?: CreateApiClientOptions['onUnauthorized'];
   private readonly captureError?: CreateApiClientOptions['captureError'];
   private readonly shouldCaptureError: NonNullable<CreateApiClientOptions['shouldCaptureError']>;
@@ -59,7 +59,7 @@ export class APIClient {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...((options.headers as Record<string, string>) || {}),
     };
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }

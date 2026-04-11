@@ -5,6 +5,7 @@
     "paths": {
       "@/*": ["apps/web/src/*"],
       "@fact/api": ["packages/api/src/index.ts"],
+      "@fact/auth": ["packages/auth/src/index.ts"],
       "@fact/domain": ["packages/domain/src/index.ts"],
       "@fact/config": ["packages/config/src/index.ts"],
       "@fact/types": ["packages/types/src/index.ts"]

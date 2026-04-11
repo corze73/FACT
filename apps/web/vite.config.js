@@ -27,6 +27,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@fact/api': path.resolve(__dirname, '../../packages/api/src/index.ts'),
+      '@fact/auth': path.resolve(__dirname, '../../packages/auth/src/index.ts'),
       '@fact/domain': path.resolve(__dirname, '../../packages/domain/src/index.ts'),
       '@fact/config': path.resolve(__dirname, '../../packages/config/src/index.ts'),
       '@fact/types': path.resolve(__dirname, '../../packages/types/src/index.ts'),

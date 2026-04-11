@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { createAuthSession, createWebStorageAdapter } from '@fact/auth';
 
 // In production builds, direct client-side DB access is disabled.
 // Always use Netlify Functions via apiClient instead. This module remains for
@@ -136,112 +137,20 @@ export const db = {
   }
 };
 
-const decodeStoredAuthToken = () => {
-  try {
-    const token = localStorage.getItem('authToken');
-    if (!token) return null;
+const browserStorage = createWebStorageAdapter(typeof window !== 'undefined' ? window.localStorage : null);
 
-    const [, payloadSegment] = token.split('.');
-    if (!payloadSegment) return null;
-
-    const normalizedPayload = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(normalizedPayload)
-        .split('')
-        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
-        .join('')
-    );
-    const payload = JSON.parse(json);
-
-    if (!payload?.sub) return null;
-
-    return {
-      id: payload.sub,
-      email: payload.email || null,
-      user_type: payload.user_type || 'client',
-      role: payload.user_type === 'admin' ? 'admin' : 'user'
-    };
-  } catch (error) {
-    console.error('Error decoding stored auth token:', error);
-    return null;
+export const auth = createAuthSession({
+  userStorage: browserStorage,
+  tokenStorage: browserStorage,
+  setUserContext: async (userId) => {
+    if (!sql) return;
+    try {
+      await db.setUserContext(userId);
+    } catch (error) {
+      console.error('Error setting stored user context:', error);
+    }
   }
-};
+});
 
-// Simple auth simulation (custom authentication for Neon)
-export const auth = {
-  currentUser: null,
-  
-  // Initialize auth from localStorage on app start
-  async init() {
-    const storedUser = localStorage.getItem('currentUser');
-    const fallbackUser = storedUser ? null : decodeStoredAuthToken();
-    if (storedUser || fallbackUser) {
-      try {
-        this.currentUser = storedUser ? JSON.parse(storedUser) : fallbackUser;
-        if (!storedUser && fallbackUser) {
-          localStorage.setItem('currentUser', JSON.stringify(fallbackUser));
-        }
-      } catch (error) {
-        console.error('Error loading stored user:', error);
-        localStorage.removeItem('currentUser');
-        return;
-      }
-
-      // Set user context for RLS in dev only. Do not clear the cached session on
-      // transient context/network failures; the API layer remains the source of truth.
-      if (sql) {
-        try {
-          await db.setUserContext(this.currentUser.id);
-        } catch (error) {
-          console.error('Error setting stored user context:', error);
-        }
-      }
-    }
-  },
-  
-  async setCurrentUser(user) {
-    this.currentUser = user;
-    // Persist to localStorage
-    if (user) {
-      const token = user?.token || localStorage.getItem('authToken');
-      const { token: _token, ...safeUser } = user;
-      localStorage.setItem('currentUser', JSON.stringify(safeUser));
-      if (token) {
-        localStorage.setItem('authToken', token);
-      }
-      if (sql) {
-        await db.setUserContext(user.id);
-      }
-    } else {
-      localStorage.removeItem('currentUser');
-      localStorage.removeItem('authToken');
-      if (sql) {
-        await db.setUserContext(null);
-      }
-    }
-  },
-  
-  async getUser() {
-    // Initialize if not already done
-    if (!this.currentUser) {
-      await this.init();
-    }
-    
-    // Return current user only if actually logged in
-    if (this.currentUser) {
-      return {
-        data: { user: this.currentUser },
-        error: null
-      };
-    }
-    return {
-      data: { user: null },
-      error: { message: 'Not authenticated' }
-    };
-  },
-
-  async signOut() {
-    await this.setCurrentUser(null);
-    return { error: null };
-  }
-};
+export const getStoredCurrentUser = async () => auth.getStoredCurrentUser();
+export const getStoredAuthToken = async () => auth.getStoredAuthToken();
