@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
+import { createLoginUrl, createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,8 +8,7 @@ import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { User } from "@/api/entities.jsx";
 import { getStoredCurrentUser } from "@/api/databaseClient.js";
-import { showSuccess, showError } from "@/utils/notifications";
-import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
+import { showSuccess } from "@/utils/notifications";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 
 export default function Landing() {
@@ -29,34 +28,7 @@ export default function Landing() {
     }
   };
   
-  const handleLogin = async () => {
-    try {
-      // After auth, come back to Landing with a flag so we can redirect once
-      await User.loginWithRedirect(window.location.origin + createPageUrl("Landing?next=dashboard"));
-    } catch (error) {
-      console.error("Google login error:", error);
-      showError('Login Failed', error.message || 'Unable to log in.');
-    }
-  };
-
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
-
-  const handleEmailLogin = async (email, password) => {
-    try {
-      const { User } = await import("@/api/entities");
-      await User.signInWithEmail(email, password);
-      
-      // Wait a moment for session to establish, then redirect
-      setTimeout(() => {
-        window.location.href = createPageUrl("Landing?next=dashboard");
-      }, 500);
-    } catch (error) {
-      console.error("Email login failed:", error);
-      // Don't redirect on error - let the modal handle the error display
-      throw error;
-    }
-  };
 
   // Only redirect after a successful login callback (when next=dashboard)
   useEffect(() => {
@@ -186,7 +158,7 @@ export default function Landing() {
             <Button 
               variant="outline" 
               className="bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white"
-              onClick={() => setShowLoginModal(true)}
+              onClick={() => navigate(createLoginUrl())}
             >
               Login
             </Button>
@@ -437,14 +409,6 @@ export default function Landing() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Login Options Modal */}
-      <LoginOptionsModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        onGoogleLogin={handleLogin}
-        onEmailLogin={handleEmailLogin}
-      />
     </div>
   );
 }

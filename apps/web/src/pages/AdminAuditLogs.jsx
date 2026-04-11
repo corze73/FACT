@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
-import { createPageUrl, isAdminUser } from "@/utils";
+import { createLoginUrl, createPageUrl, isAdminUser } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,7 @@ const isAuthFailure = (error) => error?.status === 401 || error?.message?.includ
 
 export default function AdminAuditLogs() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [page, setPage] = useState(1);
   const [action, setAction] = useState("all");
   const [actorId, setActorId] = useState("");
@@ -139,9 +140,9 @@ export default function AdminAuditLogs() {
     if (!currentUserQuery.error) return;
     console.error("Failed to load admin audit user", currentUserQuery.error);
     if (isAuthFailure(currentUserQuery.error)) {
-      navigate(createPageUrl("Login"));
+      navigate(createLoginUrl(location.pathname + location.search));
     }
-  }, [currentUserQuery.error, navigate]);
+  }, [currentUserQuery.error, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!currentUser || isAdminUser(currentUser)) return;

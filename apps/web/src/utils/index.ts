@@ -15,6 +15,16 @@ export function createPageUrl(pageName: string) {
     return '/' + pageName.toLowerCase().replace(/ /g, '-');
 }
 
+export function createLoginUrl(nextPath?: string) {
+    const loginPath = createPageUrl('Login');
+    if (!nextPath) {
+        return loginPath;
+    }
+
+    const params = new URLSearchParams({ next: nextPath });
+    return `${loginPath}?${params.toString()}`;
+}
+
 export {
     normalizeUserType,
     isAdminUser,

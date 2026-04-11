@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { User } from "@/api/entities.jsx";
 import {
+  createLoginUrl,
   createPageUrl,
   isAdminUser,
   getAdminScope,
@@ -10,7 +11,7 @@ import {
   canManageCompliance,
   canExportAuditData
 } from "@/utils";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ const isAuthFailure = (error) => error?.status === 401 || error?.message?.includ
 
 export default function AdminOperations() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [adminSearch, setAdminSearch] = useState("");
   const [adminScopeFilter, setAdminScopeFilter] = useState("all");
   const [promoteTarget, setPromoteTarget] = useState("");
@@ -239,9 +241,9 @@ export default function AdminOperations() {
   useEffect(() => {
     if (!currentUserQuery.error) return;
     if (isAuthFailure(currentUserQuery.error)) {
-      navigate(createPageUrl("Login"));
+      navigate(createLoginUrl(location.pathname + location.search));
     }
-  }, [currentUserQuery.error, navigate]);
+  }, [currentUserQuery.error, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!currentUser || isAdminUser(currentUser)) return;

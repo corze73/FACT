@@ -168,8 +168,8 @@ export default function Layout({ children, currentPageName }) {
     await User.loginWithRedirect(window.location.origin + createPageUrl("Landing?next=dashboard"));
   };
 
-  // Hide layout for full-screen pages like Conversation and Landing (public)
-  if (currentPageName === 'Conversation' || currentPageName === 'Landing') {
+  // Hide layout for full-screen pages like public/auth entry points and conversation.
+  if (currentPageName === 'Conversation' || currentPageName === 'Landing' || currentPageName === 'Login') {
     return children;
   }
 

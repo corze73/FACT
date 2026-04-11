@@ -2,6 +2,8 @@ import Layout from "./Layout.jsx";
 
 import Landing from "./Landing";
 
+import Login from "./Login";
+
 import Register from "./Register";
 
 import FindCoaches from "./FindCoaches";
@@ -48,6 +50,8 @@ import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-route
 const PAGES = {
     
     Landing: Landing,
+
+    Login: Login,
     
     Register: Register,
     
@@ -120,6 +124,9 @@ function PagesContent() {
                 
                 <Route path="/Landing" element={<Landing />} />
                 <Route path="/landing" element={<Landing />} />
+
+                <Route path="/Login" element={<Login />} />
+                <Route path="/login" element={<Login />} />
                 
                 <Route path="/Register" element={<Register />} />
                 <Route path="/register" element={<Register />} />

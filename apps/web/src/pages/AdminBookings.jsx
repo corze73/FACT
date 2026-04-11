@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, CreditCard, ArrowLeft } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { createPageUrl, isAdminUser } from "@/utils";
+import { createLoginUrl, createPageUrl, isAdminUser } from "@/utils";
 import { format, isValid } from "date-fns";
 import { BookingReference, BookingReferenceSearch } from "../components/booking/BookingReference";
 import StripePaymentModal from "@/components/payment/StripePaymentModal.jsx";
@@ -91,9 +91,9 @@ export default function AdminBookings() {
 
     console.error("Error loading admin user:", currentUserQuery.error);
     if (isAuthFailure(currentUserQuery.error)) {
-      navigate(createPageUrl("Login"));
+      navigate(createLoginUrl(location.pathname + location.search));
     }
-  }, [currentUserQuery.error, navigate]);
+  }, [currentUserQuery.error, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!currentUser || isAdminUser(currentUser)) {

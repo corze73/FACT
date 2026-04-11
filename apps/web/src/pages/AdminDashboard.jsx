@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPageUrl, isAdminUser } from "@/utils";
+import { createLoginUrl, createPageUrl, isAdminUser } from "@/utils";
 import { User } from "@/api/entities.jsx";
 import { Booking } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
@@ -45,13 +45,7 @@ export default function AdminDashboard() {
 
   const currentUserQuery = useQuery({
     queryKey: ADMIN_DASHBOARD_CURRENT_USER_QUERY_KEY,
-    queryFn: async () => {
-      const storedUser = localStorage.getItem("currentUser");
-      if (!storedUser) {
-        throw Object.assign(new Error("Not authenticated"), { status: 401 });
-      }
-      return User.me();
-    },
+    queryFn: () => User.me(),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -128,7 +122,7 @@ export default function AdminDashboard() {
 
     console.error("❌ Error loading admin dashboard user:", currentUserQuery.error);
     if (isAuthFailure(currentUserQuery.error)) {
-      navigate(createPageUrl("Login"));
+      navigate(createLoginUrl(window.location.pathname + window.location.search));
     }
   }, [currentUserQuery.error, navigate]);
 

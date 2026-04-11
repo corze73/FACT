@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
-import { createPageUrl, isAdminUser } from "@/utils";
+import { createLoginUrl, createPageUrl, isAdminUser } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ const tone = (status) => {
 
 export default function AdminVerifications() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSaving, setIsSaving] = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [notesByCoach, setNotesByCoach] = useState({});
@@ -59,9 +60,9 @@ export default function AdminVerifications() {
   useEffect(() => {
     if (!currentUserQuery.error) return;
     if (isAuthFailure(currentUserQuery.error)) {
-      navigate(createPageUrl('Login'));
+      navigate(createLoginUrl(location.pathname + location.search));
     }
-  }, [currentUserQuery.error, navigate]);
+  }, [currentUserQuery.error, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!currentUserQuery.data || isAdminUser(currentUserQuery.data)) return;
