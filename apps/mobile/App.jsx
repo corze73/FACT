@@ -304,9 +304,48 @@ function buildCoachProfileForm(source) {
     location: source?.location?.address || source?.location || '',
     bio: source?.bio || '',
     hourly_rate: String(source?.coach_profile?.hourly_rate ?? 50),
+    video_clip_1: source?.video_clip_1 || '',
+    video_clip_2: source?.video_clip_2 || '',
+    video_clip_3: source?.video_clip_3 || '',
     services_offered: Array.isArray(source?.coach_profile?.services_offered) ? source.coach_profile.services_offered : [],
     age_groups: Array.isArray(source?.coach_profile?.age_groups) ? source.coach_profile.age_groups : [],
   };
+}
+
+function isAllowedVideoHost(hostname) {
+  const safeHost = String(hostname || '').toLowerCase();
+  return [
+    'youtube.com',
+    'www.youtube.com',
+    'youtu.be',
+    'vimeo.com',
+    'player.vimeo.com',
+  ].includes(safeHost);
+}
+
+function normalizeVideoUrl(value) {
+  const safeValue = String(value || '').trim();
+  if (!safeValue) {
+    return { ok: true, value: '' };
+  }
+
+  let parsed = null;
+  try {
+    parsed = new URL(safeValue);
+  } catch {
+    return { ok: false, error: 'Video links must be valid URLs.' };
+  }
+
+  const protocol = String(parsed.protocol || '').toLowerCase();
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    return { ok: false, error: 'Video links must start with http:// or https://.' };
+  }
+
+  if (!isAllowedVideoHost(parsed.hostname)) {
+    return { ok: false, error: 'Only YouTube and Vimeo links are supported for coach clips.' };
+  }
+
+  return { ok: true, value: safeValue };
 }
 
 function formatDateInputValue(value) {
@@ -1396,6 +1435,45 @@ function CoachOperationsScreen({
                 </View>
 
                 <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Video clip 1 URL (YouTube or Vimeo)</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    onChangeText={(value) => onProfileChange('video_clip_1', value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={profileForm.video_clip_1}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Video clip 2 URL (optional)</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    onChangeText={(value) => onProfileChange('video_clip_2', value)}
+                    placeholder="https://youtu.be/..."
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={profileForm.video_clip_2}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabelLight}>Video clip 3 URL (optional)</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    onChangeText={(value) => onProfileChange('video_clip_3', value)}
+                    placeholder="https://vimeo.com/..."
+                    placeholderTextColor="#64748b"
+                    style={styles.inputDark}
+                    value={profileForm.video_clip_3}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
                   <Text style={styles.inputLabelLight}>Services offered</Text>
                   <View style={styles.chipGrid}>
                     {coachingTypes.map((item) => (
@@ -1553,7 +1631,7 @@ function CoachOperationsScreen({
                       />
                     </View>
 
-                    <Text style={styles.helperText}>This screen updates compliance metadata only. Document upload stays on web for now.</Text>
+                    <Text style={styles.helperText}>After uploading files here, tap Save compliance details to submit them for review.</Text>
                   </>
                 ) : null}
 
@@ -2614,6 +2692,9 @@ export default function App() {
     const safeCountry = String(coachProfileForm.country || '').trim();
     const safeCity = String(coachProfileForm.city || '').trim();
     const safeRate = Number(coachProfileForm.hourly_rate || 0);
+    const clip1 = normalizeVideoUrl(coachProfileForm.video_clip_1);
+    const clip2 = normalizeVideoUrl(coachProfileForm.video_clip_2);
+    const clip3 = normalizeVideoUrl(coachProfileForm.video_clip_3);
 
     if (!safeCountry || !safeCity) {
       setCoachProfileError('Country and city are required for coach profiles.');
@@ -2622,6 +2703,11 @@ export default function App() {
 
     if (!Number.isFinite(safeRate) || safeRate <= 0) {
       setCoachProfileError('Hourly rate must be a valid number greater than zero.');
+      return;
+    }
+
+    if (!clip1.ok || !clip2.ok || !clip3.ok) {
+      setCoachProfileError(clip1.error || clip2.error || clip3.error || 'One or more video links are invalid.');
       return;
     }
 
@@ -2636,6 +2722,9 @@ export default function App() {
         country: safeCountry,
         city: safeCity,
         bio: coachProfileForm.bio || null,
+        video_clip_1: clip1.value,
+        video_clip_2: clip2.value,
+        video_clip_3: clip3.value,
         coach_profile: {
           hourly_rate: safeRate,
           services_offered: coachProfileForm.services_offered,
