@@ -4,16 +4,20 @@
   "version": "0.0.0",
   "main": "index.js",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@fact/api": "0.0.0",
     "@fact/auth": "0.0.0",
     "@fact/config": "0.0.0",
     "@fact/domain": "0.0.0",
     "@fact/types": "0.0.0",
-    "@expo/vector-icons": "^14.0.3",
-    "expo": "~51.0.39",
-    "expo-status-bar": "~1.12.1",
-    "react": "^18.2.0",
-    "react-native": "^0.74.5"
+    "expo": "^55.0.14",
+    "expo-font": "~55.0.6",
+    "expo-status-bar": "~55.0.5",
+    "react": "19.2.0",
+    "react-native": "0.83.4"
+  },
+  "devDependencies": {
+    "babel-preset-expo": "^55.0.17"
   },
   "scripts": {
     "dev": "expo start",
