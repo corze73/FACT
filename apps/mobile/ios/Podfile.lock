@@ -28,6 +28,8 @@ PODS:
     - Yoga
   - ExpoAsset (55.0.14):
     - ExpoModulesCore
+  - ExpoDocumentPicker (55.0.13):
+    - ExpoModulesCore
   - ExpoDomWebView (55.0.5):
     - ExpoModulesCore
   - ExpoFileSystem (55.0.16):
@@ -1945,6 +1947,7 @@ DEPENDENCIES:
   - EXConstants (from `../node_modules/expo/node_modules/expo-constants/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoAsset (from `../node_modules/expo/node_modules/expo-asset/ios`)
+  - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
   - "ExpoDomWebView (from `../node_modules/expo/node_modules/@expo/log-box/node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../node_modules/expo/node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
@@ -2036,6 +2039,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo"
   ExpoAsset:
     :path: "../node_modules/expo/node_modules/expo-asset/ios"
+  ExpoDocumentPicker:
+    :path: "../node_modules/expo-document-picker/ios"
   ExpoDomWebView:
     :path: "../node_modules/expo/node_modules/@expo/log-box/node_modules/@expo/dom-webview/ios"
   ExpoFileSystem:
@@ -2206,6 +2211,7 @@ SPEC CHECKSUMS:
   EXConstants: 70e3278eef237cb75c2b3e9ab1ff65afa7427af0
   Expo: 648d0bb74338aeecc4be0cc2e06b20765832d048
   ExpoAsset: 49dcbe34165e4da8914fac3eb068255ecd100ebf
+  ExpoDocumentPicker: c218333e865c586f255b26eec640635f03e12485
   ExpoDomWebView: 4937eda7ff9112ddcb8701b52ae4e8e9c2e181b5
   ExpoFileSystem: e7075f07fdadcd6e55f2de1af6065faa097d41b4
   ExpoFont: e4fe17baebfe22a21576d6efd8f27b0dad06d653

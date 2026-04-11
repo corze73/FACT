@@ -1096,6 +1096,11 @@ function AdminOperationsScreen({
   cases,
   disputes,
   expiring,
+  verifications,
+  verificationFilter,
+  verificationNotes,
+  verificationSubmittingId,
+  verificationError,
   loading,
   errorMessage,
   inviteEmail,
@@ -1109,6 +1114,9 @@ function AdminOperationsScreen({
   onBack,
   onRefresh,
   onCreateInvite,
+  onVerificationFilterChange,
+  onVerificationNoteChange,
+  onUpdateVerification,
 }) {
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
@@ -1251,6 +1259,86 @@ function AdminOperationsScreen({
                     <Text style={styles.compactListMeta}>{formatFullDateTime(item.background_check_expires_at)}</Text>
                   </View>
                 )) : <Text style={styles.cardCopy}>No expiring compliance records.</Text>}
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Coach verifications</Text>
+
+                <View style={styles.recipientToggleRow}>
+                  {['pending', 'verified', 'rejected'].map((status) => (
+                    <Pressable
+                      key={status}
+                      onPress={() => onVerificationFilterChange(status)}
+                      style={[styles.recipientToggle, verificationFilter === status && styles.recipientToggleActive]}
+                    >
+                      <Text style={[styles.recipientToggleText, verificationFilter === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {verificationError ? <Text style={styles.errorTextLight}>{verificationError}</Text> : null}
+
+                {verifications.length > 0 ? verifications.map((coach) => {
+                  const noteDraft = verificationNotes[coach.id] ?? (coach.verification_notes || '');
+                  return (
+                    <View key={coach.id} style={styles.availabilityCard}>
+                      <Text style={styles.compactListTitle}>{coach.full_name || coach.email || 'Coach'}</Text>
+                      <Text style={styles.compactListMeta}>Qualification: {formatStatusLabel(coach.qualification_status)}</Text>
+                      <Text style={styles.compactListMeta}>Background: {coach.has_background_check ? formatStatusLabel(coach.background_check_status) : 'Not required'}</Text>
+
+                      <View style={styles.inlineButtonRow}>
+                        {coach.qualification_file_url ? (
+                          <Pressable onPress={() => openHref(coach.qualification_file_url)} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                            <Text style={styles.inlineSecondaryButtonText}>Open qualification file</Text>
+                          </Pressable>
+                        ) : null}
+                        {coach.background_check_file_url ? (
+                          <Pressable onPress={() => openHref(coach.background_check_file_url)} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                            <Text style={styles.inlineSecondaryButtonText}>Open background file</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabelLight}>Verification notes</Text>
+                        <TextInput
+                          multiline={true}
+                          onChangeText={(value) => onVerificationNoteChange(coach.id, value)}
+                          placeholder="Add approval/rejection notes"
+                          placeholderTextColor="#64748b"
+                          style={[styles.inputDark, styles.notesInput]}
+                          value={noteDraft}
+                        />
+                      </View>
+
+                      <View style={styles.inlineButtonRow}>
+                        <Pressable
+                          disabled={verificationSubmittingId === coach.id}
+                          onPress={() => onUpdateVerification(coach, 'verified')}
+                          style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || verificationSubmittingId === coach.id) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlinePrimaryButtonText}>Approve</Text>
+                        </Pressable>
+
+                        <Pressable
+                          disabled={verificationSubmittingId === coach.id}
+                          onPress={() => onUpdateVerification(coach, 'rejected')}
+                          style={({ pressed }) => [styles.inlineDangerButton, (pressed || verificationSubmittingId === coach.id) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlineDangerButtonText}>Reject</Text>
+                        </Pressable>
+
+                        <Pressable
+                          disabled={verificationSubmittingId === coach.id}
+                          onPress={() => onUpdateVerification(coach, 'pending')}
+                          style={({ pressed }) => [styles.inlineSecondaryButton, (pressed || verificationSubmittingId === coach.id) && styles.actionButtonPressed]}
+                        >
+                          <Text style={styles.inlineSecondaryButtonText}>Mark pending</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }) : <Text style={styles.cardCopy}>No coaches found for this verification status.</Text>}
               </View>
             </View>
           </>
@@ -2219,6 +2307,11 @@ export default function App() {
   const [adminOpsCases, setAdminOpsCases] = useState([]);
   const [adminOpsDisputes, setAdminOpsDisputes] = useState([]);
   const [adminOpsExpiring, setAdminOpsExpiring] = useState([]);
+  const [adminVerifications, setAdminVerifications] = useState([]);
+  const [adminVerificationFilter, setAdminVerificationFilter] = useState('pending');
+  const [adminVerificationNotes, setAdminVerificationNotes] = useState({});
+  const [adminVerificationSubmittingId, setAdminVerificationSubmittingId] = useState(null);
+  const [adminVerificationError, setAdminVerificationError] = useState('');
   const [adminInviteEmail, setAdminInviteEmail] = useState('');
   const [adminInviteScope, setAdminInviteScope] = useState('support');
   const [adminInviteHours, setAdminInviteHours] = useState('72');
@@ -2469,27 +2562,32 @@ export default function App() {
     }
   };
 
-  const loadAdminOperations = async (nextUser = currentUser, nextProfile = profile) => {
+  const loadAdminOperations = async (nextUser = currentUser, nextProfile = profile, filterOverride = null) => {
     if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
       setAdminOpsOverview(null);
       setAdminOpsWeekly(null);
       setAdminOpsCases([]);
       setAdminOpsDisputes([]);
       setAdminOpsExpiring([]);
+      setAdminVerifications([]);
+      setAdminVerificationError('');
       setAdminOpsError('');
       return;
     }
 
     setAdminOpsLoading(true);
     setAdminOpsError('');
+    setAdminVerificationError('');
 
     try {
-      const [overview, weekly, casesResponse, disputesResponse, expiringResponse] = await Promise.all([
+      const selectedFilter = String(filterOverride || adminVerificationFilter || 'pending');
+      const [overview, weekly, casesResponse, disputesResponse, expiringResponse, verificationsResponse] = await Promise.all([
         mobileApi.getAdminOpsOverview(),
         mobileApi.getWeeklyOpsReport(),
         mobileApi.listAdminCases({ include_total: 1, limit: 5, offset: 0 }),
         mobileApi.listBookingDisputes({ include_total: 1, limit: 5, offset: 0 }),
         mobileApi.listComplianceExpiring({ include_total: 1, limit: 5, offset: 0, days: 30 }),
+        mobileApi.getAdminVerifications({ status: selectedFilter, include_total: 1, limit: 6, offset: 0 }),
       ]);
 
       setAdminOpsOverview(overview || null);
@@ -2497,10 +2595,62 @@ export default function App() {
       setAdminOpsCases(casesResponse?.data || []);
       setAdminOpsDisputes(disputesResponse?.data || []);
       setAdminOpsExpiring(expiringResponse?.data || []);
+      const verificationRows = verificationsResponse?.data || [];
+      setAdminVerifications(verificationRows);
+      setAdminVerificationNotes((previousNotes) => {
+        const nextNotes = { ...previousNotes };
+        verificationRows.forEach((item) => {
+          if (nextNotes[item.id] === undefined) {
+            nextNotes[item.id] = item.verification_notes || '';
+          }
+        });
+        return nextNotes;
+      });
     } catch (error) {
       setAdminOpsError(error?.message || 'Unable to load admin operations.');
     } finally {
       setAdminOpsLoading(false);
+    }
+  };
+
+  const handleVerificationNoteChange = (coachId, value) => {
+    setAdminVerificationNotes((previousNotes) => ({
+      ...previousNotes,
+      [coachId]: value,
+    }));
+  };
+
+  const handleUpdateVerification = async (coach, nextStatus) => {
+    if (!coach?.id) {
+      return;
+    }
+
+    setAdminVerificationSubmittingId(coach.id);
+    setAdminVerificationError('');
+
+    const noteDraft = String(adminVerificationNotes[coach.id] ?? coach.verification_notes ?? '').trim();
+    const payload = {
+      qualification_status: nextStatus,
+      verification_notes: noteDraft,
+      ...(coach.has_background_check ? { background_check_status: nextStatus } : {}),
+    };
+
+    try {
+      const updated = await mobileApi.updateAdminVerification(coach.id, payload);
+      const nextData = updated?.data || updated || {};
+
+      setAdminVerifications((previousRows) => previousRows.map((row) => (
+        row.id === coach.id ? { ...row, ...nextData } : row
+      )));
+      setAdminVerificationNotes((previousNotes) => ({
+        ...previousNotes,
+        [coach.id]: noteDraft,
+      }));
+      await loadAdminOperations(currentUser, profile, adminVerificationFilter);
+    } catch (error) {
+      setAdminVerificationError(error?.message || 'Unable to update verification.');
+    } finally {
+      setAdminVerificationSubmittingId(null);
     }
   };
 
@@ -2678,6 +2828,10 @@ export default function App() {
     setAdminOpsCases([]);
     setAdminOpsDisputes([]);
     setAdminOpsExpiring([]);
+    setAdminVerifications([]);
+    setAdminVerificationNotes({});
+    setAdminVerificationError('');
+    setAdminVerificationSubmittingId(null);
     setAdminOpsError('');
     setBookingsViewItems([]);
     setBookingsViewError('');
@@ -3385,6 +3539,11 @@ export default function App() {
             cases={adminOpsCases}
             disputes={adminOpsDisputes}
             expiring={adminOpsExpiring}
+            verifications={adminVerifications}
+            verificationFilter={adminVerificationFilter}
+            verificationNotes={adminVerificationNotes}
+            verificationSubmittingId={adminVerificationSubmittingId}
+            verificationError={adminVerificationError}
             loading={adminOpsLoading}
             errorMessage={adminOpsError}
             inviteEmail={adminInviteEmail}
@@ -3398,6 +3557,12 @@ export default function App() {
             onBack={() => setView('account')}
             onRefresh={() => loadAdminOperations(currentUser, profile)}
             onCreateInvite={handleCreateAdminInvite}
+            onVerificationFilterChange={async (status) => {
+              setAdminVerificationFilter(status);
+              await loadAdminOperations(currentUser, profile, status);
+            }}
+            onVerificationNoteChange={handleVerificationNoteChange}
+            onUpdateVerification={handleUpdateVerification}
           />
         ) : view === 'coach_operations' ? (
           <CoachOperationsScreen
