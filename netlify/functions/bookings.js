@@ -162,6 +162,10 @@ const rawHandler = async (event) => {
               b.booking_date,
               b.duration,
               b.status,
+              b.reschedule_requested_by,
+              b.reschedule_proposed_date,
+              b.reschedule_status,
+              b.reschedule_requested_at,
               b.price,
               b.total_price,
               b.reference_code,
@@ -320,6 +324,10 @@ const rawHandler = async (event) => {
         if (updateData.status !== undefined) setField('status', updateData.status);
         if (updateData.booking_date !== undefined) setField('booking_date', updateData.booking_date);
         if (updateData.duration !== undefined) setField('duration', updateData.duration);
+        if (updateData.reschedule_requested_by !== undefined) setField('reschedule_requested_by', updateData.reschedule_requested_by);
+        if (updateData.reschedule_proposed_date !== undefined) setField('reschedule_proposed_date', updateData.reschedule_proposed_date);
+        if (updateData.reschedule_status !== undefined) setField('reschedule_status', updateData.reschedule_status);
+        if (updateData.reschedule_requested_at !== undefined) setField('reschedule_requested_at', updateData.reschedule_requested_at);
         if (updateData.location_type !== undefined) setField('location_type', updateData.location_type);
         if (updateData.location_address !== undefined) setField('location_address', updateData.location_address);
         if (updateData.location_notes !== undefined) setField('location_notes', updateData.location_notes);

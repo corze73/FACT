@@ -182,6 +182,43 @@ function getConversationLabel(booking, currentUser) {
   return booking?.coach_name || 'Coach';
 }
 
+function formatFullDateTime(value) {
+  if (!value) return 'Not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not set';
+  return date.toLocaleString('en-GB', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDateInputValue(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function formatTimeInputValue(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function buildIsoDateTime(dateValue, timeValue) {
+  if (!dateValue || !timeValue) return null;
+  const composed = new Date(`${dateValue}T${timeValue}:00`);
+  if (Number.isNaN(composed.getTime())) return null;
+  return composed.toISOString();
+}
+
 function buildDashboardState(accountType, payload) {
   if (accountType === 'admin') {
     const userStats = payload.userStats || {};
@@ -328,11 +365,14 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
   );
 }
 
-function BookingDetailScreen({ booking, currentUser, actionLoading, actionError, onBack, onOpenMessages, onConfirmBooking, onCancelBooking, onCompleteBooking }) {
+function BookingDetailScreen({ booking, currentUser, actionLoading, actionError, onBack, onOpenMessages, onOpenReschedule, onConfirmBooking, onCancelBooking, onCompleteBooking }) {
   const accountType = normalizeUserType(currentUser?.user_type || 'client');
   const canConfirmBooking = booking.status === 'pending' && (accountType === 'coach' || accountType === 'admin');
   const canCancelBooking = !['cancelled', 'completed'].includes(booking.status);
   const canCompleteBooking = booking.status === 'confirmed' || booking.status === 'in_session';
+  const hasPendingReschedule = booking.reschedule_status === 'pending' && booking.reschedule_proposed_date;
+  const isRequester = booking.reschedule_requested_by === currentUser?.id;
+  const canOpenReschedule = !['cancelled', 'completed'].includes(booking.status) || hasPendingReschedule;
 
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent}>
@@ -378,9 +418,29 @@ function BookingDetailScreen({ booking, currentUser, actionLoading, actionError,
           </View>
         ) : null}
 
+        {hasPendingReschedule ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{isRequester ? 'Reschedule requested' : 'Reschedule review needed'}</Text>
+            <Text style={styles.cardCopy}>{formatFullDateTime(booking.reschedule_proposed_date)}</Text>
+          </View>
+        ) : null}
+
         {actionError ? <Text style={styles.errorTextLight}>{actionError}</Text> : null}
 
         <View style={styles.actionGroupSignedIn}>
+          {canOpenReschedule ? (
+            <Pressable
+              disabled={actionLoading}
+              onPress={onOpenReschedule}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, (pressed || actionLoading) && styles.actionButtonPressed]}
+            >
+              <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>{hasPendingReschedule && !isRequester ? 'Review reschedule' : 'Reschedule booking'}</Text>
+              <Text style={[styles.actionBody, styles.actionBodySecondary]}>
+                {hasPendingReschedule && !isRequester ? 'Accept or decline the proposed new time.' : 'Propose a new session time from the mobile app.'}
+              </Text>
+            </Pressable>
+          ) : null}
+
           {canConfirmBooking ? (
             <Pressable
               disabled={actionLoading}
@@ -421,6 +481,120 @@ function BookingDetailScreen({ booking, currentUser, actionLoading, actionError,
         </View>
       </View>
     </ScrollView>
+  );
+}
+
+function BookingRescheduleScreen({
+  booking,
+  currentUser,
+  dateValue,
+  timeValue,
+  submitting,
+  errorMessage,
+  onDateChange,
+  onTimeChange,
+  onBack,
+  onRequest,
+  onAccept,
+  onDecline,
+}) {
+  const isRequester = booking.reschedule_requested_by === currentUser?.id;
+  const hasPendingReschedule = booking.reschedule_status === 'pending';
+  const isReviewMode = hasPendingReschedule && !isRequester;
+
+  return (
+    <KeyboardAvoidingView behavior="padding" style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.signInHeader}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.signInCardDark}>
+          <Text style={styles.sectionEyebrow}>Reschedule</Text>
+          <Text style={styles.signInTitleDark}>{isReviewMode ? 'Review new time' : 'Request a new time'}</Text>
+          <Text style={styles.signInSubtitleDark}>
+            {isReviewMode
+              ? 'Review the proposed new booking time and respond from mobile.'
+              : 'Pick a new date and time. The other party can then accept or decline it.'}
+          </Text>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Current booking time</Text>
+            <Text style={styles.cardCopy}>{formatFullDateTime(booking.booking_date)}</Text>
+          </View>
+
+          {isReviewMode ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Proposed new time</Text>
+              <Text style={styles.cardCopy}>{formatFullDateTime(booking.reschedule_proposed_date)}</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabelLight}>New date</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={onDateChange}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#64748b"
+                  style={styles.inputDark}
+                  value={dateValue}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabelLight}>New time</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={onTimeChange}
+                  placeholder="HH:MM"
+                  placeholderTextColor="#64748b"
+                  style={styles.inputDark}
+                  value={timeValue}
+                />
+              </View>
+            </>
+          )}
+
+          {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+          <View style={styles.actionGroupSignedIn}>
+            {isReviewMode ? (
+              <>
+                <Pressable
+                  disabled={submitting}
+                  onPress={onAccept}
+                  style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || submitting) && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.actionTitle}>Accept new time</Text>
+                  <Text style={styles.actionBody}>Move the booking to the proposed date and time.</Text>
+                </Pressable>
+
+                <Pressable
+                  disabled={submitting}
+                  onPress={onDecline}
+                  style={({ pressed }) => [styles.actionButton, styles.actionButtonGhost, (pressed || submitting) && styles.actionButtonPressed]}
+                >
+                  <Text style={[styles.actionTitle, styles.actionTitleGhost]}>Decline request</Text>
+                  <Text style={[styles.actionBody, styles.actionBodyGhost]}>Keep the current booking time in place.</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                disabled={submitting}
+                onPress={onRequest}
+                style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || submitting) && styles.actionButtonPressed]}
+              >
+                <Text style={styles.actionTitle}>Request reschedule</Text>
+                <Text style={styles.actionBody}>Send the proposed new time to the other party.</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -874,6 +1048,8 @@ export default function App() {
   const [messageOriginView, setMessageOriginView] = useState('booking_detail');
   const [bookingActionLoading, setBookingActionLoading] = useState(false);
   const [bookingActionError, setBookingActionError] = useState('');
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -1244,10 +1420,73 @@ export default function App() {
         loadDashboard(currentUser, profile),
         loadMessageConversations(currentUser, profile),
       ]);
+      return updatedBooking;
     } catch (error) {
       setBookingActionError(error?.message || 'Unable to update booking.');
+      throw error;
     } finally {
       setBookingActionLoading(false);
+    }
+  };
+
+  const openRescheduleScreen = () => {
+    setBookingActionError('');
+    setRescheduleDate(formatDateInputValue(selectedBooking?.reschedule_proposed_date || selectedBooking?.booking_date));
+    setRescheduleTime(formatTimeInputValue(selectedBooking?.reschedule_proposed_date || selectedBooking?.booking_date));
+    setView('booking_reschedule');
+  };
+
+  const handleRequestReschedule = async () => {
+    const nextProposedDate = buildIsoDateTime(rescheduleDate, rescheduleTime);
+    if (!nextProposedDate) {
+      setBookingActionError('Enter a valid date and time in the format YYYY-MM-DD and HH:MM.');
+      return;
+    }
+
+    try {
+      await performBookingAction({
+        reschedule_requested_by: currentUser.id,
+        reschedule_proposed_date: nextProposedDate,
+        reschedule_status: 'pending',
+        reschedule_requested_at: new Date().toISOString(),
+      });
+      setView('booking_detail');
+    } catch {
+      // Error state already set in performBookingAction.
+    }
+  };
+
+  const handleAcceptReschedule = async () => {
+    if (!selectedBooking?.reschedule_proposed_date) {
+      setBookingActionError('No proposed reschedule time is available.');
+      return;
+    }
+
+    try {
+      await performBookingAction({
+        booking_date: selectedBooking.reschedule_proposed_date,
+        reschedule_status: 'accepted',
+        reschedule_requested_by: null,
+        reschedule_proposed_date: null,
+        reschedule_requested_at: null,
+      });
+      setView('booking_detail');
+    } catch {
+      // Error state already set in performBookingAction.
+    }
+  };
+
+  const handleDeclineReschedule = async () => {
+    try {
+      await performBookingAction({
+        reschedule_status: 'declined',
+        reschedule_requested_by: null,
+        reschedule_proposed_date: null,
+        reschedule_requested_at: null,
+      });
+      setView('booking_detail');
+    } catch {
+      // Error state already set in performBookingAction.
     }
   };
 
@@ -1314,6 +1553,7 @@ export default function App() {
             actionLoading={bookingActionLoading}
             actionError={bookingActionError}
             onBack={() => setView('bookings')}
+            onOpenReschedule={openRescheduleScreen}
             onConfirmBooking={() => performBookingAction({ accept: true })}
             onCancelBooking={() => performBookingAction({ cancel: true })}
             onCompleteBooking={() => performBookingAction({ status: 'completed' })}
@@ -1324,6 +1564,21 @@ export default function App() {
               await loadBookingMessages(selectedBooking, currentUser);
               setView('booking_messages');
             }}
+          />
+        ) : view === 'booking_reschedule' && selectedBooking ? (
+          <BookingRescheduleScreen
+            booking={selectedBooking}
+            currentUser={currentUser}
+            dateValue={rescheduleDate}
+            timeValue={rescheduleTime}
+            submitting={bookingActionLoading}
+            errorMessage={bookingActionError}
+            onDateChange={setRescheduleDate}
+            onTimeChange={setRescheduleTime}
+            onBack={() => setView('booking_detail')}
+            onRequest={handleRequestReschedule}
+            onAccept={handleAcceptReschedule}
+            onDecline={handleDeclineReschedule}
           />
         ) : view === 'booking_messages' && selectedBooking ? (
           <BookingMessagesScreen
@@ -1571,12 +1826,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
   },
+  inputLabelLight: {
+    color: '#e2e8f0',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
   input: {
     backgroundColor: '#fff',
     borderColor: '#cbd5e1',
     borderWidth: 1,
     borderRadius: 16,
     color: '#0f172a',
+    fontSize: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  inputDark: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderWidth: 1,
+    borderRadius: 16,
+    color: '#f8fafc',
     fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
