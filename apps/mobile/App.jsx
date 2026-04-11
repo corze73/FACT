@@ -459,12 +459,15 @@ function SignInScreen({ email, password, errorMessage, submitting, onEmailChange
             <Text style={styles.inputLabel}>Email address</Text>
             <TextInput
               autoCapitalize="none"
-              autoComplete="email"
+              autoComplete="off"
+              autoCorrect={false}
+              importantForAutofill="no"
               keyboardType="email-address"
               onChangeText={onEmailChange}
               placeholder="name@example.com"
               placeholderTextColor="#64748b"
               style={styles.input}
+              textContentType="none"
               value={email}
             />
           </View>
@@ -473,12 +476,15 @@ function SignInScreen({ email, password, errorMessage, submitting, onEmailChange
             <Text style={styles.inputLabel}>Password</Text>
             <TextInput
               autoCapitalize="none"
-              autoComplete="password"
+              autoComplete="off"
+              autoCorrect={false}
+              importantForAutofill="no"
               onChangeText={onPasswordChange}
               placeholder="Enter your password"
               placeholderTextColor="#64748b"
               secureTextEntry={true}
               style={styles.input}
+              textContentType="none"
               value={password}
             />
           </View>
@@ -776,6 +782,8 @@ export default function App() {
                   key={action.label}
                   onPress={() => {
                     if (action.label === 'Sign In') {
+                      setEmail('');
+                      setPassword('');
                       setErrorMessage('');
                       setView('sign_in');
                       return;
