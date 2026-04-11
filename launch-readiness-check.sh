@@ -77,15 +77,15 @@ echo "--------------------------------"
 
 # Check critical files
 FILES=(
-    "src/App.jsx"
-    "src/main.jsx" 
-    "src/pages/Landing.jsx"
-    "src/pages/Register.jsx"
-    "src/pages/FindCoaches.jsx"
-    "src/api/entities.jsx"
-    "src/databaseClient.js"
+    "apps/web/src/App.jsx"
+    "apps/web/src/main.jsx" 
+    "apps/web/src/pages/Landing.jsx"
+    "apps/web/src/pages/Register.jsx"
+    "apps/web/src/pages/FindCoaches.jsx"
+    "apps/web/src/api/entities.jsx"
+    "apps/web/src/databaseClient.js"
     "package.json"
-    "index.html"
+    "apps/web/index.html"
 )
 
 for file in "${FILES[@]}"; do
@@ -182,20 +182,20 @@ echo -e "\n${BLUE}8. Testing Critical Features${NC}"
 echo "----------------------------"
 
 # Check if age groups are implemented in coach registration
-if grep -q "age_groups" src/pages/Register.jsx; then
+if grep -q "age_groups" apps/web/src/pages/Register.jsx; then
     test_result 0 "Age groups feature implemented in registration"
 else
     test_result 1 "Age groups feature missing in registration"
 fi
 
-if grep -q "Age Groups You Coach" src/pages/CoachProfile.jsx; then
+if grep -q "Age Groups You Coach" apps/web/src/pages/CoachProfile.jsx; then
     test_result 0 "Age groups feature implemented in coach profile"
 else
     test_result 1 "Age groups feature missing in coach profile"
 fi
 
 # Check Google Analytics integration
-if grep -q "gtag" index.html; then
+if grep -q "gtag" apps/web/index.html; then
     test_result 0 "Google Analytics integrated"
 else
     test_result 1 "Google Analytics not integrated"
@@ -205,19 +205,19 @@ echo -e "\n${BLUE}9. Testing Phase 2 Infrastructure${NC}"
 echo "----------------------------------"
 
 # Check React Query setup
-if grep -q "QueryClientProvider" src/main.jsx; then
+if grep -q "QueryClientProvider" apps/web/src/main.jsx; then
     test_result 0 "React Query configured"
 else
     test_result 1 "React Query not configured"
 fi
 
-if [ -f "src/lib/queryClient.js" ]; then
+if [ -f "apps/web/src/lib/queryClient.js" ]; then
     test_result 0 "Query client configuration exists"
 else
     test_result 1 "Query client configuration missing"
 fi
 
-if [ -f "src/hooks/useQueries.js" ]; then
+if [ -f "apps/web/src/hooks/useQueries.js" ]; then
     test_result 0 "Custom React Query hooks exist"
 else
     test_result 1 "Custom React Query hooks missing"
@@ -244,7 +244,7 @@ else
 fi
 
 # Check if toast notifications are implemented
-if grep -q "showSuccess\|showError" src/utils/notifications.js 2>/dev/null; then
+if grep -q "showSuccess\|showError" apps/web/src/utils/notifications.js 2>/dev/null; then
     test_result 0 "Toast notification system implemented"
 else
     test_result 1 "Toast notification system missing"

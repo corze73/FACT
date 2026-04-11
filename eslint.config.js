@@ -8,7 +8,7 @@ export default [
   { ignores: ['dist'] },
   // Configuration files (Node.js environment)
   {
-    files: ['tailwind.config.js', 'vite.config.js', 'postcss.config.js'],
+    files: ['tailwind.config.js', 'vite.config.js', 'postcss.config.js', 'apps/web/tailwind.config.js', 'apps/web/vite.config.js', 'apps/web/postcss.config.js'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: { ...globals.node, module: true, require: true },
@@ -23,7 +23,7 @@ export default [
   },
   // Server-side files (Node.js environment)
   {
-    files: ['server.js', 'src/api/email-routes.js'],
+    files: ['server.js', 'apps/web/src/api/email-routes.js'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.node,
@@ -39,7 +39,7 @@ export default [
   // Client-side files (Browser environment)
   {
     files: ['**/*.{js,jsx}'],
-    ignores: ['server.js', 'src/api/email-routes.js', 'tailwind.config.js', 'vite.config.js', 'postcss.config.js'],
+    ignores: ['server.js', 'apps/web/src/api/email-routes.js', 'tailwind.config.js', 'vite.config.js', 'postcss.config.js', 'apps/web/tailwind.config.js', 'apps/web/vite.config.js', 'apps/web/postcss.config.js'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -70,7 +70,7 @@ export default [
   {
     files: [
       'server.js',
-      'src/databaseClient.js',
+      'apps/web/src/databaseClient.js',
       'test-*.js',
       'check-*.js',
       'debug-*.js',

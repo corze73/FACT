@@ -5,6 +5,7 @@ import securityHeaders from './vite-plugin-security-headers.js'
 
 // https://vite.dev/config/
 export default defineConfig({
+  root: __dirname,
   plugins: [
     react(),
     securityHeaders()
@@ -25,6 +26,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@fact/api': path.resolve(__dirname, '../../packages/api/src/index.ts'),
+      '@fact/domain': path.resolve(__dirname, '../../packages/domain/src/index.ts'),
+      '@fact/config': path.resolve(__dirname, '../../packages/config/src/index.ts'),
+      '@fact/types': path.resolve(__dirname, '../../packages/types/src/index.ts'),
     },
     extensions: ['.mjs', '.js', '.jsx', '.ts', '.tsx', '.json']
   },

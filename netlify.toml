@@ -1,6 +1,6 @@
 [build]
-  publish = "dist"
-  command = "npm run build"
+  publish = "apps/web/dist"
+  command = "npm run build:web"
 
 [build.environment]
   NODE_VERSION = "20"
@@ -29,7 +29,7 @@
   status = 200
 
 [dev]
-  command = "npm run dev:vite"
+  command = "npm run dev:web"
   port = 8888
   targetPort = 5173
   framework = "vite"

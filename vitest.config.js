@@ -8,6 +8,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './tests/setup.js',
+    exclude: ['**/node_modules/**', 'tests/integration.test.js', '.netlify/**', 'apps/web/dist/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -22,7 +23,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
+      '@': path.resolve(__dirname, './apps/web/src'),
+      '@fact/api': path.resolve(__dirname, './packages/api/src/index.ts'),
+      '@fact/domain': path.resolve(__dirname, './packages/domain/src/index.ts'),
+      '@fact/config': path.resolve(__dirname, './packages/config/src/index.ts'),
+      '@fact/types': path.resolve(__dirname, './packages/types/src/index.ts')
     }
   }
 })

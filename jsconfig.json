@@ -3,7 +3,11 @@
     "baseUrl": ".",
     "ignoreDeprecations": "6.0",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["apps/web/src/*"],
+      "@fact/api": ["packages/api/src/index.ts"],
+      "@fact/domain": ["packages/domain/src/index.ts"],
+      "@fact/config": ["packages/config/src/index.ts"],
+      "@fact/types": ["packages/types/src/index.ts"]
     },
     "jsx": "react-jsx",
     "module": "esnext",
@@ -16,7 +20,7 @@
   "typeAcquisition": {
     "enable": false
   },
-  "include": ["src/**/*"],
+  "include": ["apps/web/src/**/*", "packages/**/*"],
   "exclude": [
     "node_modules",
     "dist",

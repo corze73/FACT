@@ -1,4 +1,4 @@
-import { User, Booking, Message, Review } from '../src/api/entities.jsx';
+import { User, Booking, Message, Review } from '../apps/web/src/api/entities.jsx';
 
 async function runAllTests() {
   let results = [];

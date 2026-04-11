@@ -1,0 +1,7 @@
+{
+  "name": "@fact/types",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "main": "./src/index.ts"
+}

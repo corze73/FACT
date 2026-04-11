@@ -8,6 +8,10 @@
   },
   "description": "[![Made with React](https://img.shields.io/badge/React-18-blue?logo=react)](https://reactjs.org/) [![Neon](https://img.shields.io/badge/Powered_by-Neon-green?logo=postgresql)](https://neon.tech/) [![Deployed on Bolt](https://img.shields.io/badge/Hosting-Bolt-orange)](https://bolt.new)",
   "main": "add-booking-references.js",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "directories": {
     "test": "tests"
   },
@@ -428,12 +432,14 @@
   },
   "scripts": {
     "dev": "npx netlify dev",
-    "dev:vite": "vite --port 5173 --strictPort",
+    "dev:web": "vite --config apps/web/vite.config.js --port 5173 --strictPort",
+    "dev:vite": "npm run dev:web",
     "check-env": "node check-env.js",
     "check-env:ci": "node check-env.js --ci",
     "server": "node server.js",
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
-    "build": "vite build",
+    "build:web": "vite build --config apps/web/vite.config.js",
+    "build": "npm run build:web",
     "lint": "eslint .",
     "preview": "bash ./scripts/preview-netlify.sh",
     "start": "node server.js",

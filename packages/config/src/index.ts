@@ -1,0 +1,1 @@
+export const DEFAULT_FIXED_ADMIN_FEE_PENCE = 300;

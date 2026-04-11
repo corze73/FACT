@@ -1,5 +1,6 @@
 import apiClient from './apiClient';
 import { db, auth, sql } from './databaseClient';
+import { normalizeUserList, normalizeUserRecord, normalizeUserType } from '@fact/domain';
 const dbAvailable = !!sql && !!db && typeof db.query === 'function';
 
 /**
@@ -16,19 +17,6 @@ const dbAvailable = !!sql && !!db && typeof db.query === 'function';
  * ✅ CoachAvailability - Migrated to API
  * ✅ CoachRecurringAvailability - Migrated to API
  */
-
-const normalizeUserType = (value) => {
-  if (value === 'coach' || value === 'client') return value;
-  if (value === 'user' || !value) return 'client';
-  return value;
-};
-
-const normalizeUserRecord = (user) => {
-  if (!user) return user;
-  return { ...user, user_type: normalizeUserType(user.user_type) };
-};
-
-const normalizeUserList = (list) => (Array.isArray(list) ? list.map(normalizeUserRecord) : list);
 
 const formatBookingTime = (date) => {
   const hours = String(date.getHours()).padStart(2, '0');

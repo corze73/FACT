@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient.js';
 import { queryKeys } from '@/lib/queryClient.js';
+import { normalizeUserListResponse, normalizeUserRecord } from '@fact/domain';
 
 /**
  * Custom hooks for data fetching with React Query
@@ -8,27 +9,6 @@ import { queryKeys } from '@/lib/queryClient.js';
  */
 
 // ========== COACHES ==========
-
-const normalizeUserType = (value) => {
-  if (value === 'coach' || value === 'client') return value;
-  if (value === 'user' || !value) return 'client';
-  return value;
-};
-
-const normalizeUserRecord = (user) => (user ? { ...user, user_type: normalizeUserType(user.user_type) } : user);
-
-const normalizeUserListResponse = (response) => {
-  if (response && Array.isArray(response.data)) {
-    return {
-      ...response,
-      data: response.data.map((u) => ({ ...u, user_type: normalizeUserType(u.user_type) }))
-    };
-  }
-  if (Array.isArray(response)) {
-    return response.map((u) => ({ ...u, user_type: normalizeUserType(u.user_type) }));
-  }
-  return response;
-};
 
 /**
  * Fetch coaches with filters and pagination
