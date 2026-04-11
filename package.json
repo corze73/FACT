@@ -435,7 +435,7 @@
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "npx netlify serve",
+    "preview": "npx netlify dev --context production",
     "start": "node server.js",
     "deploy": "npx netlify deploy --prod",
     "seed:football": "node scripts/seed-football-coaches.js",
