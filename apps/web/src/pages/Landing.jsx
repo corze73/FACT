@@ -1,14 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { createLoginUrl, createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
+import { createLoginUrl, createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Users, Shield, Zap, Target, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
-import { User } from "@/api/entities.jsx";
-import { getStoredCurrentUser } from "@/api/databaseClient.js";
-import { showSuccess } from "@/utils/notifications";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 
 export default function Landing() {
@@ -29,108 +26,6 @@ export default function Landing() {
   };
   
   const [showAboutModal, setShowAboutModal] = useState(false);
-
-  // Only redirect after a successful login callback (when next=dashboard)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const next = params.get('next');
-    if (next === 'dashboard') {
-      (async () => {
-        try {
-          // Check cached session state first to avoid a redirect race immediately after login.
-          let me = await getStoredCurrentUser();
-          
-          // If no cached data, poll for authentication with exponential backoff
-          if (!me) {
-            let attempts = 0;
-            const maxAttempts = 10;
-            
-            while (attempts < maxAttempts && !me) {
-              try {
-                me = await User.me();
-                break;
-              } catch (error) {
-                attempts++;
-                if (attempts >= maxAttempts) {
-                  throw error;
-                }
-                // Exponential backoff: 100ms, 200ms, 400ms, 800ms, etc.
-                const delay = Math.min(100 * Math.pow(2, attempts - 1), 2000);
-                await new Promise(resolve => setTimeout(resolve, delay));
-              }
-            }
-          }
-          
-          if (!me) {
-            throw new Error('Failed to establish authenticated session');
-          }
-          
-          // Check for pending profile data from registration
-          const pendingData = sessionStorage.getItem('pendingProfileData');
-          if (pendingData) {
-            try {
-              const profileData = JSON.parse(pendingData);
-              const sanitizedProfileData = { ...profileData };
-              const isCoachSignup = normalizeUserType(profileData.user_type) === 'coach';
-
-              // OAuth redirect cannot preserve local File objects; if uploaded document URLs are not
-              // already present, skip replaying compliance fields and let the coach finish them post-login.
-              const missingQualificationUpload = !sanitizedProfileData.qualification_file_url;
-              const missingBackgroundUpload = sanitizedProfileData.has_background_check && !sanitizedProfileData.background_check_file_url;
-              const requiresPostLoginCompliance = isCoachSignup && (missingQualificationUpload || missingBackgroundUpload);
-
-              if (requiresPostLoginCompliance) {
-                delete sanitizedProfileData.qualification_type;
-                delete sanitizedProfileData.qualification_file_url;
-                delete sanitizedProfileData.has_background_check;
-                delete sanitizedProfileData.background_check_type;
-                delete sanitizedProfileData.background_check_file_url;
-                delete sanitizedProfileData.background_check_expires_at;
-              }
-
-              // Update user profile with registration data
-              await User.updateMyUserData(sanitizedProfileData);
-              // Clear the stored data
-              sessionStorage.removeItem('pendingProfileData');
-              
-              // Redirect based on the user type from registration data
-              if (isCoachSignup) {
-                if (requiresPostLoginCompliance) {
-                  showSuccess('Coach account created', 'Complete your compliance uploads in your coach profile to enter the verification queue.');
-                  navigate(createPageUrl("CoachProfile"), { replace: true });
-                } else {
-                  navigate(createPageUrl("CoachDashboard"), { replace: true });
-                }
-              } else {
-                navigate(createPageUrl("FindCoaches"), { replace: true });
-              }
-              return;
-            } catch (error) {
-              console.error("Error applying pending profile data:", error);
-              // Clear invalid data and continue with normal flow
-              sessionStorage.removeItem('pendingProfileData');
-            }
-          }
-          
-          // Normal redirect logic for existing users
-          if (isAdminUser(me)) {
-            navigate(createPageUrl("AdminDashboard"), { replace: true });
-          } else if (normalizeUserType(me.user_type) === 'coach') {
-            navigate(createPageUrl("CoachDashboard"), { replace: true });
-          } else {
-            navigate(createPageUrl("FindCoaches"), { replace: true });
-          }
-        } catch (error) {
-          // Authentication failed - stay on Landing
-          console.error("Authentication check failed:", error);
-          // Clear the next parameter to prevent redirect loops
-          const newUrl = new URL(window.location);
-          newUrl.searchParams.delete('next');
-          window.history.replaceState({}, '', newUrl);
-        }
-      })();
-    }
-  }, [navigate]);
 
   return (
     <div className="min-h-screen">

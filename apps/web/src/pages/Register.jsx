@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { buildAbsoluteLoginRedirect } from "@/auth/redirects.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -209,7 +210,7 @@ export default function Register() {
       const { User } = await import("@/api/entities.jsx");
       
       // Now redirect for OAuth login
-      const redirectUrl = window.location.origin + createPageUrl("Landing?next=dashboard");
+      const redirectUrl = buildAbsoluteLoginRedirect();
       await User.loginWithRedirect(redirectUrl);
     } catch (error) {
       devError("Registration error:", error);

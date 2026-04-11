@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
+import { createLoginUrl, createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
 import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, ShieldCheck, ScrollText, BriefcaseBusiness, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
@@ -164,8 +164,7 @@ export default function Layout({ children, currentPageName }) {
   };
 
   const handleLogin = async () => {
-    // Always return to Landing with next=dashboard so we route once after auth
-    await User.loginWithRedirect(window.location.origin + createPageUrl("Landing?next=dashboard"));
+    navigate(createLoginUrl(location.pathname + location.search));
   };
 
   // Hide layout for full-screen pages like public/auth entry points and conversation.

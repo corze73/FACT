@@ -2,36 +2,9 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { User } from "@/api/entities.jsx";
 import LoginOptionsModal from "@/components/auth/LoginOptionsModal";
-import { createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
+import { createPageUrl } from "@/utils";
+import { buildAbsoluteLoginRedirect, completePostLoginNavigation, getSafeNextPath } from "@/auth/redirects.js";
 import { showError } from "@/utils/notifications";
-
-const getDefaultPostLoginPath = (user) => {
-  if (isAdminUser(user)) {
-    return createPageUrl("AdminDashboard");
-  }
-
-  if (normalizeUserType(user?.user_type) === "coach") {
-    return createPageUrl("CoachDashboard");
-  }
-
-  return createPageUrl("FindCoaches");
-};
-
-const getSafeNextPath = (nextPath) => {
-  if (!nextPath || typeof nextPath !== "string") {
-    return null;
-  }
-
-  if (!nextPath.startsWith("/")) {
-    return null;
-  }
-
-  if (nextPath.startsWith("//") || nextPath.startsWith("/login")) {
-    return null;
-  }
-
-  return nextPath;
-};
 
 export default function Login() {
   const navigate = useNavigate();
@@ -41,8 +14,7 @@ export default function Login() {
   const requestedNextPath = getSafeNextPath(params.get("next"));
 
   const redirectAuthenticatedUser = async () => {
-    const currentUser = await User.me();
-    navigate(requestedNextPath || getDefaultPostLoginPath(currentUser), { replace: true });
+    await completePostLoginNavigation({ navigate, nextPath: requestedNextPath });
   };
 
   useEffect(() => {
@@ -69,7 +41,7 @@ export default function Login() {
   }, [location.search]);
 
   const handleGoogleLogin = async () => {
-    const target = `${window.location.origin}${createPageUrl("Login")}${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`;
+    const target = buildAbsoluteLoginRedirect(requestedNextPath);
     await User.loginWithRedirect(target);
   };
 
