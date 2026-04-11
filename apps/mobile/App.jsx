@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -95,6 +95,55 @@ function formatBookingLocation(booking) {
 function formatPrice(value) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? `GBP ${amount}` : 'GBP 0';
+}
+
+function formatMessageTime(value) {
+  if (!value) return 'Now';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Now';
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getMessageDisplayName(message, booking, currentUser) {
+  if (message?.sender_id === currentUser?.id) {
+    return 'You';
+  }
+
+  if (message?.sender_id === booking?.coach_id) {
+    return booking?.coach_name || 'Coach';
+  }
+
+  if (message?.sender_id === booking?.client_id) {
+    return booking?.client_name || 'Client';
+  }
+
+  return message?.sender_name || 'FACT';
+}
+
+function getBookingMessageRecipient(booking, currentUser, recipientForAdmin) {
+  if (!booking || !currentUser?.id) {
+    return { id: null, label: 'Conversation' };
+  }
+
+  const accountType = normalizeUserType(currentUser?.user_type || 'client');
+  if (accountType === 'admin') {
+    if (recipientForAdmin === 'coach') {
+      return { id: booking.coach_id, label: booking.coach_name || 'Coach' };
+    }
+
+    return { id: booking.client_id, label: booking.client_name || 'Client' };
+  }
+
+  if (currentUser.id === booking.coach_id) {
+    return { id: booking.client_id, label: booking.client_name || 'Client' };
+  }
+
+  return { id: booking.coach_id, label: booking.coach_name || 'Coach' };
 }
 
 function buildDashboardState(accountType, payload) {
@@ -290,12 +339,157 @@ function BookingDetailScreen({ booking, onBack, onOpenMessages }) {
 
         <View style={styles.actionGroupSignedIn}>
           <Pressable onPress={onOpenMessages} style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}>
-            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Open messages on web</Text>
-            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Conversation UI is still web-based for now.</Text>
+            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Open native messages</Text>
+            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Stay inside the app for the booking conversation.</Text>
           </Pressable>
         </View>
       </View>
     </ScrollView>
+  );
+}
+
+function BookingMessagesScreen({
+  booking,
+  currentUser,
+  messages,
+  loading,
+  errorMessage,
+  draft,
+  sending,
+  recipientForAdmin,
+  onRecipientChange,
+  onDraftChange,
+  onBack,
+  onRefresh,
+  onSend,
+}) {
+  const scrollRef = useRef(null);
+  const accountType = normalizeUserType(currentUser?.user_type || 'client');
+  const recipient = getBookingMessageRecipient(booking, currentUser, recipientForAdmin);
+
+  useEffect(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, [messages.length]);
+
+  return (
+    <KeyboardAvoidingView behavior="padding" style={styles.safeArea}>
+      <View style={styles.messagesShell}>
+        <View style={styles.signInHeader}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.signInCardDark}>
+          <Text style={styles.sectionEyebrow}>Booking Messages</Text>
+          <Text style={styles.signInTitleDark}>{recipient.label}</Text>
+          <Text style={styles.signInSubtitleDark}>
+            {formatServiceType(booking.service_type)} • Reference {booking.reference_code || 'Pending'}
+          </Text>
+
+          <View style={styles.messageMetaRow}>
+            <Text style={styles.messageMetaPill}>{formatSessionDate(getBookingDateValue(booking))}</Text>
+            <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+              <Text style={styles.inlineActionButtonText}>Refresh</Text>
+            </Pressable>
+          </View>
+
+          {accountType === 'admin' ? (
+            <View style={styles.recipientToggleRow}>
+              <Pressable
+                onPress={() => onRecipientChange('client')}
+                style={({ pressed }) => [
+                  styles.recipientToggle,
+                  recipientForAdmin === 'client' && styles.recipientToggleActive,
+                  pressed && styles.actionButtonPressed,
+                ]}
+              >
+                <Text style={[styles.recipientToggleText, recipientForAdmin === 'client' && styles.recipientToggleTextActive]}>
+                  Message {booking.client_name || 'client'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onRecipientChange('coach')}
+                style={({ pressed }) => [
+                  styles.recipientToggle,
+                  recipientForAdmin === 'coach' && styles.recipientToggleActive,
+                  pressed && styles.actionButtonPressed,
+                ]}
+              >
+                <Text style={[styles.recipientToggleText, recipientForAdmin === 'coach' && styles.recipientToggleTextActive]}>
+                  Message {booking.coach_name || 'coach'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={styles.messagesList}
+            keyboardShouldPersistTaps="handled"
+          >
+            {loading ? (
+              <View style={styles.dashboardLoadingRow}>
+                <ActivityIndicator color="#f59e0b" />
+                <Text style={styles.cardCopy}>Loading conversation...</Text>
+              </View>
+            ) : messages.length > 0 ? (
+              messages.map((message) => {
+                const isOwnMessage = message.sender_id === currentUser?.id;
+                return (
+                  <View
+                    key={message.id || `${message.sender_id}-${message.created_date}-${message.content}`}
+                    style={[
+                      styles.messageBubble,
+                      isOwnMessage ? styles.messageBubbleOwn : styles.messageBubbleOther,
+                    ]}
+                  >
+                    <Text style={[styles.messageSender, isOwnMessage && styles.messageSenderOwn]}>
+                      {getMessageDisplayName(message, booking, currentUser)}
+                    </Text>
+                    <Text style={[styles.messageBody, isOwnMessage && styles.messageBodyOwn]}>{message.content}</Text>
+                    <Text style={[styles.messageTimestamp, isOwnMessage && styles.messageTimestampOwn]}>
+                      {formatMessageTime(message.created_date || message.updated_at)}
+                    </Text>
+                  </View>
+                );
+              })
+            ) : (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>No messages yet</Text>
+                <Text style={styles.cardCopy}>Start the booking conversation here. Your draft stays on device until a send succeeds.</Text>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.messageComposer}>
+            <TextInput
+              multiline={true}
+              onChangeText={onDraftChange}
+              placeholder="Write a message"
+              placeholderTextColor="#64748b"
+              style={styles.messageInput}
+              textAlignVertical="top"
+              value={draft}
+            />
+            <Pressable
+              disabled={sending || !String(draft || '').trim()}
+              onPress={onSend}
+              style={({ pressed }) => [
+                styles.submitButton,
+                styles.messageSendButton,
+                (pressed || sending || !String(draft || '').trim()) && styles.actionButtonPressed,
+                !String(draft || '').trim() && styles.messageSendButtonDisabled,
+              ]}
+            >
+              {sending ? <ActivityIndicator color="#08111f" /> : <Text style={styles.submitButtonText}>Send</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -528,6 +722,12 @@ export default function App() {
   const [bookingsViewError, setBookingsViewError] = useState('');
   const [bookingsViewItems, setBookingsViewItems] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [bookingMessages, setBookingMessages] = useState([]);
+  const [bookingMessagesLoading, setBookingMessagesLoading] = useState(false);
+  const [bookingMessagesError, setBookingMessagesError] = useState('');
+  const [messageDrafts, setMessageDrafts] = useState({});
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [recipientForAdmin, setRecipientForAdmin] = useState('client');
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -600,6 +800,38 @@ export default function App() {
     }
   };
 
+  const loadBookingMessages = async (booking = selectedBooking, nextUser = currentUser) => {
+    if (!booking?.id || !nextUser?.id) {
+      setBookingMessages([]);
+      setBookingMessagesError('');
+      return;
+    }
+
+    setBookingMessagesLoading(true);
+    setBookingMessagesError('');
+
+    try {
+      const response = await mobileApi.getMessages(booking.id);
+      const nextMessages = Array.isArray(response) ? response : [];
+      setBookingMessages(nextMessages);
+
+      const unreadMessages = nextMessages.filter((message) => message.receiver_id === nextUser.id && !message.is_read);
+      if (unreadMessages.length > 0) {
+        setBookingMessages((previousMessages) => previousMessages.map((message) => (
+          unreadMessages.some((unread) => unread.id === message.id)
+            ? { ...message, is_read: true }
+            : message
+        )));
+
+        await Promise.allSettled(unreadMessages.map((message) => mobileApi.markMessageRead(message.id)));
+      }
+    } catch (error) {
+      setBookingMessagesError(error?.message || 'Unable to load booking messages.');
+    } finally {
+      setBookingMessagesLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -654,6 +886,27 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (view !== 'booking_messages' || !selectedBooking?.id || !currentUser?.id) {
+      return undefined;
+    }
+
+    let active = true;
+
+    const refreshMessages = async () => {
+      if (!active) return;
+      await loadBookingMessages(selectedBooking, currentUser);
+    };
+
+    refreshMessages();
+    const intervalId = setInterval(refreshMessages, 15000);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
+  }, [view, selectedBooking?.id, currentUser?.id]);
+
   const handleSignIn = async () => {
     setErrorMessage('');
     setSubmitting(true);
@@ -689,7 +942,63 @@ export default function App() {
     setBookingsViewItems([]);
     setBookingsViewError('');
     setSelectedBooking(null);
+    setBookingMessages([]);
+    setBookingMessagesError('');
+    setMessageDrafts({});
+    setRecipientForAdmin('client');
     setView('home');
+  };
+
+  const handleSendBookingMessage = async () => {
+    if (!selectedBooking?.id || !currentUser?.id) {
+      return;
+    }
+
+    const draft = String(messageDrafts[selectedBooking.id] || '');
+    const trimmedDraft = draft.trim();
+    if (!trimmedDraft) {
+      return;
+    }
+
+    const recipient = getBookingMessageRecipient(selectedBooking, currentUser, recipientForAdmin);
+    if (!recipient.id) {
+      setBookingMessagesError('Unable to determine who should receive this message.');
+      return;
+    }
+
+    setSendingMessage(true);
+    setBookingMessagesError('');
+
+    try {
+      const createdMessage = await mobileApi.sendMessage({
+        booking_id: selectedBooking.id,
+        sender_id: currentUser.id,
+        receiver_id: recipient.id,
+        content: trimmedDraft,
+      });
+
+      setBookingMessages((previousMessages) => [
+        ...previousMessages,
+        {
+          ...createdMessage,
+          content: trimmedDraft,
+          sender_id: currentUser.id,
+          receiver_id: recipient.id,
+          created_date: createdMessage?.created_date || new Date().toISOString(),
+          is_read: false,
+        },
+      ]);
+      setMessageDrafts((previousDrafts) => ({
+        ...previousDrafts,
+        [selectedBooking.id]: '',
+      }));
+
+      await loadBookingMessages(selectedBooking, currentUser);
+    } catch (error) {
+      setBookingMessagesError(`${error?.message || 'Unable to send message.'} Draft kept on this device.`);
+    } finally {
+      setSendingMessage(false);
+    }
   };
 
   if (bootstrapping) {
@@ -737,7 +1046,31 @@ export default function App() {
           <BookingDetailScreen
             booking={selectedBooking}
             onBack={() => setView('bookings')}
-            onOpenMessages={() => openHref(`https://findacoachtoday.com/conversation?booking_id=${selectedBooking.id}`)}
+            onOpenMessages={async () => {
+              setBookingMessages([]);
+              setBookingMessagesError('');
+              await loadBookingMessages(selectedBooking, currentUser);
+              setView('booking_messages');
+            }}
+          />
+        ) : view === 'booking_messages' && selectedBooking ? (
+          <BookingMessagesScreen
+            booking={selectedBooking}
+            currentUser={currentUser}
+            messages={bookingMessages}
+            loading={bookingMessagesLoading}
+            errorMessage={bookingMessagesError}
+            draft={messageDrafts[selectedBooking.id] || ''}
+            sending={sendingMessage}
+            recipientForAdmin={recipientForAdmin}
+            onRecipientChange={setRecipientForAdmin}
+            onDraftChange={(value) => setMessageDrafts((previousDrafts) => ({
+              ...previousDrafts,
+              [selectedBooking.id]: value,
+            }))}
+            onBack={() => setView('booking_detail')}
+            onRefresh={() => loadBookingMessages(selectedBooking, currentUser)}
+            onSend={handleSendBookingMessage}
           />
         ) : currentUser ? (
           <AuthenticatedHome
@@ -978,6 +1311,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 14,
   },
+  errorTextLight: {
+    color: '#fca5a5',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
   submitButton: {
     alignItems: 'center',
     backgroundColor: '#f59e0b',
@@ -999,6 +1338,11 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 15,
     fontWeight: '600',
+  },
+  messagesShell: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   hero: {
     minHeight: 420,
@@ -1197,12 +1541,117 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
   },
+  messageMetaRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  messageMetaPill: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  recipientToggleRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  recipientToggle: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 999,
+    borderWidth: 1,
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  recipientToggleActive: {
+    backgroundColor: '#1d4ed8',
+    borderColor: '#60a5fa',
+  },
+  recipientToggleText: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  recipientToggleTextActive: {
+    color: '#f8fafc',
+  },
   bookingList: {
     gap: 12,
     marginBottom: 10,
   },
   bookingListLarge: {
     gap: 12,
+  },
+  messagesList: {
+    gap: 10,
+    paddingBottom: 18,
+  },
+  messageBubble: {
+    borderRadius: 18,
+    maxWidth: '88%',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  messageBubbleOwn: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#f59e0b',
+  },
+  messageBubbleOther: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderWidth: 1,
+  },
+  messageSender: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  messageSenderOwn: {
+    color: '#78350f',
+  },
+  messageBody: {
+    color: '#f8fafc',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  messageBodyOwn: {
+    color: '#08111f',
+  },
+  messageTimestamp: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 8,
+  },
+  messageTimestampOwn: {
+    color: 'rgba(8, 17, 31, 0.72)',
+  },
+  messageComposer: {
+    gap: 12,
+    marginTop: 16,
+  },
+  messageInput: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 18,
+    borderWidth: 1,
+    color: '#f8fafc',
+    fontSize: 15,
+    maxHeight: 140,
+    minHeight: 104,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  messageSendButton: {
+    minHeight: 50,
+  },
+  messageSendButtonDisabled: {
+    opacity: 0.45,
   },
   bookingCard: {
     backgroundColor: '#0f172a',
