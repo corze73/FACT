@@ -20,6 +20,21 @@ import { getCurrentProfile, mobileApi, mobileAuth, signInWithEmail, signOut, upl
 
 const factIcon = require('./assets/icon.png');
 
+function BrandLogo({ compact = false }) {
+  const [loadFailed, setLoadFailed] = useState(false);
+  const logoStyle = compact ? styles.logoCompact : styles.logo;
+
+  if (loadFailed) {
+    return (
+      <View style={[logoStyle, styles.logoFallback]}>
+        <Text style={styles.logoFallbackText}>F</Text>
+      </View>
+    );
+  }
+
+  return <Image source={factIcon} style={logoStyle} onError={() => setLoadFailed(true)} />;
+}
+
 const primaryActions = [
   {
     label: 'Find a Coach',
@@ -445,8 +460,8 @@ function buildDashboardState(accountType, payload) {
       bookings,
       bookingsTitle: 'Recent bookings',
       emptyBookingsText: 'No bookings available yet.',
-      primaryLink: { label: 'Open Admin Dashboard', href: 'https://findacoachtoday.com/admindashboard' },
-      secondaryLink: { label: 'Open Admin Operations', href: 'https://findacoachtoday.com/adminoperations' },
+      primaryLink: null,
+      secondaryLink: null,
     };
   }
 
@@ -2292,7 +2307,7 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
       >
         <View style={styles.heroOverlay}>
           <View style={styles.brandRow}>
-            <Image source={factIcon} style={styles.logo} />
+            <BrandLogo />
             <Text style={styles.brandText}>FACT Mobile</Text>
           </View>
 
@@ -2404,21 +2419,25 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
             <Text style={styles.actionBody}>Stay in the app for booking lists and booking detail.</Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => openHref(resolvedDashboard.primaryLink.href)}
-            style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
-          >
-            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>{resolvedDashboard.primaryLink.label}</Text>
-            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Use the web dashboard only for the deeper tools that have not been migrated yet.</Text>
-          </Pressable>
+          {resolvedDashboard.primaryLink ? (
+            <Pressable
+              onPress={() => openHref(resolvedDashboard.primaryLink.href)}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>{resolvedDashboard.primaryLink.label}</Text>
+              <Text style={[styles.actionBody, styles.actionBodySecondary]}>Use the web dashboard only for the deeper tools that have not been migrated yet.</Text>
+            </Pressable>
+          ) : null}
 
-          <Pressable
-            onPress={() => openHref(resolvedDashboard.secondaryLink.href)}
-            style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
-          >
-            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>{resolvedDashboard.secondaryLink.label}</Text>
-            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Keep moving inside the product while the native experience expands.</Text>
-          </Pressable>
+          {resolvedDashboard.secondaryLink ? (
+            <Pressable
+              onPress={() => openHref(resolvedDashboard.secondaryLink.href)}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>{resolvedDashboard.secondaryLink.label}</Text>
+              <Text style={[styles.actionBody, styles.actionBodySecondary]}>Keep moving inside the product while the native experience expands.</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={onRefresh}
@@ -2450,7 +2469,7 @@ function SignInScreen({ email, password, errorMessage, submitting, onEmailChange
             <Text style={styles.backButtonText}>Back</Text>
           </Pressable>
           <View style={styles.brandRowCompact}>
-            <Image source={factIcon} style={styles.logoCompact} />
+            <BrandLogo compact={true} />
             <Text style={styles.brandText}>FACT Mobile</Text>
           </View>
         </View>
@@ -4318,6 +4337,18 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 12,
     marginRight: 12,
+  },
+  logoFallback: {
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  logoFallbackText: {
+    color: '#f59e0b',
+    fontSize: 20,
+    fontWeight: '800',
   },
   backButton: {
     alignSelf: 'flex-start',
