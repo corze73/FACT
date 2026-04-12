@@ -28,6 +28,8 @@
     "dev": "expo start",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "ios:release": "xcodebuild -workspace ios/FACTMobile.xcworkspace -scheme FACTMobile -configuration Release -destination \"id=10FF8D5A-CB06-4C2D-89D9-BD6E3A8F09A2\" build",
+    "ios:device-check": "xcodebuild -workspace ios/FACTMobile.xcworkspace -scheme FACTMobile -configuration Release -destination \"generic/platform=iOS\" build"
   }
 }
