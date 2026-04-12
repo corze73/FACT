@@ -461,7 +461,7 @@ function buildDashboardState(accountType, payload) {
       bookingsTitle: 'Recent bookings',
       emptyBookingsText: 'No bookings available yet.',
       primaryLink: { label: 'Open Admin Dashboard', href: 'https://findacoachtoday.com/admindashboard' },
-      secondaryLink: { label: 'Open Admin Operations', href: 'https://findacoachtoday.com/adminoperations' },
+      secondaryLink: null,
     };
   }
 
@@ -2383,16 +2383,6 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
         )}
 
         <View style={styles.actionGroupSignedIn}>
-          {accountType === 'admin' ? (
-            <Pressable
-              onPress={onOpenAdminOperations}
-              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
-            >
-              <Text style={styles.actionTitle}>Open admin operations</Text>
-              <Text style={styles.actionBody}>Review ops metrics, cases, disputes, compliance, and invites in the app.</Text>
-            </Pressable>
-          ) : null}
-
           {accountType === 'coach' ? (
             <Pressable
               onPress={onOpenCoachOperations}
@@ -2403,21 +2393,25 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
             </Pressable>
           ) : null}
 
-          <Pressable
-            onPress={onOpenMessages}
-            style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
-          >
-            <Text style={styles.actionTitle}>Open native messages</Text>
-            <Text style={styles.actionBody}>Browse booking conversations in the app instead of jumping out to the website.</Text>
-          </Pressable>
+          {accountType !== 'admin' ? (
+            <Pressable
+              onPress={onOpenMessages}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Open native messages</Text>
+              <Text style={styles.actionBody}>Browse booking conversations in the app instead of jumping out to the website.</Text>
+            </Pressable>
+          ) : null}
 
-          <Pressable
-            onPress={onOpenBookings}
-            style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
-          >
-            <Text style={styles.actionTitle}>Open native bookings</Text>
-            <Text style={styles.actionBody}>Stay in the app for booking lists and booking detail.</Text>
-          </Pressable>
+          {accountType !== 'admin' ? (
+            <Pressable
+              onPress={onOpenBookings}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Open native bookings</Text>
+              <Text style={styles.actionBody}>Stay in the app for booking lists and booking detail.</Text>
+            </Pressable>
+          ) : null}
 
           {resolvedDashboard.primaryLink ? (
             <Pressable
@@ -2439,13 +2433,15 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
             </Pressable>
           ) : null}
 
-          <Pressable
-            onPress={onRefresh}
-            style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
-          >
-            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Refresh dashboard</Text>
-            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Pull the latest stats and bookings from the live API.</Text>
-          </Pressable>
+          {accountType !== 'admin' ? (
+            <Pressable
+              onPress={onRefresh}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Refresh dashboard</Text>
+              <Text style={[styles.actionBody, styles.actionBodySecondary]}>Pull the latest stats and bookings from the live API.</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={onSignOut}
