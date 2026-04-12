@@ -59,5 +59,27 @@ target 'FACTMobile' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Silence Xcode warning for Hermes script phase by declaring an output file.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'hermes-engine'
+
+      target.shell_script_build_phases.each do |phase|
+        next unless phase.name == '[CP-User] [Hermes] Replace Hermes for the right configuration, if needed'
+
+        output_file = '$(DERIVED_FILE_DIR)/hermes_replace_$(CONFIGURATION).txt'
+        phase.output_paths = [output_file]
+
+        unless phase.shell_script.include?('touch "$SCRIPT_OUTPUT_FILE_0"')
+          phase.shell_script = <<~SCRIPT
+            #{phase.shell_script}
+
+            if [ -n "$SCRIPT_OUTPUT_FILE_0" ]; then
+              touch "$SCRIPT_OUTPUT_FILE_0"
+            fi
+          SCRIPT
+        end
+      end
+    end
   end
 end
