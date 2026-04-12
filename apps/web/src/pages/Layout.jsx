@@ -29,6 +29,7 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
+  const [authBootstrapDone, setAuthBootstrapDone] = useState(false);
   const [navIndicators, setNavIndicators] = useState({
     hasPendingVerifications: false,
     hasUnreadMessages: false
@@ -38,6 +39,20 @@ export default function Layout({ children, currentPageName }) {
 
   useEffect(() => {
     loadCurrentUser();
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const subscription = User.onAuthStateChange(async () => {
+      await loadCurrentUser();
+    });
+
+    return () => {
+      try {
+        subscription?.unsubscribe?.();
+      } catch {
+        // no-op
+      }
+    };
   }, []);
 
   // Real-time notifications setup
@@ -72,6 +87,8 @@ export default function Layout({ children, currentPageName }) {
       }
 
       setCurrentUser(await getCachedCurrentUser());
+    } finally {
+      setAuthBootstrapDone(true);
     }
   };
   
@@ -206,6 +223,11 @@ export default function Layout({ children, currentPageName }) {
   const getHomeUrl = () => {
     return createPageUrl("Landing");
   };
+
+  const isAuthPage = currentPageName === 'Landing' || currentPageName === 'Login';
+  if (!authBootstrapDone && !isAuthPage) {
+    return <div className="p-8">Loading...</div>;
+  }
 
   // If not logged in, render children without sidebar/header (Landing has its own login)
   if (!currentUser) {

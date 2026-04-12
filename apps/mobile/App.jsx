@@ -460,8 +460,8 @@ function buildDashboardState(accountType, payload) {
       bookings,
       bookingsTitle: 'Recent bookings',
       emptyBookingsText: 'No bookings available yet.',
-      primaryLink: null,
-      secondaryLink: null,
+      primaryLink: { label: 'Open Admin Dashboard', href: 'https://findacoachtoday.com/admindashboard' },
+      secondaryLink: { label: 'Open Admin Operations', href: 'https://findacoachtoday.com/adminoperations' },
     };
   }
 

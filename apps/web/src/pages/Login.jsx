@@ -19,6 +19,7 @@ export default function Login() {
 
   useEffect(() => {
     let cancelled = false;
+    let intervalId;
 
     const redirectIfAuthenticated = async () => {
       try {
@@ -35,8 +36,25 @@ export default function Login() {
 
     redirectIfAuthenticated();
 
+    // Handle delayed auth propagation after OAuth redirects.
+    intervalId = window.setInterval(() => {
+      redirectIfAuthenticated();
+    }, 1000);
+
+    const subscription = User.onAuthStateChange(() => {
+      redirectIfAuthenticated();
+    });
+
     return () => {
       cancelled = true;
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+      try {
+        subscription?.unsubscribe?.();
+      } catch {
+        // no-op
+      }
     };
   }, [location.search]);
 
