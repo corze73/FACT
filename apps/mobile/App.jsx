@@ -2359,12 +2359,29 @@ function AuthenticatedHome({
         </View>
 
         <View style={styles.statsGrid}>
-          {resolvedDashboard.stats.map((item) => (
-            <View key={item.label} style={styles.statTile}>
-              <Text style={styles.statLabel}>{item.label}</Text>
-              <Text style={styles.statValue}>{item.value}</Text>
-            </View>
-          ))}
+          {resolvedDashboard.stats.map((item) => {
+            const isAccountsCta = accountType === 'admin' && item.label === 'Accounts';
+
+            if (isAccountsCta) {
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={() => openHref('https://findacoachtoday.com/adminusers?type=all')}
+                  style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </Pressable>
+              );
+            }
+
+            return (
+              <View key={item.label} style={styles.statTile}>
+                <Text style={styles.statLabel}>{item.label}</Text>
+                <Text style={styles.statValue}>{item.value}</Text>
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.spotlightRow}>
