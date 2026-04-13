@@ -25,10 +25,11 @@
     "babel-preset-expo": "^55.0.17"
   },
   "scripts": {
-    "dev": "expo start",
+    "dev": "node ./scripts/start-device.cjs --dev-client",
     "dev:client": "expo start --dev-client --tunnel",
     "dev:device": "node ./scripts/start-device.cjs --dev-client",
     "dev:device:dev-client": "node ./scripts/start-device.cjs --dev-client",
+    "dev:lan": "expo start",
     "dev:tunnel": "expo start --tunnel",
     "ios": "expo run:ios",
     "ios:device": "expo run:ios --device 00008110-001C41500291401E --configuration Debug",
