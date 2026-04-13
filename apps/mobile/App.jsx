@@ -45,13 +45,13 @@ const primaryActions = [
   {
     label: 'Sign In',
     description: 'Use your FACT email and password directly in the app.',
-    variant: 'secondary',
+    variant: 'primary',
   },
   {
     label: 'Become a Coach',
     description: 'Create a coach profile and start receiving bookings.',
     href: 'https://findacoachtoday.com/register?type=coach',
-    variant: 'ghost',
+    variant: 'primary',
   },
 ];
 
