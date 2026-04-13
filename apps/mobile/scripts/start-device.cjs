@@ -9,13 +9,14 @@ const forwardedArgs = args.filter((arg) => arg !== '--print-host' && arg !== '--
 function isPrivateIPv4(address) {
   return /^10\./.test(address)
     || /^192\.168\./.test(address)
-    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(address);
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(address)
+    || /^192\.0\.0\./.test(address)   // iPhone USB tethering (en0 on Mac)
+    || /^172\.20\.10\./.test(address); // iPhone Wi-Fi hotspot
 }
 
 function isUsableMetroHost(address) {
   return !/^127\./.test(address)
     && !/^169\.254\./.test(address)
-    && !/^192\.0\.0\./.test(address)
     && !/^198\.51\.100\./.test(address)
     && !/^203\.0\.113\./.test(address);
 }

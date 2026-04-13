@@ -25,7 +25,7 @@
     "babel-preset-expo": "^55.0.17"
   },
   "scripts": {
-    "dev": "node ./scripts/start-device.cjs --dev-client",
+    "dev": "node ./scripts/start-device.cjs",
     "dev:client": "expo start --dev-client --tunnel",
     "dev:device": "node ./scripts/start-device.cjs --dev-client",
     "dev:device:dev-client": "node ./scripts/start-device.cjs --dev-client",
