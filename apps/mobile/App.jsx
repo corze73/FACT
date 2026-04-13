@@ -1131,7 +1131,7 @@ function MessagesInboxScreen({ conversations, loading, errorMessage, onBack, onR
   );
 }
 
-function AdminUsersScreen({ users, loading, errorMessage, onBack, onRefresh }) {
+function AdminUsersScreen({ users, total, loading, errorMessage, onBack, onRefresh }) {
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
       <View style={styles.signInHeader}>
@@ -1141,7 +1141,7 @@ function AdminUsersScreen({ users, loading, errorMessage, onBack, onRefresh }) {
       </View>
 
       <View style={styles.signInCardDark}>
-        <Text style={styles.sectionEyebrow}>Admin Users</Text>
+        <Text style={styles.sectionEyebrow}>Users (All)</Text>
         <Text style={styles.signInTitleDark}>All registered users</Text>
         <Text style={styles.signInSubtitleDark}>Review every account currently registered in the platform from the native app.</Text>
 
@@ -1149,6 +1149,7 @@ function AdminUsersScreen({ users, loading, errorMessage, onBack, onRefresh }) {
           <Text style={styles.inlineActionButtonText}>Refresh users</Text>
         </Pressable>
 
+        {!loading ? <Text style={styles.metaCaption}>Showing {users.length} of {total}</Text> : null}
         {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
 
         {loading ? (
@@ -1161,11 +1162,11 @@ function AdminUsersScreen({ users, loading, errorMessage, onBack, onRefresh }) {
             {users.map((user) => {
               const resolvedType = normalizeUserType(user?.user_type || user?.role || 'client');
               return (
-                <View key={user.id || `${user.email}-${user.member_id}`} style={styles.availabilityCard}>
+                <View key={user.id || `${user.email}-${user.member_public_id || user.member_id || 'member'}`} style={styles.availabilityCard}>
                   <Text style={styles.compactListTitle}>{user.full_name || user.email || 'User'}</Text>
                   <Text style={styles.compactListMeta}>{user.email || 'No email'}</Text>
                   <Text style={styles.compactListMeta}>Type: {resolvedType}</Text>
-                  <Text style={styles.compactListMeta}>Member ID: {user.member_id || 'N/A'}</Text>
+                  <Text style={styles.compactListMeta}>Member ID: {user.member_public_id || user.member_id || 'N/A'}</Text>
                   <Text style={styles.compactListMeta}>Status: {user.is_active === false ? 'inactive' : 'active'}</Text>
                 </View>
               );
@@ -2702,6 +2703,7 @@ export default function App() {
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [adminUsersError, setAdminUsersError] = useState('');
   const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersTotal, setAdminUsersTotal] = useState(0);
   const [adminOpsOverview, setAdminOpsOverview] = useState(null);
   const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
   const [adminOpsCases, setAdminOpsCases] = useState([]);
@@ -2827,6 +2829,7 @@ export default function App() {
   const loadAdminUsers = async (nextUser = currentUser, nextProfile = profile) => {
     if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
       setAdminUsers([]);
+      setAdminUsersTotal(0);
       setAdminUsersError('');
       return;
     }
@@ -2835,11 +2838,20 @@ export default function App() {
     setAdminUsersError('');
 
     try {
-      const response = await mobileApi.getUsers({ include_total: 1, limit: 50, offset: 0, orderBy: '-created_at' });
+      const response = await mobileApi.getUsers({
+        view: 'admin_list',
+        include_total: 1,
+        limit: 50,
+        offset: 0,
+        orderBy: '-updated_at',
+      });
       const rows = Array.isArray(response) ? response : response?.data || [];
+      const totalRows = Number(response?.total ?? rows.length ?? 0);
       setAdminUsers(rows);
+      setAdminUsersTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
     } catch (error) {
       setAdminUsers([]);
+      setAdminUsersTotal(0);
       setAdminUsersError(error?.message || 'Unable to load registered users.');
     } finally {
       setAdminUsersLoading(false);
@@ -3415,6 +3427,7 @@ export default function App() {
     setAdminOpsOverview(null);
     setAdminOpsWeekly(null);
     setAdminUsers([]);
+    setAdminUsersTotal(0);
     setAdminUsersError('');
     setAdminOpsCases([]);
     setAdminOpsDisputes([]);
@@ -4152,6 +4165,7 @@ export default function App() {
         ) : view === 'admin_users' ? (
           <AdminUsersScreen
             users={adminUsers}
+            total={adminUsersTotal}
             loading={adminUsersLoading}
             errorMessage={adminUsersError}
             onBack={() => setView('account')}
