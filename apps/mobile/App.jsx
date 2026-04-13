@@ -569,13 +569,15 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
 
         {accountType === 'admin' ? (
           <View style={styles.searchContainer}>
+            <Text style={styles.searchLabel}>Search Booking Reference</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by reference or service..."
-              placeholderTextColor="#999"
+              placeholder="Enter booking reference (e.g., FACT-20250924-A7B2)"
+              placeholderTextColor="#64748b"
               value={searchTerm}
               onChangeText={setSearchTerm}
               textContentType="none"
+              autoCapitalize="characters"
             />
           </View>
         ) : null}
@@ -4956,18 +4958,27 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   searchContainer: {
-    marginBottom: 16,
-    marginTop: 14,
+    marginBottom: 18,
+    marginTop: 18,
+  },
+  searchLabel: {
+    color: '#f59e0b',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   searchInput: {
     backgroundColor: '#0f172a',
-    borderColor: '#243041',
+    borderColor: '#1e3a8a',
     borderWidth: 1,
     borderRadius: 12,
     color: '#f8fafc',
     fontSize: 14,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
+    fontFamily: 'Menlo',
   },
   errorText: {
     color: '#b91c1c',
