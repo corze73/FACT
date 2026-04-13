@@ -528,6 +528,25 @@ function BookingCard({ booking }) {
 }
 
 function BookingListScreen({ accountType, bookings, loading, errorMessage, onBack, onRefresh, onSelectBooking }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredBookings, setFilteredBookings] = useState(bookings);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredBookings(bookings);
+      return;
+    }
+
+    const term = searchTerm.toLowerCase();
+    const filtered = bookings.filter(
+      (booking) =>
+        booking.reference_code?.toLowerCase().includes(term) ||
+        booking.service_type?.toLowerCase().includes(term) ||
+        booking.status?.toLowerCase().includes(term)
+    );
+    setFilteredBookings(filtered);
+  }, [searchTerm, bookings]);
+
   const title = accountType === 'admin' ? 'Booking Queue' : accountType === 'coach' ? 'Coach Sessions' : 'My Bookings';
   const subtitle = accountType === 'admin'
     ? 'Review recent booking activity from the native app.'
@@ -548,6 +567,19 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
         <Text style={styles.signInTitleDark}>{title}</Text>
         <Text style={styles.signInSubtitleDark}>{subtitle}</Text>
 
+        {accountType === 'admin' ? (
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by reference or service..."
+              placeholderTextColor="#999"
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+              textContentType="none"
+            />
+          </View>
+        ) : null}
+
         <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
           <Text style={styles.inlineActionButtonText}>Refresh</Text>
         </Pressable>
@@ -559,14 +591,17 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
             <ActivityIndicator color="#f59e0b" />
             <Text style={styles.cardCopy}>Loading bookings...</Text>
           </View>
-        ) : bookings.length > 0 ? (
+        ) : filteredBookings.length > 0 ? (
           <View style={styles.bookingListLarge}>
-            {bookings.map((booking) => (
+            {filteredBookings.map((booking) => (
               <Pressable key={booking.id} onPress={() => onSelectBooking(booking)} style={({ pressed }) => [styles.bookingCard, pressed && styles.actionButtonPressed]}>
                 <View style={styles.bookingHeader}>
                   <Text style={styles.bookingTitle}>{formatServiceType(booking.service_type)}</Text>
                   <Text style={styles.bookingStatus}>{booking.status || 'pending'}</Text>
                 </View>
+                {booking.reference_code ? (
+                  <Text style={styles.bookingMeta}>Ref: {booking.reference_code}</Text>
+                ) : null}
                 <Text style={styles.bookingMeta}>{formatSessionDate(getBookingDateValue(booking))}</Text>
                 <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
                 <Text style={styles.bookingMeta}>{formatBookingLocation(booking)}</Text>
@@ -575,7 +610,7 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
           </View>
         ) : (
           <View style={styles.card}>
-            <Text style={styles.cardCopy}>No bookings available yet.</Text>
+            <Text style={styles.cardCopy}>{searchTerm.trim() ? 'No bookings match your search.' : 'No bookings available yet.'}</Text>
           </View>
         )}
       </View>
@@ -3003,26 +3038,12 @@ export default function App() {
     try {
       const response = await mobileApi.getBookings({
         view: 'admin_list',
-        include_archived: 1,
-        include_total: 1,
         limit: 50,
         offset: 0,
         orderBy: '-created_at',
       });
       let rows = Array.isArray(response) ? response : response?.data || [];
       let totalRows = Number(response?.total ?? rows.length ?? 0);
-
-      if (rows.length === 0) {
-        const fallbackResponse = await mobileApi.getBookings({
-          include_archived: 1,
-          include_total: 1,
-          limit: 50,
-          offset: 0,
-          orderBy: '-created_at',
-        });
-        rows = Array.isArray(fallbackResponse) ? fallbackResponse : fallbackResponse?.data || [];
-        totalRows = Number(fallbackResponse?.total ?? rows.length ?? 0);
-      }
 
       setAdminBookings(rows);
       setAdminBookingsTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
@@ -4933,6 +4954,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  searchContainer: {
+    marginBottom: 16,
+    marginTop: 14,
+  },
+  searchInput: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderWidth: 1,
+    borderRadius: 12,
+    color: '#f8fafc',
+    fontSize: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   errorText: {
     color: '#b91c1c',
