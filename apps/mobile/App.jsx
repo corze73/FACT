@@ -2835,7 +2835,7 @@ export default function App() {
     setAdminUsersError('');
 
     try {
-      const response = await mobileApi.getUsers({ limit: 200, offset: 0, orderBy: '-created_at' });
+      const response = await mobileApi.getUsers({ include_total: 1, limit: 50, offset: 0, orderBy: '-created_at' });
       const rows = Array.isArray(response) ? response : response?.data || [];
       setAdminUsers(rows);
     } catch (error) {
