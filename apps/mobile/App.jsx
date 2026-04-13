@@ -456,6 +456,7 @@ function buildDashboardState(accountType, payload) {
         { label: 'Pending', value: bookingStats.pending || 0 },
         { label: 'Confirmed', value: bookingStats.confirmed || 0 },
         { label: 'Completed', value: bookingStats.completed || 0 },
+        { label: 'Cancelled', value: bookingStats.cancelled || 0 },
       ],
       bookings,
       bookingsTitle: 'Recent bookings',
@@ -2342,15 +2343,6 @@ function AuthenticatedHome({
           <Text style={styles.sectionSubtitle}>{resolvedDashboard.subheading}</Text>
         </View>
 
-        <View style={styles.statsGrid}>
-          {resolvedDashboard.stats.map((item) => (
-            <View key={item.label} style={styles.statTile}>
-              <Text style={styles.statLabel}>{item.label}</Text>
-              <Text style={styles.statValue}>{item.value}</Text>
-            </View>
-          ))}
-        </View>
-
         <View style={styles.featureGrid}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Account</Text>
@@ -2364,6 +2356,15 @@ function AuthenticatedHome({
             <Text style={styles.cardTitle}>Session</Text>
             <Text style={styles.cardCopy}>{loadingProfile ? 'Refreshing profile...' : 'Signed in on device'}</Text>
           </View>
+        </View>
+
+        <View style={styles.statsGrid}>
+          {resolvedDashboard.stats.map((item) => (
+            <View key={item.label} style={styles.statTile}>
+              <Text style={styles.statLabel}>{item.label}</Text>
+              <Text style={styles.statValue}>{item.value}</Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.spotlightRow}>
