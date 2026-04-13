@@ -2357,6 +2357,7 @@ function AuthenticatedHome({
   onOpenMessages,
   onOpenAdminUsers,
   onOpenAdminCoaches,
+  onOpenAdminClients,
   onOpenAdminVerifications,
   onOpenAdminAuditLogs,
   onOpenAdminOperations,
@@ -2415,6 +2416,7 @@ function AuthenticatedHome({
           {resolvedDashboard.stats.map((item) => {
             const isAccountsCta = accountType === 'admin' && item.label === 'Accounts';
             const isCoachesCta = accountType === 'admin' && item.label === 'Coaches';
+            const isClientsCta = accountType === 'admin' && item.label === 'Clients';
 
             if (isAccountsCta) {
               return (
@@ -2434,6 +2436,19 @@ function AuthenticatedHome({
                 <Pressable
                   key={item.label}
                   onPress={onOpenAdminCoaches}
+                  style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </Pressable>
+              );
+            }
+
+            if (isClientsCta) {
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={onOpenAdminClients}
                   style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
                 >
                   <Text style={styles.statLabel}>{item.label}</Text>
@@ -2723,6 +2738,10 @@ export default function App() {
   const [adminCoachesError, setAdminCoachesError] = useState('');
   const [adminCoaches, setAdminCoaches] = useState([]);
   const [adminCoachesTotal, setAdminCoachesTotal] = useState(0);
+  const [adminClientsLoading, setAdminClientsLoading] = useState(false);
+  const [adminClientsError, setAdminClientsError] = useState('');
+  const [adminClients, setAdminClients] = useState([]);
+  const [adminClientsTotal, setAdminClientsTotal] = useState(0);
   const [adminOpsOverview, setAdminOpsOverview] = useState(null);
   const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
   const [adminOpsCases, setAdminOpsCases] = useState([]);
@@ -2907,6 +2926,39 @@ export default function App() {
       setAdminCoachesError(error?.message || 'Unable to load coaches.');
     } finally {
       setAdminCoachesLoading(false);
+    }
+  };
+
+  const loadAdminClients = async (nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
+      setAdminClients([]);
+      setAdminClientsTotal(0);
+      setAdminClientsError('');
+      return;
+    }
+
+    setAdminClientsLoading(true);
+    setAdminClientsError('');
+
+    try {
+      const response = await mobileApi.getUsers({
+        view: 'admin_list',
+        type: 'client',
+        include_total: 1,
+        limit: 50,
+        offset: 0,
+        orderBy: '-updated_at',
+      });
+      const rows = Array.isArray(response) ? response : response?.data || [];
+      const totalRows = Number(response?.total ?? rows.length ?? 0);
+      setAdminClients(rows);
+      setAdminClientsTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
+    } catch (error) {
+      setAdminClients([]);
+      setAdminClientsTotal(0);
+      setAdminClientsError(error?.message || 'Unable to load clients.');
+    } finally {
+      setAdminClientsLoading(false);
     }
   };
 
@@ -3484,6 +3536,9 @@ export default function App() {
     setAdminCoaches([]);
     setAdminCoachesTotal(0);
     setAdminCoachesError('');
+    setAdminClients([]);
+    setAdminClientsTotal(0);
+    setAdminClientsError('');
     setAdminOpsCases([]);
     setAdminOpsDisputes([]);
     setAdminOpsExpiring([]);
@@ -4155,6 +4210,11 @@ export default function App() {
     setView('admin_coaches');
   };
 
+  const openAdminClientsView = async () => {
+    await loadAdminClients(currentUser, profile);
+    setView('admin_clients');
+  };
+
   const openAdminOperationsView = async (options = {}) => {
     const nextCaseFilter = String(options.caseFilter ?? adminCaseFilter ?? 'all');
     const nextDisputeFilter = String(options.disputeFilter ?? adminDisputeFilter ?? 'all');
@@ -4242,6 +4302,18 @@ export default function App() {
             screenSubtitle="Review every coach account currently registered in the platform."
             onBack={() => setView('account')}
             onRefresh={() => loadAdminCoaches(currentUser, profile)}
+          />
+        ) : view === 'admin_clients' ? (
+          <AdminUsersScreen
+            users={adminClients}
+            total={adminClientsTotal}
+            loading={adminClientsLoading}
+            errorMessage={adminClientsError}
+            screenTitle="Clients"
+            screenHeading="All registered clients"
+            screenSubtitle="Review every client account currently registered in the platform."
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminClients(currentUser, profile)}
           />
         ) : view === 'messages_inbox' ? (
           <MessagesInboxScreen
@@ -4473,6 +4545,7 @@ export default function App() {
             onOpenMessages={openMessagesInboxView}
             onOpenAdminUsers={openAdminUsersView}
             onOpenAdminCoaches={openAdminCoachesView}
+            onOpenAdminClients={openAdminClientsView}
             onOpenAdminVerifications={() => openAdminOperationsView({
               verificationFilter: 'pending',
               caseFilter: 'all',
