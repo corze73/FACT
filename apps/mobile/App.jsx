@@ -2384,13 +2384,47 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
 
         <View style={styles.actionGroupSignedIn}>
           {accountType === 'admin' ? (
-            <Pressable
-              onPress={onOpenAdminOperations}
-              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
-            >
-              <Text style={styles.actionTitle}>Open admin operations</Text>
-              <Text style={styles.actionBody}>Review support cases, disputes, and coach verification in the native app.</Text>
-            </Pressable>
+            <>
+              <Pressable
+                onPress={onOpenAdminOperations}
+                style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+              >
+                <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Verifications</Text>
+                <Text style={[styles.actionBody, styles.actionBodySecondary]}>Review and action coach verification requests in native admin operations.</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onOpenAdminOperations}
+                style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+              >
+                <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Audit Logs</Text>
+                <Text style={[styles.actionBody, styles.actionBodySecondary]}>Open native operations to monitor recent admin actions and platform activity.</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onOpenAdminOperations}
+                style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+              >
+                <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Operations</Text>
+                <Text style={[styles.actionBody, styles.actionBodySecondary]}>Manage disputes, cases, and platform tasks from the in-app operations screen.</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onOpenMessages}
+                style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+              >
+                <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Messages</Text>
+                <Text style={[styles.actionBody, styles.actionBodySecondary]}>Open native direct messages without leaving the app.</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onOpenMessages}
+                style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
+              >
+                <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Help</Text>
+                <Text style={[styles.actionBody, styles.actionBodySecondary]}>Use native messages to contact support from your signed-in admin session.</Text>
+              </Pressable>
+            </>
           ) : null}
 
           {accountType === 'coach' ? (
