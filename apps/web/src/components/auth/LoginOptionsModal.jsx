@@ -27,10 +27,9 @@ export default function LoginOptionsModal({
     
     try {
       await onEmailLogin(loginForm.email, loginForm.password);
-      // Reset form and close modal on success
+      // Reset form on success; parent handles post-login navigation.
       setLoginForm({ email: '', password: '' });
       setView('options');
-      onClose();
     } catch (error) {
       console.error("Login error:", error);
       if (error.message.includes('Invalid login credentials')) {
@@ -48,7 +47,6 @@ export default function LoginOptionsModal({
   const handleGoogleClick = async () => {
     try {
       await onGoogleLogin();
-      onClose();
     } catch (error) {
       console.error("Google login error:", error);
     }
