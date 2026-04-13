@@ -572,7 +572,7 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
             <Text style={styles.searchLabel}>Search Booking Reference</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Enter booking reference (e.g., FACT-20250924-A7B2)"
+              placeholder="Enter booking reference"
               placeholderTextColor="#64748b"
               value={searchTerm}
               onChangeText={setSearchTerm}
