@@ -1131,6 +1131,56 @@ function MessagesInboxScreen({ conversations, loading, errorMessage, onBack, onR
   );
 }
 
+function AdminUsersScreen({ users, loading, errorMessage, onBack, onRefresh }) {
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Admin Users</Text>
+        <Text style={styles.signInTitleDark}>All registered users</Text>
+        <Text style={styles.signInSubtitleDark}>Review every account currently registered in the platform from the native app.</Text>
+
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+          <Text style={styles.inlineActionButtonText}>Refresh users</Text>
+        </Pressable>
+
+        {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading users...</Text>
+          </View>
+        ) : users.length > 0 ? (
+          <View style={styles.featureGrid}>
+            {users.map((user) => {
+              const resolvedType = normalizeUserType(user?.user_type || user?.role || 'client');
+              return (
+                <View key={user.id || `${user.email}-${user.member_id}`} style={styles.availabilityCard}>
+                  <Text style={styles.compactListTitle}>{user.full_name || user.email || 'User'}</Text>
+                  <Text style={styles.compactListMeta}>{user.email || 'No email'}</Text>
+                  <Text style={styles.compactListMeta}>Type: {resolvedType}</Text>
+                  <Text style={styles.compactListMeta}>Member ID: {user.member_id || 'N/A'}</Text>
+                  <Text style={styles.compactListMeta}>Status: {user.is_active === false ? 'inactive' : 'active'}</Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardCopy}>No registered users returned yet.</Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 function AdminOperationsScreen({
   overview,
   weekly,
@@ -2304,6 +2354,7 @@ function AuthenticatedHome({
   onRefresh,
   onOpenBookings,
   onOpenMessages,
+  onOpenAdminUsers,
   onOpenAdminVerifications,
   onOpenAdminAuditLogs,
   onOpenAdminOperations,
@@ -2366,7 +2417,7 @@ function AuthenticatedHome({
               return (
                 <Pressable
                   key={item.label}
-                  onPress={onOpenAdminOperations}
+                  onPress={onOpenAdminUsers}
                   style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
                 >
                   <Text style={styles.statLabel}>{item.label}</Text>
@@ -2648,6 +2699,9 @@ export default function App() {
   const [rescheduleTime, setRescheduleTime] = useState('');
   const [adminOpsLoading, setAdminOpsLoading] = useState(false);
   const [adminOpsError, setAdminOpsError] = useState('');
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [adminUsersError, setAdminUsersError] = useState('');
+  const [adminUsers, setAdminUsers] = useState([]);
   const [adminOpsOverview, setAdminOpsOverview] = useState(null);
   const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
   const [adminOpsCases, setAdminOpsCases] = useState([]);
@@ -2767,6 +2821,28 @@ export default function App() {
       setBookingsViewError(error?.message || 'Unable to load bookings.');
     } finally {
       setBookingsViewLoading(false);
+    }
+  };
+
+  const loadAdminUsers = async (nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
+      setAdminUsers([]);
+      setAdminUsersError('');
+      return;
+    }
+
+    setAdminUsersLoading(true);
+    setAdminUsersError('');
+
+    try {
+      const response = await mobileApi.getUsers({ limit: 200, offset: 0, orderBy: '-created_at' });
+      const rows = Array.isArray(response) ? response : response?.data || [];
+      setAdminUsers(rows);
+    } catch (error) {
+      setAdminUsers([]);
+      setAdminUsersError(error?.message || 'Unable to load registered users.');
+    } finally {
+      setAdminUsersLoading(false);
     }
   };
 
@@ -3338,6 +3414,8 @@ export default function App() {
     setDashboardError('');
     setAdminOpsOverview(null);
     setAdminOpsWeekly(null);
+    setAdminUsers([]);
+    setAdminUsersError('');
     setAdminOpsCases([]);
     setAdminOpsDisputes([]);
     setAdminOpsExpiring([]);
@@ -3999,6 +4077,11 @@ export default function App() {
     setView('messages_inbox');
   };
 
+  const openAdminUsersView = async () => {
+    await loadAdminUsers(currentUser, profile);
+    setView('admin_users');
+  };
+
   const openAdminOperationsView = async (options = {}) => {
     const nextCaseFilter = String(options.caseFilter ?? adminCaseFilter ?? 'all');
     const nextDisputeFilter = String(options.disputeFilter ?? adminDisputeFilter ?? 'all');
@@ -4065,6 +4148,14 @@ export default function App() {
               setSelectedBooking(booking);
               setView('booking_detail');
             }}
+          />
+        ) : view === 'admin_users' ? (
+          <AdminUsersScreen
+            users={adminUsers}
+            loading={adminUsersLoading}
+            errorMessage={adminUsersError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminUsers(currentUser, profile)}
           />
         ) : view === 'messages_inbox' ? (
           <MessagesInboxScreen
@@ -4294,6 +4385,7 @@ export default function App() {
             dashboard={dashboard}
             onRefresh={() => loadDashboard(currentUser, profile)}
             onOpenMessages={openMessagesInboxView}
+            onOpenAdminUsers={openAdminUsersView}
             onOpenAdminVerifications={() => openAdminOperationsView({
               verificationFilter: 'pending',
               caseFilter: 'all',
