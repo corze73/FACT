@@ -2358,6 +2358,7 @@ function AuthenticatedHome({
   onOpenAdminUsers,
   onOpenAdminCoaches,
   onOpenAdminClients,
+  onOpenAdminBookings,
   onOpenAdminVerifications,
   onOpenAdminAuditLogs,
   onOpenAdminOperations,
@@ -2371,13 +2372,12 @@ function AuthenticatedHome({
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      onOpenAdminBookings,
       <ImageBackground
         source={{ uri: 'https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1600&q=80' }}
         style={styles.hero}
         imageStyle={styles.heroImage}
       >
-                      onPress={onOpenAdminBookings}
+        <View style={styles.heroOverlay}>
           <View style={styles.brandRow}>
             <BrandLogo />
             <Text style={styles.brandText}>FACT Mobile</Text>
@@ -2387,63 +2387,23 @@ function AuthenticatedHome({
           <Text style={styles.title}>Welcome back, {displayName}.</Text>
           <Text style={styles.subtitle}>
             You are signed in as {accountType}. Native login is working, and this screen now reflects your role instead of dropping straight into the browser.
-      const [adminBookingsLoading, setAdminBookingsLoading] = useState(false);
-      const [adminBookingsError, setAdminBookingsError] = useState('');
-      const [adminBookings, setAdminBookings] = useState([]);
-      const [adminBookingsTotal, setAdminBookingsTotal] = useState(0);
           </Text>
         </View>
       </ImageBackground>
 
       <View style={styles.content}>
         <View style={styles.sectionHeaderCompact}>
-
-      const loadAdminBookings = async (nextUser = currentUser, nextProfile = profile) => {
-        if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
-          setAdminBookings([]);
-          setAdminBookingsTotal(0);
-          setAdminBookingsError('');
-          return;
-        }
-
-        setAdminBookingsLoading(true);
-        setAdminBookingsError('');
-
-        try {
-          const response = await mobileApi.getBookings({
-            view: 'admin_list',
-            include_total: 1,
-            limit: 50,
-            offset: 0,
-            orderBy: '-created_at',
-          });
-          const rows = Array.isArray(response) ? response : response?.data || [];
-          const totalRows = Number(response?.total ?? rows.length ?? 0);
-          setAdminBookings(rows);
-          setAdminBookingsTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
-        } catch (error) {
-          setAdminBookings([]);
-          setAdminBookingsTotal(0);
-          setAdminBookingsError(error?.message || 'Unable to load bookings.');
-        } finally {
-          setAdminBookingsLoading(false);
-        }
-      };
           <Text style={styles.sectionEyebrow}>{resolvedDashboard.eyebrow}</Text>
           <Text style={styles.sectionTitle}>{resolvedDashboard.heading}</Text>
           <Text style={styles.sectionSubtitle}>{resolvedDashboard.subheading}</Text>
         </View>
 
-        setAdminBookings((previousBookings) => previousBookings.map((booking) => (
-          booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
-        )));
         <View style={styles.featureGrid}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Account</Text>
             <Text style={styles.cardCopy}>{currentUser?.email}</Text>
           </View>
           <View style={styles.card}>
-            loadAdminBookings(currentUser, profile),
             <Text style={styles.cardTitle}>Role</Text>
             <Text style={styles.cardCopy}>{accountType}</Text>
           </View>
@@ -2451,11 +2411,6 @@ function AuthenticatedHome({
             <Text style={styles.cardTitle}>Session</Text>
             <Text style={styles.cardCopy}>{loadingProfile ? 'Refreshing profile...' : 'Signed in on device'}</Text>
           </View>
-
-      const openAdminBookingsView = async () => {
-        await loadAdminBookings(currentUser, profile);
-        setView('admin_bookings');
-      };
         </View>
 
         <View style={styles.statsGrid}>
@@ -2468,37 +2423,16 @@ function AuthenticatedHome({
             if (isAccountsCta) {
               return (
                 <Pressable
-            ) : view === 'admin_bookings' ? (
-              <BookingListScreen
-                accountType="admin"
-                bookings={adminBookings}
-                loading={adminBookingsLoading}
-                errorMessage={adminBookingsError}
-                onBack={() => setView('account')}
-                onRefresh={() => loadAdminBookings(currentUser, profile)}
-                onSelectBooking={(booking) => {
-                  setSelectedBooking(booking);
-                  setView('booking_detail');
-                }}
-              />
                   key={item.label}
                   onPress={onOpenAdminUsers}
                   style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
                 >
-        setAdminBookings([]);
-        setAdminBookingsTotal(0);
-        setAdminBookingsError('');
                   <Text style={styles.statLabel}>{item.label}</Text>
                   <Text style={styles.statValue}>{item.value}</Text>
                 </Pressable>
               );
-                onOpenAdminBookings={openAdminBookingsView}
             }
 
-                  if (normalizeUserType(profile?.user_type || currentUser?.user_type || 'client') === 'admin') {
-                    await openAdminBookingsView();
-                    return;
-                  }
             if (isCoachesCta) {
               return (
                 <Pressable
@@ -2529,7 +2463,7 @@ function AuthenticatedHome({
               return (
                 <Pressable
                   key={item.label}
-                  onPress={onOpenBookings}
+                  onPress={onOpenAdminBookings}
                   style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
                 >
                   <Text style={styles.statLabel}>{item.label}</Text>
@@ -2823,6 +2757,10 @@ export default function App() {
   const [adminClientsError, setAdminClientsError] = useState('');
   const [adminClients, setAdminClients] = useState([]);
   const [adminClientsTotal, setAdminClientsTotal] = useState(0);
+  const [adminBookingsLoading, setAdminBookingsLoading] = useState(false);
+  const [adminBookingsError, setAdminBookingsError] = useState('');
+  const [adminBookings, setAdminBookings] = useState([]);
+  const [adminBookingsTotal, setAdminBookingsTotal] = useState(0);
   const [adminOpsOverview, setAdminOpsOverview] = useState(null);
   const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
   const [adminOpsCases, setAdminOpsCases] = useState([]);
@@ -3040,6 +2978,38 @@ export default function App() {
       setAdminClientsError(error?.message || 'Unable to load clients.');
     } finally {
       setAdminClientsLoading(false);
+    }
+  };
+
+  const loadAdminBookings = async (nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
+      setAdminBookings([]);
+      setAdminBookingsTotal(0);
+      setAdminBookingsError('');
+      return;
+    }
+
+    setAdminBookingsLoading(true);
+    setAdminBookingsError('');
+
+    try {
+      const response = await mobileApi.getBookings({
+        view: 'admin_list',
+        include_total: 1,
+        limit: 50,
+        offset: 0,
+        orderBy: '-created_at',
+      });
+      const rows = Array.isArray(response) ? response : response?.data || [];
+      const totalRows = Number(response?.total ?? rows.length ?? 0);
+      setAdminBookings(rows);
+      setAdminBookingsTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
+    } catch (error) {
+      setAdminBookings([]);
+      setAdminBookingsTotal(0);
+      setAdminBookingsError(error?.message || 'Unable to load bookings.');
+    } finally {
+      setAdminBookingsLoading(false);
     }
   };
 
@@ -3620,6 +3590,9 @@ export default function App() {
     setAdminClients([]);
     setAdminClientsTotal(0);
     setAdminClientsError('');
+    setAdminBookings([]);
+    setAdminBookingsTotal(0);
+    setAdminBookingsError('');
     setAdminOpsCases([]);
     setAdminOpsDisputes([]);
     setAdminOpsExpiring([]);
@@ -4174,6 +4147,9 @@ export default function App() {
     setBookingsViewItems((previousBookings) => previousBookings.map((booking) => (
       booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
     )));
+    setAdminBookings((previousBookings) => previousBookings.map((booking) => (
+      booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
+    )));
     setDashboard((previousDashboard) => {
       if (!previousDashboard?.bookings) return previousDashboard;
       return {
@@ -4203,6 +4179,7 @@ export default function App() {
       syncUpdatedBooking(updatedBooking);
       await Promise.allSettled([
         loadBookingsView(currentUser, profile),
+        loadAdminBookings(currentUser, profile),
         loadDashboard(currentUser, profile),
         loadMessageConversations(currentUser, profile),
       ]);
@@ -4294,6 +4271,11 @@ export default function App() {
   const openAdminClientsView = async () => {
     await loadAdminClients(currentUser, profile);
     setView('admin_clients');
+  };
+
+  const openAdminBookingsView = async () => {
+    await loadAdminBookings(currentUser, profile);
+    setView('admin_bookings');
   };
 
   const openAdminOperationsView = async (options = {}) => {
@@ -4395,6 +4377,19 @@ export default function App() {
             screenSubtitle="Review every client account currently registered in the platform."
             onBack={() => setView('account')}
             onRefresh={() => loadAdminClients(currentUser, profile)}
+          />
+        ) : view === 'admin_bookings' ? (
+          <BookingListScreen
+            accountType="admin"
+            bookings={adminBookings}
+            loading={adminBookingsLoading}
+            errorMessage={adminBookingsError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminBookings(currentUser, profile)}
+            onSelectBooking={(booking) => {
+              setSelectedBooking(booking);
+              setView('booking_detail');
+            }}
           />
         ) : view === 'messages_inbox' ? (
           <MessagesInboxScreen
@@ -4627,6 +4622,7 @@ export default function App() {
             onOpenAdminUsers={openAdminUsersView}
             onOpenAdminCoaches={openAdminCoachesView}
             onOpenAdminClients={openAdminClientsView}
+            onOpenAdminBookings={openAdminBookingsView}
             onOpenAdminVerifications={() => openAdminOperationsView({
               verificationFilter: 'pending',
               caseFilter: 'all',
@@ -4657,6 +4653,10 @@ export default function App() {
               setView('coach_operations');
             }}
             onOpenBookings={async () => {
+              if (normalizeUserType(profile?.user_type || currentUser?.user_type || 'client') === 'admin') {
+                await openAdminBookingsView();
+                return;
+              }
               await loadBookingsView(currentUser, profile);
               setView('bookings');
             }}
