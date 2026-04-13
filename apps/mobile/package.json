@@ -26,6 +26,9 @@
   },
   "scripts": {
     "dev": "expo start",
+    "dev:device": "node ./scripts/start-device.cjs",
+    "dev:device:dev-client": "node ./scripts/start-device.cjs --dev-client",
+    "dev:tunnel": "expo start --tunnel",
     "ios": "expo run:ios",
     "android": "expo run:android",
     "web": "expo start --web",
