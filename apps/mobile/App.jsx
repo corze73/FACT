@@ -2396,6 +2396,7 @@ function AuthenticatedHome({
   onOpenAdminCoaches,
   onOpenAdminClients,
   onOpenAdminBookings,
+    onOpenAdminPending,
   onOpenAdminVerifications,
   onOpenAdminAuditLogs,
   onOpenAdminOperations,
@@ -2509,6 +2510,20 @@ function AuthenticatedHome({
               );
             }
 
+            const isPendingCta = accountType === 'admin' && item.label === 'Pending';
+
+            if (isPendingCta) {
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={onOpenAdminPending}
+                  style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </Pressable>
+              );
+            }
             return (
               <View key={item.label} style={styles.statTile}>
                 <Text style={styles.statLabel}>{item.label}</Text>
@@ -2798,6 +2813,10 @@ export default function App() {
   const [adminBookingsError, setAdminBookingsError] = useState('');
   const [adminBookings, setAdminBookings] = useState([]);
   const [adminBookingsTotal, setAdminBookingsTotal] = useState(0);
+    const [adminPendingLoading, setAdminPendingLoading] = useState(false);
+    const [adminPendingError, setAdminPendingError] = useState('');
+    const [adminPending, setAdminPending] = useState([]);
+    const [adminPendingTotal, setAdminPendingTotal] = useState(0);
   const [adminOpsOverview, setAdminOpsOverview] = useState(null);
   const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
   const [adminOpsCases, setAdminOpsCases] = useState([]);
@@ -3034,6 +3053,9 @@ export default function App() {
       return;
     }
 
+  setAdminPending([]);
+  setAdminPendingTotal(0);
+  setAdminPendingError('');
     setAdminBookingsLoading(true);
     setAdminBookingsError('');
 
@@ -3058,6 +3080,38 @@ export default function App() {
     }
   };
 
+  const loadAdminPending = async (nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
+      setAdminPending([]);
+      setAdminPendingTotal(0);
+      setAdminPendingError('');
+      return;
+    }
+
+    setAdminPendingLoading(true);
+    setAdminPendingError('');
+
+    try {
+      const response = await mobileApi.getBookings({
+        view: 'admin_list',
+        status: 'pending',
+        limit: 50,
+        offset: 0,
+        orderBy: '-created_at',
+      });
+      let rows = Array.isArray(response) ? response : response?.data || [];
+      let totalRows = Number(response?.total ?? rows.length ?? 0);
+
+      setAdminPending(rows);
+      setAdminPendingTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
+    } catch (error) {
+      setAdminPending([]);
+      setAdminPendingTotal(0);
+      setAdminPendingError(error?.message || 'Unable to load pending bookings.');
+    } finally {
+      setAdminPendingLoading(false);
+    }
+  };
   const loadBookingMessages = async (booking = selectedBooking, nextUser = currentUser) => {
     if (!booking?.id || !nextUser?.id) {
       setBookingMessages([]);
@@ -4323,6 +4377,10 @@ export default function App() {
     setView('admin_bookings');
   };
 
+  const openAdminPendingView = async () => {
+    await loadAdminPending(currentUser, profile);
+    setView('admin_pending');
+  };
   const openAdminOperationsView = async (options = {}) => {
     const nextCaseFilter = String(options.caseFilter ?? adminCaseFilter ?? 'all');
     const nextDisputeFilter = String(options.disputeFilter ?? adminDisputeFilter ?? 'all');
@@ -4431,6 +4489,19 @@ export default function App() {
             errorMessage={adminBookingsError}
             onBack={() => setView('account')}
             onRefresh={() => loadAdminBookings(currentUser, profile)}
+                    ) : view === 'admin_pending' ? (
+                      <BookingListScreen
+                        accountType="admin"
+                        bookings={adminPending}
+                        loading={adminPendingLoading}
+                        errorMessage={adminPendingError}
+                        onBack={() => setView('account')}
+                        onRefresh={() => loadAdminPending(currentUser, profile)}
+                        onSelectBooking={(booking) => {
+                          setSelectedBooking(booking);
+                          setView('booking_detail');
+                        }}
+                      />
             onSelectBooking={(booking) => {
               setSelectedBooking(booking);
               setView('booking_detail');
@@ -4668,6 +4739,7 @@ export default function App() {
             onOpenAdminCoaches={openAdminCoachesView}
             onOpenAdminClients={openAdminClientsView}
             onOpenAdminBookings={openAdminBookingsView}
+                      onOpenAdminPending={openAdminPendingView}
             onOpenAdminVerifications={() => openAdminOperationsView({
               verificationFilter: 'pending',
               caseFilter: 'all',
