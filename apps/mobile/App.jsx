@@ -2506,10 +2506,10 @@ function AuthenticatedHome({
 
           <Pressable
             onPress={onSignOut}
-            style={({ pressed }) => [styles.actionButton, styles.actionButtonGhost, pressed && styles.actionButtonPressed]}
+            style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
           >
-            <Text style={[styles.actionTitle, styles.actionTitleGhost]}>Sign out</Text>
-            <Text style={[styles.actionBody, styles.actionBodyGhost]}>Clear the local session on this device.</Text>
+            <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Sign out</Text>
+            <Text style={[styles.actionBody, styles.actionBodySecondary]}>Clear the local session on this device.</Text>
           </Pressable>
         </View>
       </View>
@@ -4741,6 +4741,7 @@ const styles = StyleSheet.create({
   },
   featureGrid: {
     gap: 14,
+    marginBottom: 20,
   },
   sectionHeaderCompact: {
     marginBottom: 18,
@@ -4789,8 +4790,10 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   spotlightCard: {
-    backgroundColor: '#101826',
+    backgroundColor: '#0f172a',
+    borderColor: '#1d4ed8',
     borderRadius: 18,
+    borderWidth: 1,
     paddingHorizontal: 18,
     paddingVertical: 16,
   },
