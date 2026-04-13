@@ -2417,6 +2417,7 @@ function AuthenticatedHome({
             const isAccountsCta = accountType === 'admin' && item.label === 'Accounts';
             const isCoachesCta = accountType === 'admin' && item.label === 'Coaches';
             const isClientsCta = accountType === 'admin' && item.label === 'Clients';
+            const isBookingsCta = accountType === 'admin' && item.label === 'Bookings';
 
             if (isAccountsCta) {
               return (
@@ -2449,6 +2450,19 @@ function AuthenticatedHome({
                 <Pressable
                   key={item.label}
                   onPress={onOpenAdminClients}
+                  style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </Pressable>
+              );
+            }
+
+            if (isBookingsCta) {
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={onOpenBookings}
                   style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
                 >
                   <Text style={styles.statLabel}>{item.label}</Text>
