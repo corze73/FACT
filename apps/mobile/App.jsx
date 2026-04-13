@@ -460,7 +460,7 @@ function buildDashboardState(accountType, payload) {
       bookings,
       bookingsTitle: 'Recent bookings',
       emptyBookingsText: 'No bookings available yet.',
-      primaryLink: { label: 'Open Admin Dashboard', href: 'https://findacoachtoday.com/admindashboard' },
+      primaryLink: null,
       secondaryLink: null,
     };
   }
@@ -487,8 +487,8 @@ function buildDashboardState(accountType, payload) {
       bookings,
       bookingsTitle: 'Your sessions',
       emptyBookingsText: 'No coach sessions found yet.',
-      primaryLink: { label: 'Open Coach Dashboard', href: 'https://findacoachtoday.com/coachdashboard' },
-      secondaryLink: { label: 'Open Messages', href: 'https://findacoachtoday.com/messages' },
+      primaryLink: null,
+      secondaryLink: null,
     };
   }
 
@@ -508,8 +508,8 @@ function buildDashboardState(accountType, payload) {
     bookings,
     bookingsTitle: 'Your bookings',
     emptyBookingsText: 'No client bookings found yet.',
-    primaryLink: { label: 'Open My Bookings', href: 'https://findacoachtoday.com/mybookings' },
-    secondaryLink: { label: 'Browse Coaches', href: 'https://findacoachtoday.com/findcoaches' },
+    primaryLink: null,
+    secondaryLink: null,
   };
 }
 
@@ -2383,6 +2383,16 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
         )}
 
         <View style={styles.actionGroupSignedIn}>
+          {accountType === 'admin' ? (
+            <Pressable
+              onPress={onOpenAdminOperations}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Open admin operations</Text>
+              <Text style={styles.actionBody}>Review support cases, disputes, and coach verification in the native app.</Text>
+            </Pressable>
+          ) : null}
+
           {accountType === 'coach' ? (
             <Pressable
               onPress={onOpenCoachOperations}
