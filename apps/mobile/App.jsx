@@ -451,6 +451,7 @@ function buildDashboardState(accountType, payload) {
         { label: 'Coaches', value: userStats.total_coaches || 0 },
         { label: 'Clients', value: userStats.total_clients || 0 },
         { label: 'Bookings', value: bookingStats.total || 0 },
+        { label: 'Pending', value: bookingStats.pending || 0 },
       ],
       spotlight: [
         { label: 'Pending', value: bookingStats.pending || 0 },
