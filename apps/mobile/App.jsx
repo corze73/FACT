@@ -4489,19 +4489,19 @@ export default function App() {
             errorMessage={adminBookingsError}
             onBack={() => setView('account')}
             onRefresh={() => loadAdminBookings(currentUser, profile)}
-                    ) : view === 'admin_pending' ? (
-                      <BookingListScreen
-                        accountType="admin"
-                        bookings={adminPending}
-                        loading={adminPendingLoading}
-                        errorMessage={adminPendingError}
-                        onBack={() => setView('account')}
-                        onRefresh={() => loadAdminPending(currentUser, profile)}
-                        onSelectBooking={(booking) => {
-                          setSelectedBooking(booking);
-                          setView('booking_detail');
-                        }}
-                      />
+            onSelectBooking={(booking) => {
+              setSelectedBooking(booking);
+              setView('booking_detail');
+            }}
+          />
+        ) : view === 'admin_pending' ? (
+          <BookingListScreen
+            accountType="admin"
+            bookings={adminPending}
+            loading={adminPendingLoading}
+            errorMessage={adminPendingError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminPending(currentUser, profile)}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking);
               setView('booking_detail');
