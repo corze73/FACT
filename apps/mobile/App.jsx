@@ -4760,7 +4760,7 @@ const styles = StyleSheet.create({
   },
   statTile: {
     backgroundColor: '#0f172a',
-    borderColor: '#1e3a8a',
+    borderColor: '#1d4ed8',
     borderRadius: 18,
     borderWidth: 1,
     minWidth: '47%',
