@@ -26,11 +26,12 @@
   },
   "scripts": {
     "dev": "expo start",
+    "dev:client": "expo start --dev-client --tunnel",
     "dev:device": "node ./scripts/start-device.cjs",
     "dev:device:dev-client": "node ./scripts/start-device.cjs --dev-client",
     "dev:tunnel": "expo start --tunnel",
     "ios": "expo run:ios",
-    "ios:device": "expo run:ios --device 00008110-001C41500291401E",
+    "ios:device": "expo run:ios --device 00008110-001C41500291401E --configuration Debug --no-bundler",
     "ios:simulator": "expo run:ios --device 10FF8D5A-CB06-4C2D-89D9-BD6E3A8F09A2",
     "android": "expo run:android",
     "web": "expo start --web",
