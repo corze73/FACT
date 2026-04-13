@@ -1131,7 +1131,7 @@ function MessagesInboxScreen({ conversations, loading, errorMessage, onBack, onR
   );
 }
 
-function AdminUsersScreen({ users, total, loading, errorMessage, onBack, onRefresh }) {
+function AdminUsersScreen({ users, total, loading, errorMessage, onBack, onRefresh, screenTitle = 'Users (All)', screenHeading = 'All registered users', screenSubtitle = 'Review every account currently registered in the platform from the native app.' }) {
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
       <View style={styles.signInHeader}>
@@ -1141,9 +1141,9 @@ function AdminUsersScreen({ users, total, loading, errorMessage, onBack, onRefre
       </View>
 
       <View style={styles.signInCardDark}>
-        <Text style={styles.sectionEyebrow}>Users (All)</Text>
-        <Text style={styles.signInTitleDark}>All registered users</Text>
-        <Text style={styles.signInSubtitleDark}>Review every account currently registered in the platform from the native app.</Text>
+        <Text style={styles.sectionEyebrow}>{screenTitle}</Text>
+        <Text style={styles.signInTitleDark}>{screenHeading}</Text>
+        <Text style={styles.signInSubtitleDark}>{screenSubtitle}</Text>
 
         <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
           <Text style={styles.inlineActionButtonText}>Refresh users</Text>
@@ -2356,6 +2356,7 @@ function AuthenticatedHome({
   onOpenBookings,
   onOpenMessages,
   onOpenAdminUsers,
+  onOpenAdminCoaches,
   onOpenAdminVerifications,
   onOpenAdminAuditLogs,
   onOpenAdminOperations,
@@ -2413,12 +2414,26 @@ function AuthenticatedHome({
         <View style={styles.statsGrid}>
           {resolvedDashboard.stats.map((item) => {
             const isAccountsCta = accountType === 'admin' && item.label === 'Accounts';
+            const isCoachesCta = accountType === 'admin' && item.label === 'Coaches';
 
             if (isAccountsCta) {
               return (
                 <Pressable
                   key={item.label}
                   onPress={onOpenAdminUsers}
+                  style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </Pressable>
+              );
+            }
+
+            if (isCoachesCta) {
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={onOpenAdminCoaches}
                   style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
                 >
                   <Text style={styles.statLabel}>{item.label}</Text>
@@ -2704,6 +2719,10 @@ export default function App() {
   const [adminUsersError, setAdminUsersError] = useState('');
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminUsersTotal, setAdminUsersTotal] = useState(0);
+  const [adminCoachesLoading, setAdminCoachesLoading] = useState(false);
+  const [adminCoachesError, setAdminCoachesError] = useState('');
+  const [adminCoaches, setAdminCoaches] = useState([]);
+  const [adminCoachesTotal, setAdminCoachesTotal] = useState(0);
   const [adminOpsOverview, setAdminOpsOverview] = useState(null);
   const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
   const [adminOpsCases, setAdminOpsCases] = useState([]);
@@ -2855,6 +2874,39 @@ export default function App() {
       setAdminUsersError(error?.message || 'Unable to load registered users.');
     } finally {
       setAdminUsersLoading(false);
+    }
+  };
+
+  const loadAdminCoaches = async (nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
+      setAdminCoaches([]);
+      setAdminCoachesTotal(0);
+      setAdminCoachesError('');
+      return;
+    }
+
+    setAdminCoachesLoading(true);
+    setAdminCoachesError('');
+
+    try {
+      const response = await mobileApi.getUsers({
+        view: 'admin_list',
+        type: 'coach',
+        include_total: 1,
+        limit: 50,
+        offset: 0,
+        orderBy: '-updated_at',
+      });
+      const rows = Array.isArray(response) ? response : response?.data || [];
+      const totalRows = Number(response?.total ?? rows.length ?? 0);
+      setAdminCoaches(rows);
+      setAdminCoachesTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
+    } catch (error) {
+      setAdminCoaches([]);
+      setAdminCoachesTotal(0);
+      setAdminCoachesError(error?.message || 'Unable to load coaches.');
+    } finally {
+      setAdminCoachesLoading(false);
     }
   };
 
@@ -3429,6 +3481,9 @@ export default function App() {
     setAdminUsers([]);
     setAdminUsersTotal(0);
     setAdminUsersError('');
+    setAdminCoaches([]);
+    setAdminCoachesTotal(0);
+    setAdminCoachesError('');
     setAdminOpsCases([]);
     setAdminOpsDisputes([]);
     setAdminOpsExpiring([]);
@@ -4095,6 +4150,11 @@ export default function App() {
     setView('admin_users');
   };
 
+  const openAdminCoachesView = async () => {
+    await loadAdminCoaches(currentUser, profile);
+    setView('admin_coaches');
+  };
+
   const openAdminOperationsView = async (options = {}) => {
     const nextCaseFilter = String(options.caseFilter ?? adminCaseFilter ?? 'all');
     const nextDisputeFilter = String(options.disputeFilter ?? adminDisputeFilter ?? 'all');
@@ -4170,6 +4230,18 @@ export default function App() {
             errorMessage={adminUsersError}
             onBack={() => setView('account')}
             onRefresh={() => loadAdminUsers(currentUser, profile)}
+          />
+        ) : view === 'admin_coaches' ? (
+          <AdminUsersScreen
+            users={adminCoaches}
+            total={adminCoachesTotal}
+            loading={adminCoachesLoading}
+            errorMessage={adminCoachesError}
+            screenTitle="Coaches"
+            screenHeading="All registered coaches"
+            screenSubtitle="Review every coach account currently registered in the platform."
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminCoaches(currentUser, profile)}
           />
         ) : view === 'messages_inbox' ? (
           <MessagesInboxScreen
@@ -4400,6 +4472,7 @@ export default function App() {
             onRefresh={() => loadDashboard(currentUser, profile)}
             onOpenMessages={openMessagesInboxView}
             onOpenAdminUsers={openAdminUsersView}
+            onOpenAdminCoaches={openAdminCoachesView}
             onOpenAdminVerifications={() => openAdminOperationsView({
               verificationFilter: 'pending',
               caseFilter: 'all',
