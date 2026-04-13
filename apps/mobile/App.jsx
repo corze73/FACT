@@ -2293,7 +2293,23 @@ function CoachOperationsScreen({
   );
 }
 
-function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoading, dashboardError, dashboard, onRefresh, onOpenBookings, onOpenMessages, onOpenAdminOperations, onOpenCoachOperations, onSignOut }) {
+function AuthenticatedHome({
+  currentUser,
+  profile,
+  loadingProfile,
+  dashboardLoading,
+  dashboardError,
+  dashboard,
+  onRefresh,
+  onOpenBookings,
+  onOpenMessages,
+  onOpenAdminVerifications,
+  onOpenAdminAuditLogs,
+  onOpenAdminOperations,
+  onOpenAdminHelp,
+  onOpenCoachOperations,
+  onSignOut,
+}) {
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
   const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
   const resolvedDashboard = dashboard || buildDashboardState(accountType, {});
@@ -2386,7 +2402,7 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
           {accountType === 'admin' ? (
             <>
               <Pressable
-                onPress={onOpenAdminOperations}
+                onPress={onOpenAdminVerifications}
                 style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
               >
                 <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Verifications</Text>
@@ -2394,7 +2410,7 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
               </Pressable>
 
               <Pressable
-                onPress={onOpenAdminOperations}
+                onPress={onOpenAdminAuditLogs}
                 style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
               >
                 <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Audit Logs</Text>
@@ -2418,7 +2434,7 @@ function AuthenticatedHome({ currentUser, profile, loadingProfile, dashboardLoad
               </Pressable>
 
               <Pressable
-                onPress={onOpenMessages}
+                onPress={onOpenAdminHelp}
                 style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
               >
                 <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Help</Text>
@@ -3960,6 +3976,37 @@ export default function App() {
     }
   };
 
+  const openMessagesInboxView = async () => {
+    await loadMessageConversations(currentUser, profile);
+    setView('messages_inbox');
+  };
+
+  const openAdminOperationsView = async (options = {}) => {
+    const nextCaseFilter = String(options.caseFilter ?? adminCaseFilter ?? 'all');
+    const nextDisputeFilter = String(options.disputeFilter ?? adminDisputeFilter ?? 'all');
+    const nextVerificationFilter = String(options.verificationFilter ?? adminVerificationFilter ?? 'pending');
+    const nextCaseLimit = Number(options.caseLimit ?? 5);
+    const nextDisputeLimit = Number(options.disputeLimit ?? 5);
+    const nextVerificationLimit = Number(options.verificationLimit ?? 6);
+
+    setAdminCaseFilter(nextCaseFilter);
+    setAdminDisputeFilter(nextDisputeFilter);
+    setAdminVerificationFilter(nextVerificationFilter);
+    setAdminCaseLimit(nextCaseLimit);
+    setAdminDisputeLimit(nextDisputeLimit);
+    setAdminVerificationLimit(nextVerificationLimit);
+
+    await loadAdminOperations(currentUser, profile, {
+      caseFilter: nextCaseFilter,
+      disputeFilter: nextDisputeFilter,
+      verificationFilter: nextVerificationFilter,
+      caseLimit: nextCaseLimit,
+      disputeLimit: nextDisputeLimit,
+      verificationLimit: nextVerificationLimit,
+    });
+    setView('admin_operations');
+  };
+
   if (bootstrapping) {
     return (
       <SafeAreaProvider>
@@ -4228,14 +4275,32 @@ export default function App() {
             dashboardError={dashboardError}
             dashboard={dashboard}
             onRefresh={() => loadDashboard(currentUser, profile)}
-            onOpenMessages={async () => {
-              await loadMessageConversations(currentUser, profile);
-              setView('messages_inbox');
-            }}
-            onOpenAdminOperations={async () => {
-              await loadAdminOperations(currentUser, profile);
-              setView('admin_operations');
-            }}
+            onOpenMessages={openMessagesInboxView}
+            onOpenAdminVerifications={() => openAdminOperationsView({
+              verificationFilter: 'pending',
+              caseFilter: 'all',
+              disputeFilter: 'all',
+              caseLimit: 5,
+              disputeLimit: 5,
+              verificationLimit: 6,
+            })}
+            onOpenAdminAuditLogs={() => openAdminOperationsView({
+              verificationFilter: 'all',
+              caseFilter: 'all',
+              disputeFilter: 'all',
+              caseLimit: 5,
+              disputeLimit: 5,
+              verificationLimit: 6,
+            })}
+            onOpenAdminOperations={() => openAdminOperationsView({
+              verificationFilter: 'pending',
+              caseFilter: 'open',
+              disputeFilter: 'open',
+              caseLimit: 5,
+              disputeLimit: 5,
+              verificationLimit: 6,
+            })}
+            onOpenAdminHelp={openMessagesInboxView}
             onOpenCoachOperations={async () => {
               await loadCoachOperations(currentUser, profile);
               setView('coach_operations');
