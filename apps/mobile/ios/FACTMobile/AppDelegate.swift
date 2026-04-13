@@ -54,55 +54,14 @@ class AppDelegate: ExpoAppDelegate {
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
   // Extension point for config-plugins
 
-  private func simulatorSafeBundleURL(_ url: URL?) -> URL? {
-#if targetEnvironment(simulator)
-    guard let url else {
-      return fallbackBundleURL()
-    }
-
-    guard let scheme = url.scheme?.lowercased(), scheme == "http" else {
-      return url
-    }
-
-    guard let host = url.host?.lowercased(), host == "192.0.0.2" || host == "127.0.0.1" else {
-      return url
-    }
-
-    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-    components?.host = "localhost"
-    return components?.url ?? url
-#else
-    return url
-#endif
-  }
-
-  private func fallbackBundleURL() -> URL? {
-#if targetEnvironment(simulator)
-    var components = URLComponents()
-    components.scheme = "http"
-    components.host = "localhost"
-    components.port = 8081
-    components.path = "/.expo/.virtual-metro-entry.bundle"
-    components.queryItems = [
-      URLQueryItem(name: "platform", value: "ios"),
-      URLQueryItem(name: "dev", value: "true"),
-      URLQueryItem(name: "minify", value: "false")
-    ]
-    return components.url
-#else
-    return nil
-#endif
-  }
-
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     // needed to return the correct URL for expo-dev-client.
-    simulatorSafeBundleURL(bridge.bundleURL) ?? bundleURL()
+    bridge.bundleURL ?? bundleURL()
   }
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    let bundleURL = RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
-    return simulatorSafeBundleURL(bundleURL) ?? fallbackBundleURL()
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif
