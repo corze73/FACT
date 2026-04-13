@@ -2366,7 +2366,7 @@ function AuthenticatedHome({
               return (
                 <Pressable
                   key={item.label}
-                  onPress={() => openHref('https://findacoachtoday.com/adminusers?type=all')}
+                  onPress={onOpenAdminOperations}
                   style={({ pressed }) => [styles.statTile, pressed && styles.actionButtonPressed]}
                 >
                   <Text style={styles.statLabel}>{item.label}</Text>
