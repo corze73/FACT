@@ -2865,7 +2865,14 @@ export default function App() {
     try {
       const response = await mobileApi.getBookings(
         accountType === 'admin'
-          ? { view: 'admin_list', limit: 20, offset: 0, orderBy: '-created_at' }
+          ? {
+              view: 'admin_list',
+              include_archived: 1,
+              include_total: 1,
+              limit: 50,
+              offset: 0,
+              orderBy: '-created_at',
+            }
           : {
               [accountType === 'coach' ? 'coach_id' : 'client_id']: nextUser.id,
               limit: 20,
@@ -2874,7 +2881,8 @@ export default function App() {
             }
       );
 
-      setBookingsViewItems(Array.isArray(response) ? response : response?.data || []);
+      const rows = Array.isArray(response) ? response : response?.data || [];
+      setBookingsViewItems(rows);
     } catch (error) {
       setBookingsViewItems([]);
       setBookingsViewError(error?.message || 'Unable to load bookings.');
@@ -2995,13 +3003,27 @@ export default function App() {
     try {
       const response = await mobileApi.getBookings({
         view: 'admin_list',
+        include_archived: 1,
         include_total: 1,
         limit: 50,
         offset: 0,
         orderBy: '-created_at',
       });
-      const rows = Array.isArray(response) ? response : response?.data || [];
-      const totalRows = Number(response?.total ?? rows.length ?? 0);
+      let rows = Array.isArray(response) ? response : response?.data || [];
+      let totalRows = Number(response?.total ?? rows.length ?? 0);
+
+      if (rows.length === 0) {
+        const fallbackResponse = await mobileApi.getBookings({
+          include_archived: 1,
+          include_total: 1,
+          limit: 50,
+          offset: 0,
+          orderBy: '-created_at',
+        });
+        rows = Array.isArray(fallbackResponse) ? fallbackResponse : fallbackResponse?.data || [];
+        totalRows = Number(fallbackResponse?.total ?? rows.length ?? 0);
+      }
+
       setAdminBookings(rows);
       setAdminBookingsTotal(Number.isFinite(totalRows) ? totalRows : rows.length);
     } catch (error) {
