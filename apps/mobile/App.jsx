@@ -97,6 +97,7 @@ const adminDisputeDecisions = ['refund_full', 'refund_partial', 'no_refund', 'ot
 const adminCaseFilterOptions = ['all', 'open', 'in_progress', 'blocked', 'resolved'];
 const adminDisputeFilterOptions = ['all', 'open', 'under_review', 'resolved', 'closed'];
 const adminVerificationFilterOptions = ['pending', 'verified', 'rejected', 'incomplete'];
+const adminAuditActionOptions = ['all', 'user_deactivated', 'user_hard_delete', 'account_deletion_approved', 'account_deletion_rejected', 'message_deleted', 'message_conversation_cleared'];
 
 async function openHref(href) {
   const supported = await Linking.canOpenURL(href);
@@ -1845,10 +1846,14 @@ function AdminVerificationsScreen({
 
 function AdminAuditLogsScreen({
   auditLogs,
+  auditTotal,
+  auditAction,
   loading,
   errorMessage,
   onBack,
   onRefresh,
+  onActionFilterChange,
+  onLoadMore,
 }) {
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
@@ -1876,17 +1881,37 @@ function AdminAuditLogsScreen({
           </View>
         ) : (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Recent admin actions</Text>
-            <Text style={styles.metaCaption}>{auditLogs.length} entries</Text>
+            <Text style={styles.cardTitle}>Admin actions</Text>
+
+            <View style={styles.filterToggleRow}>
+              {adminAuditActionOptions.map((action) => (
+                <Pressable
+                  key={action}
+                  onPress={() => onActionFilterChange(action)}
+                  style={[styles.filterToggle, auditAction === action && styles.recipientToggleActive]}
+                >
+                  <Text style={[styles.recipientToggleText, auditAction === action && styles.recipientToggleTextActive]}>{formatStatusLabel(action)}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.metaCaption}>Showing {auditLogs.length} of {auditTotal}</Text>
 
             {auditLogs.length > 0 ? auditLogs.map((entry) => (
               <View key={entry.id} style={styles.availabilityCard}>
                 <Text style={styles.compactListTitle}>{formatStatusLabel(entry.action)}</Text>
                 <Text style={styles.compactListMeta}>{formatFullDateTime(entry.created_at)}</Text>
-                {entry.actor_user_id ? <Text style={styles.compactListMeta}>Actor: {entry.actor_user_id}</Text> : null}
-                {entry.target_user_id ? <Text style={styles.compactListMeta}>Target: {entry.target_user_id}</Text> : null}
+                {entry.actor_name ? <Text style={styles.compactListMeta}>Actor: {entry.actor_name}</Text> : null}
+                {entry.target_name ? <Text style={styles.compactListMeta}>Target: {entry.target_name}</Text> : null}
+                {entry.metadata?.reason ? <Text style={styles.compactListMeta}>Reason: {entry.metadata.reason}</Text> : null}
               </View>
             )) : <Text style={styles.cardCopy}>No audit log entries found.</Text>}
+
+            {auditLogs.length < auditTotal ? (
+              <Pressable onPress={onLoadMore} style={({ pressed }) => [styles.inlineActionButton, styles.loadMoreButton, pressed && styles.actionButtonPressed]}>
+                <Text style={styles.inlineActionButtonText}>Load more</Text>
+              </Pressable>
+            ) : null}
           </View>
         )}
       </View>
@@ -3062,6 +3087,9 @@ export default function App() {
   const [adminAuditLogs, setAdminAuditLogs] = useState([]);
   const [adminAuditLogsLoading, setAdminAuditLogsLoading] = useState(false);
   const [adminAuditLogsError, setAdminAuditLogsError] = useState('');
+  const [adminAuditAction, setAdminAuditAction] = useState('all');
+  const [adminAuditTotal, setAdminAuditTotal] = useState(0);
+  const [adminAuditLimit, setAdminAuditLimit] = useState(25);
   const [coachOpsLoading, setCoachOpsLoading] = useState(false);
   const [coachOpsError, setCoachOpsError] = useState('');
   const [coachProfileForm, setCoachProfileForm] = useState(buildCoachProfileForm(null));
@@ -4664,12 +4692,17 @@ export default function App() {
     setView('admin_verifications');
   };
 
-  const loadAdminAuditLogs = async () => {
+  const loadAdminAuditLogs = async (options = {}) => {
     setAdminAuditLogsLoading(true);
     setAdminAuditLogsError('');
+    const action = options.action ?? adminAuditAction;
+    const limit = options.limit ?? adminAuditLimit;
+    const filters = { limit, offset: 0, include_total: 1 };
+    if (action !== 'all') filters.action = action;
     try {
-      const response = await mobileApi.getAdminAuditExport({ limit: 50, redaction: 'masked' });
+      const response = await mobileApi.getAdminAuditLogs(filters);
       setAdminAuditLogs(Array.isArray(response?.data) ? response.data : []);
+      setAdminAuditTotal(Number(response?.total || 0));
     } catch {
       setAdminAuditLogsError('Failed to load audit logs.');
     } finally {
@@ -4678,7 +4711,9 @@ export default function App() {
   };
 
   const openAdminAuditLogsView = async () => {
-    await loadAdminAuditLogs();
+    setAdminAuditAction('all');
+    setAdminAuditLimit(25);
+    await loadAdminAuditLogs({ action: 'all', limit: 25 });
     setView('admin_audit_logs');
   };
 
@@ -4937,10 +4972,22 @@ export default function App() {
         ) : view === 'admin_audit_logs' ? (
           <AdminAuditLogsScreen
             auditLogs={adminAuditLogs}
+            auditTotal={adminAuditTotal}
+            auditAction={adminAuditAction}
             loading={adminAuditLogsLoading}
             errorMessage={adminAuditLogsError}
             onBack={() => setView('account')}
-            onRefresh={loadAdminAuditLogs}
+            onRefresh={() => loadAdminAuditLogs()}
+            onActionFilterChange={async (action) => {
+              setAdminAuditAction(action);
+              setAdminAuditLimit(25);
+              await loadAdminAuditLogs({ action, limit: 25 });
+            }}
+            onLoadMore={async () => {
+              const nextLimit = adminAuditLimit + 25;
+              setAdminAuditLimit(nextLimit);
+              await loadAdminAuditLogs({ limit: nextLimit });
+            }}
           />
         ) : view === 'coach_operations' ? (
           <CoachOperationsScreen
