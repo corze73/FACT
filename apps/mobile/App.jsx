@@ -2534,12 +2534,27 @@ function AuthenticatedHome({
         </View>
 
         <View style={styles.spotlightRow}>
-          {resolvedDashboard.spotlight.map((item) => (
-            <View key={item.label} style={styles.spotlightCard}>
-              <Text style={styles.spotlightLabel}>{item.label}</Text>
-              <Text style={styles.spotlightValue}>{item.value}</Text>
-            </View>
-          ))}
+          {resolvedDashboard.spotlight.map((item) => {
+            const isPendingCta = accountType === 'admin' && item.label === 'Pending';
+            if (isPendingCta) {
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={onOpenAdminPending}
+                  style={({ pressed }) => [styles.spotlightCard, pressed && styles.actionButtonPressed]}
+                >
+                  <Text style={styles.spotlightLabel}>{item.label}</Text>
+                  <Text style={styles.spotlightValue}>{item.value}</Text>
+                </Pressable>
+              );
+            }
+            return (
+              <View key={item.label} style={styles.spotlightCard}>
+                <Text style={styles.spotlightLabel}>{item.label}</Text>
+                <Text style={styles.spotlightValue}>{item.value}</Text>
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.sectionHeaderCompact}>
