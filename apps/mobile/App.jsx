@@ -2062,6 +2062,203 @@ function HelpScreen({
   });
 
   const categories = ['all', ...Array.from(new Set(faqs.map(f => f.category).filter(Boolean)))];
+  const editorRoles = ['coach', 'client', 'admin', 'both'];
+  const editorCategories = Object.keys(helpCategoryLabels).filter(k => k !== 'all');
+  const isNewEntry = editorEntry && !editorEntry.uuid;
+
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Help & FAQs</Text>
+        <Text style={styles.signInTitleDark}>{isAdmin ? 'Manage help content' : 'Help & support'}</Text>
+        <Text style={styles.signInSubtitleDark}>
+          {isAdmin ? 'Manage help content and review support topics.' : `Answers and guidance for ${roleLabel}s.`}
+        </Text>
+
+        {/* Search */}
+        <TextInput
+          style={[styles.inputDark, { marginBottom: 12, paddingHorizontal: 14, paddingVertical: 12 }]}
+          placeholder="Search FAQs…"
+          placeholderTextColor="#4b5563"
+          value={searchTerm}
+          onChangeText={onSearchChange}
+          returnKeyType="search"
+        />
+
+        {/* Category filter pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }} contentContainerStyle={{ gap: 8 }}>
+          {categories.map(cat => (
+            <Pressable
+              key={cat}
+              onPress={() => onCategoryChange(cat)}
+              style={[styles.filterToggle, category === cat && styles.recipientToggleActive]}
+            >
+              <Text style={[styles.recipientToggleText, category === cat && styles.recipientToggleTextActive]}>
+                {helpCategoryLabels[cat] || cat}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {errorMessage ? (
+          <>
+            <Text style={styles.errorTextLight}>{errorMessage}</Text>
+            <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+              <Text style={styles.inlineActionButtonText}>Retry</Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading FAQs…</Text>
+          </View>
+        ) : null}
+
+        {/* Admin: Manage FAQs */}
+        {isAdmin && (
+          <View style={[styles.card, { marginTop: 4, marginBottom: 16 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={styles.cardTitle}>Manage FAQs</Text>
+              <Pressable onPress={onStartAdd} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+                <Text style={styles.inlineActionButtonText}>+ Add FAQ</Text>
+              </Pressable>
+            </View>
+
+            {/* Inline editor */}
+            {editorEntry && (
+              <View style={{ borderTopWidth: 1, borderColor: '#1e3a5f', paddingTop: 14, marginBottom: 12 }}>
+                <Text style={[styles.metaCaption, { marginBottom: 10 }]}>{isNewEntry ? 'New FAQ' : 'Edit FAQ'}</Text>
+                <Text style={styles.inputLabelLight}>Question</Text>
+                <TextInput
+                  style={[styles.inputDark, { marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10 }]}
+                  value={editorEntry.q}
+                  onChangeText={t => onEditorChange('q', t)}
+                  placeholder="Question…"
+                  placeholderTextColor="#4b5563"
+                  multiline
+                />
+                <Text style={styles.inputLabelLight}>Answer</Text>
+                <TextInput
+                  style={[styles.inputDark, { height: 90, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10 }]}
+                  value={editorEntry.a}
+                  onChangeText={t => onEditorChange('a', t)}
+                  placeholder="Answer…"
+                  placeholderTextColor="#4b5563"
+                  multiline
+                  textAlignVertical="top"
+                />
+                <Text style={[styles.inputLabelLight, { marginBottom: 6 }]}>Role</Text>
+                <View style={[styles.filterToggleRow, { marginBottom: 10 }]}>
+                  {editorRoles.map(r => (
+                    <Pressable key={r} onPress={() => onEditorChange('role', r)} style={[styles.filterToggle, editorEntry.role === r && styles.recipientToggleActive]}>
+                      <Text style={[styles.recipientToggleText, editorEntry.role === r && styles.recipientToggleTextActive]}>{r}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={[styles.inputLabelLight, { marginBottom: 6 }]}>Category</Text>
+                <View style={[styles.filterToggleRow, { marginBottom: 10 }]}>
+                  {editorCategories.map(c => (
+                    <Pressable key={c} onPress={() => onEditorChange('category', c)} style={[styles.filterToggle, editorEntry.category === c && styles.recipientToggleActive]}>
+                      <Text style={[styles.recipientToggleText, editorEntry.category === c && styles.recipientToggleTextActive]}>{helpCategoryLabels[c] || c}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={[styles.filterToggleRow, { marginBottom: 12 }]}>
+                  <Pressable onPress={() => onEditorChange('is_active', !editorEntry.is_active)} style={[styles.filterToggle, editorEntry.is_active && styles.recipientToggleActive]}>
+                    <Text style={[styles.recipientToggleText, editorEntry.is_active && styles.recipientToggleTextActive]}>Active</Text>
+                  </Pressable>
+                </View>
+                {editorError ? <Text style={[styles.errorTextLight, { marginBottom: 8 }]}>{editorError}</Text> : null}
+                <View style={styles.inlineButtonRow}>
+                  <Pressable onPress={onSaveEditor} disabled={editorSaving} style={[styles.inlinePrimaryButton, { flex: 1, opacity: editorSaving ? 0.6 : 1 }]}>
+                    <Text style={styles.inlinePrimaryButtonText}>{editorSaving ? 'Saving…' : 'Save'}</Text>
+                  </Pressable>
+                  <Pressable onPress={onCancelEditor} style={[styles.inlineSecondaryButton, { flex: 1 }]}>
+                    <Text style={styles.inlineSecondaryButtonText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            {/* All FAQs list */}
+            {allFaqs.length === 0 && !loading && !editorEntry && (
+              <Text style={styles.cardCopy}>No FAQs yet. Tap + Add FAQ to create one.</Text>
+            )}
+            {allFaqs.map(faq => (
+              <View key={faq.id} style={{ borderTopWidth: 1, borderColor: '#1e3a5f', paddingTop: 10, marginTop: 10 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.compactListTitle} numberOfLines={2}>{faq.q}</Text>
+                    <Text style={styles.compactListMeta}>{faq.role} · {helpCategoryLabels[faq.category] || faq.category} · {faq.is_active ? 'active' : 'hidden'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Pressable onPress={() => onStartEdit(faq)} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+                      <Text style={styles.inlineActionButtonText}>Edit</Text>
+                    </Pressable>
+                    <Pressable onPress={() => onDeleteFaq(faq)} style={({ pressed }) => [styles.inlineDangerButton, pressed && styles.actionButtonPressed]}>
+                      <Text style={styles.inlineDangerButtonText}>Delete</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* FAQ accordion */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Frequently Asked Questions</Text>
+          {filtered.length === 0 && !loading && (
+            <Text style={styles.cardCopy}>{searchTerm ? 'No results for your search.' : 'No FAQs available.'}</Text>
+          )}
+          {filtered.map(item => {
+            const expanded = expandedIds.includes(item.id);
+            return (
+              <Pressable key={item.id} onPress={() => onToggleExpand(item.id)} style={{ borderTopWidth: 1, borderColor: '#1e3a5f', paddingVertical: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Text style={[styles.compactListTitle, { flex: 1, marginRight: 8 }]}>{item.q}</Text>
+                  <Text style={{ color: '#f59e0b', fontSize: 20, lineHeight: 24 }}>{expanded ? '−' : '+'}</Text>
+                </View>
+                {expanded && (
+                  <Text style={[styles.cardCopy, { marginTop: 8, lineHeight: 20 }]}>{item.a}</Text>
+                )}
+                <Text style={[styles.metaCaption, { marginTop: 4 }]}>{helpCategoryLabels[item.category] || item.category}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Still Need Help? */}
+        <View style={[styles.card, { marginTop: 16 }]}>
+          <Text style={styles.cardTitle}>Still Need Help?</Text>
+          <Text style={[styles.cardCopy, { marginBottom: 14 }]}>
+            Our support team is available to help with any questions not covered above.
+          </Text>
+          <Pressable onPress={onOpenMessages} style={({ pressed }) => [styles.inlinePrimaryButton, { marginBottom: 10 }, pressed && styles.actionButtonPressed]}>
+            <Text style={styles.inlinePrimaryButtonText}>Open Messages</Text>
+          </Pressable>
+          <Pressable onPress={() => openHref('mailto:support@findacoachtoday.com')} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+            <Text style={styles.inlineSecondaryButtonText}>Email support@findacoachtoday.com</Text>
+          </Pressable>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function CoachOperationsScreen({
+    return true;
+  });
+
+  const categories = ['all', ...Array.from(new Set(faqs.map(f => f.category).filter(Boolean)))];
 
   const editorRoles = ['coach', 'client', 'admin', 'both'];
   const editorCategories = Object.keys(helpCategoryLabels).filter(k => k !== 'all');
