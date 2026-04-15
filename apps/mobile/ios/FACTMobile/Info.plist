@@ -45,6 +45,11 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_react-native._tcp</string>
+		<string>_http._tcp</string>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>FACT Mobile uses your local network during development to connect to the Metro bundler.</string>
 	<key>RCTNewArchEnabled</key>
