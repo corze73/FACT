@@ -43,8 +43,8 @@ const primaryActions = [
     variant: 'primary',
   },
   {
-    label: 'Sign In',
-    description: 'Use your FACT email and password directly in the app.',
+    label: 'Login',
+    description: 'Sign in to your FACT account.',
     variant: 'primary',
   },
   {
@@ -3258,6 +3258,51 @@ function AuthenticatedHome({
   );
 }
 
+function LoginPickerScreen({ onBack, onSelectEmail, onSelectGoogle }) {
+  return (
+    <KeyboardAvoidingView behavior="padding" style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.signInHeader}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+          <View style={styles.brandRowCompact}>
+            <BrandLogo compact={true} />
+            <Text style={styles.brandText}>FACT Mobile</Text>
+          </View>
+        </View>
+
+        <View style={styles.signInCard}>
+          <Text style={styles.signInTitle}>Login to FACT</Text>
+          <Text style={styles.signInSubtitle}>Choose your preferred login method to access your account.</Text>
+
+          <Pressable
+            onPress={onSelectGoogle}
+            style={({ pressed }) => [styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 0, paddingVertical: 14, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#4285F4' }}>G</Text>
+            <Text style={[styles.inputLabel, { marginBottom: 0, color: '#1e293b' }]}>Continue with Google</Text>
+          </Pressable>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+            <Text style={{ marginHorizontal: 12, color: '#94a3b8', fontSize: 13, fontWeight: '600' }}>OR</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+          </View>
+
+          <Pressable
+            onPress={onSelectEmail}
+            style={({ pressed }) => [styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 0, paddingVertical: 14, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ fontSize: 16 }}>✉️</Text>
+            <Text style={[styles.inputLabel, { marginBottom: 0, color: '#1e293b' }]}>Continue with Email</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 function SignInScreen({ email, password, errorMessage, submitting, onEmailChange, onPasswordChange, onBack, onSubmit }) {
   return (
     <KeyboardAvoidingView behavior="padding" style={styles.safeArea}>
@@ -5168,7 +5213,13 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <StatusBar barStyle="light-content" />
-        {view === 'sign_in' ? (
+        {view === 'login_picker' ? (
+          <LoginPickerScreen
+            onBack={() => setView('home')}
+            onSelectEmail={() => setView('sign_in')}
+            onSelectGoogle={() => openHref('https://findacoachtoday.com/login')}
+          />
+        ) : view === 'sign_in' ? (
           <SignInScreen
             email={email}
             password={password}
@@ -5176,7 +5227,7 @@ export default function App() {
             submitting={submitting}
             onEmailChange={setEmail}
             onPasswordChange={setPassword}
-            onBack={() => setView('home')}
+            onBack={() => setView('login_picker')}
             onSubmit={handleSignIn}
           />
         ) : view === 'bookings' ? (
@@ -5671,11 +5722,11 @@ export default function App() {
                 <Pressable
                   key={action.label}
                   onPress={() => {
-                    if (action.label === 'Sign In') {
+                    if (action.label === 'Login') {
                       setEmail('');
                       setPassword('');
                       setErrorMessage('');
-                      setView('sign_in');
+                      setView('login_picker');
                       return;
                     }
 
