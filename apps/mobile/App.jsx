@@ -5326,7 +5326,7 @@ const styles = StyleSheet.create({
     borderColor: '#1d4ed8',
     borderRadius: 18,
     borderWidth: 1,
-    minWidth: '47%',
+    width: '47%',
     padding: 16,
   },
   statLabel: {
