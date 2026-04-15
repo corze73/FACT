@@ -2399,6 +2399,7 @@ function AuthenticatedHome({
   onOpenAdminClients,
   onOpenAdminBookings,
     onOpenAdminPending,
+    onOpenAdminFilteredBookings,
   onOpenAdminVerifications,
   onOpenAdminAuditLogs,
   onOpenAdminOperations,
@@ -2537,12 +2538,13 @@ function AuthenticatedHome({
 
         <View style={styles.spotlightRow}>
           {resolvedDashboard.spotlight.map((item) => {
-            const isPendingCta = accountType === 'admin' && item.label === 'Pending';
-            if (isPendingCta) {
+            const statusLabel = item.label.toLowerCase();
+            const isStatusCta = accountType === 'admin' && ['pending', 'confirmed', 'completed', 'cancelled'].includes(statusLabel);
+            if (isStatusCta) {
               return (
                 <Pressable
                   key={item.label}
-                  onPress={onOpenAdminPending}
+                  onPress={() => onOpenAdminFilteredBookings(statusLabel)}
                   style={({ pressed }) => [styles.spotlightCard, pressed && styles.actionButtonPressed]}
                 >
                   <Text style={styles.spotlightLabel}>{item.label}</Text>
@@ -2834,6 +2836,10 @@ export default function App() {
     const [adminPendingError, setAdminPendingError] = useState('');
     const [adminPending, setAdminPending] = useState([]);
     const [adminPendingTotal, setAdminPendingTotal] = useState(0);
+  const [adminFilteredBookings, setAdminFilteredBookings] = useState([]);
+  const [adminFilteredStatus, setAdminFilteredStatus] = useState('');
+  const [adminFilteredLoading, setAdminFilteredLoading] = useState(false);
+  const [adminFilteredError, setAdminFilteredError] = useState('');
   const [adminOpsOverview, setAdminOpsOverview] = useState(null);
   const [adminOpsWeekly, setAdminOpsWeekly] = useState(null);
   const [adminOpsCases, setAdminOpsCases] = useState([]);
@@ -4398,6 +4404,38 @@ export default function App() {
     await loadAdminPending(currentUser, profile);
     setView('admin_pending');
   };
+
+  const loadAdminFilteredBookings = async (status, nextUser = currentUser, nextProfile = profile) => {
+    if (normalizeUserType(nextProfile?.user_type || nextUser?.user_type || 'client') !== 'admin') {
+      setAdminFilteredBookings([]);
+      setAdminFilteredError('');
+      return;
+    }
+    setAdminFilteredLoading(true);
+    setAdminFilteredError('');
+    setAdminFilteredStatus(status);
+    try {
+      const response = await mobileApi.getBookings({
+        view: 'admin_list',
+        status,
+        limit: 50,
+        offset: 0,
+        orderBy: '-created_at',
+      });
+      const rows = Array.isArray(response) ? response : response?.data || [];
+      setAdminFilteredBookings(rows);
+    } catch (error) {
+      setAdminFilteredBookings([]);
+      setAdminFilteredError(error?.message || `Unable to load ${status} bookings.`);
+    } finally {
+      setAdminFilteredLoading(false);
+    }
+  };
+
+  const openAdminFilteredView = async (status) => {
+    await loadAdminFilteredBookings(status, currentUser, profile);
+    setView('admin_filtered');
+  };
   const openAdminOperationsView = async (options = {}) => {
     const nextCaseFilter = String(options.caseFilter ?? adminCaseFilter ?? 'all');
     const nextDisputeFilter = String(options.disputeFilter ?? adminDisputeFilter ?? 'all');
@@ -4525,6 +4563,21 @@ export default function App() {
             }}
             titleOverride="Pending Bookings"
             subtitleOverride="Bookings awaiting confirmation from coaches or clients."
+          />
+        ) : view === 'admin_filtered' ? (
+          <BookingListScreen
+            accountType="admin"
+            bookings={adminFilteredBookings}
+            loading={adminFilteredLoading}
+            errorMessage={adminFilteredError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminFilteredBookings(adminFilteredStatus, currentUser, profile)}
+            onSelectBooking={(booking) => {
+              setSelectedBooking(booking);
+              setView('booking_detail');
+            }}
+            titleOverride={`${adminFilteredStatus.charAt(0).toUpperCase() + adminFilteredStatus.slice(1)} Bookings`}
+            subtitleOverride={`Bookings with status: ${adminFilteredStatus}.`}
           />
         ) : view === 'messages_inbox' ? (
           <MessagesInboxScreen
@@ -4759,6 +4812,7 @@ export default function App() {
             onOpenAdminClients={openAdminClientsView}
             onOpenAdminBookings={openAdminBookingsView}
                       onOpenAdminPending={openAdminPendingView}
+                      onOpenAdminFilteredBookings={openAdminFilteredView}
             onOpenAdminVerifications={() => openAdminOperationsView({
               verificationFilter: 'pending',
               caseFilter: 'all',
