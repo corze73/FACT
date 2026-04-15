@@ -19,9 +19,13 @@
           "NSAllowsLocalNetworking": true
         },
         "NSLocalNetworkUsageDescription": "FACT Mobile uses your local network during development to connect to the Metro bundler.",
-        "NSBonjourServices": ["_react-native._tcp", "_http._tcp"]
+        "NSBonjourServices": [
+          "_react-native._tcp",
+          "_http._tcp"
+        ]
       },
-      "bundleIdentifier": "com.findacoachtoday.mobile"
+      "bundleIdentifier": "com.findacoachtoday.mobile",
+      "scheme": "com.googleusercontent.apps.187916773186-jh93b6hb24e6mjcv9chn7qi9f590tbfj"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +34,9 @@
       },
       "package": "com.findacoachtoday.mobile"
     },
-    "plugins": [],
+    "plugins": [
+      "expo-web-browser"
+    ],
     "experiments": {
       "typedRoutes": false
     }

@@ -41,6 +41,32 @@ export const mobileApi = createFactApiClient({
   },
 });
 
+const GOOGLE_CLIENT_ID = '187916773186-jh93b6hb24e6mjcv9chn7qi9f590tbfj.apps.googleusercontent.com';
+
+export async function signInWithGoogle(idToken) {
+  const signedInUser = await mobileApi.createUser({
+    auth_mode: 'google',
+    id_token: idToken,
+  });
+
+  if (!signedInUser?.id) {
+    throw new Error(signedInUser?.error || 'Google sign-in failed. Please try again.');
+  }
+
+  await mobileAuth.setCurrentUser({
+    id: signedInUser.id,
+    email: signedInUser.email,
+    full_name: signedInUser.full_name,
+    user_type: signedInUser.user_type,
+    role: signedInUser.role,
+    token: signedInUser.token,
+  });
+
+  return signedInUser;
+}
+
+export { GOOGLE_CLIENT_ID };
+
 export async function signInWithEmail(email, password) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!normalizedEmail || !password) {

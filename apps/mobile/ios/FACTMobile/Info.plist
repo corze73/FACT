@@ -28,6 +28,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>fact</string>
+				<string>com.googleusercontent.apps.187916773186-jh93b6hb24e6mjcv9chn7qi9f590tbfj</string>
 				<string>com.findacoachtoday.mobile</string>
 			</array>
 		</dict>

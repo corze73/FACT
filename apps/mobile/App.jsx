@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
+import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+WebBrowser.maybeCompleteAuthSession();
 import {
   ActivityIndicator,
   Image,
@@ -16,7 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeUserType } from '@fact/domain';
-import { getCurrentProfile, mobileApi, mobileAuth, signInWithEmail, signOut, uploadComplianceAsset } from './src/lib/mobileAuth';
+import { getCurrentProfile, GOOGLE_CLIENT_ID, mobileApi, mobileAuth, signInWithEmail, signInWithGoogle, signOut, uploadComplianceAsset } from './src/lib/mobileAuth';
 
 const factIcon = require('./assets/icon.png');
 
@@ -3381,6 +3385,11 @@ function SignInScreen({ email, password, errorMessage, submitting, onEmailChange
 }
 
 export default function App() {
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: GOOGLE_CLIENT_ID,
+    scopes: ['email', 'profile', 'openid'],
+  });
+
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -4315,6 +4324,64 @@ export default function App() {
     };
   }, [view, selectedDirectThread?.direct_user_id, currentUser?.id]);
 
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const { authentication } = googleResponse;
+      handleGoogleAuthSuccess(authentication?.accessToken);
+    } else if (googleResponse?.type === 'error') {
+      setErrorMessage('Google sign-in failed. Please try again.');
+      setSubmitting(false);
+    }
+  }, [googleResponse]);
+
+  const handleGoogleAuthSuccess = async (accessToken) => {
+    if (!accessToken) return;
+    setErrorMessage('');
+    setSubmitting(true);
+    try {
+      const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!userInfoRes.ok) throw new Error('Failed to get user info from Google.');
+      const googleUser = await userInfoRes.json();
+      const signedInUser = await mobileApi.createUser({
+        email: googleUser.email,
+        full_name: googleUser.name || '',
+        avatar_url: googleUser.picture || null,
+      });
+      if (!signedInUser?.id) throw new Error(signedInUser?.error || 'Google sign-in failed.');
+      await mobileAuth.setCurrentUser({
+        id: signedInUser.id,
+        email: signedInUser.email,
+        full_name: signedInUser.full_name,
+        user_type: signedInUser.user_type,
+        role: signedInUser.role,
+        token: signedInUser.token,
+      });
+      setCurrentUser(signedInUser);
+      setView('account');
+      setProfileLoading(true);
+      try {
+        const nextProfile = await getCurrentProfile();
+        setProfile(nextProfile);
+        await loadDashboard(signedInUser, nextProfile);
+      } finally {
+        setProfileLoading(false);
+      }
+    } catch (error) {
+      setErrorMessage(error?.message || 'Unable to sign in with Google.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage('');
+    setSubmitting(true);
+    setView('login_picker');
+    await googlePromptAsync();
+  };
+
   const handleSignIn = async () => {
     setErrorMessage('');
     setSubmitting(true);
@@ -5217,7 +5284,7 @@ export default function App() {
           <LoginPickerScreen
             onBack={() => setView('home')}
             onSelectEmail={() => setView('sign_in')}
-            onSelectGoogle={() => openHref('https://findacoachtoday.com/login')}
+            onSelectGoogle={handleGoogleSignIn}
           />
         ) : view === 'sign_in' ? (
           <SignInScreen
