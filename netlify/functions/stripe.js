@@ -8,6 +8,30 @@ import { withFunctionObservability, captureFunctionError } from './lib/observabi
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
+// ---------- Stripe mode guard ----------
+// Derive the actual mode from the key prefix (sk_test_ vs sk_live_).
+// STRIPE_MODE env var must be set to 'test' or 'live' in each Netlify context.
+// If they disagree, all payment operations are blocked to prevent accidental
+// real charges in a beta / preview environment.
+const _stripeKey = process.env.STRIPE_SECRET_KEY || ''
+const _detectedMode = _stripeKey.startsWith('sk_live_') ? 'live'
+  : _stripeKey.startsWith('sk_test_') ? 'test'
+  : 'unknown'
+const _expectedMode = (process.env.STRIPE_MODE || '').toLowerCase() // 'test' | 'live'
+const _modeMismatch = !!(_expectedMode && _expectedMode !== _detectedMode)
+
+if (_modeMismatch) {
+  console.error(
+    `[Stripe] ENVIRONMENT MISMATCH: STRIPE_MODE="${_expectedMode}" but ` +
+    `STRIPE_SECRET_KEY prefix indicates "${_detectedMode}". ` +
+    'All payment operations will be blocked to prevent accidental live charges. ' +
+    'Fix by setting matching STRIPE_MODE and STRIPE_SECRET_KEY in this Netlify context.'
+  )
+} else {
+  console.log(`[Stripe] Initialised in "${_detectedMode}" mode.`)
+}
+// ---------- end mode guard ----------
+
 export const config = {
   // Ensure we can read raw body for webhook verification
   // Netlify automatically provides body as base64 if needed
@@ -36,6 +60,17 @@ const rawHandler = async (event) => {
   }
 
   try {
+    // Block all non-webhook payment operations when STRIPE_MODE is mismatched.
+    // Webhooks are exempt because they originate from Stripe itself and carry
+    // their own signature; blocking them would break event handling.
+    if (_modeMismatch && !path.startsWith('/webhook')) {
+      return json(503, {
+        error: 'Stripe environment mismatch — payments blocked.',
+        detail: `STRIPE_MODE="${_expectedMode}" but key is "${_detectedMode}". ` +
+          'Set matching STRIPE_MODE and STRIPE_SECRET_KEY in the Netlify environment.'
+      })
+    }
+
     if (method === 'POST' && path.startsWith('/webhook')) {
       const sig = event.headers['stripe-signature']
       const raw = event.isBase64Encoded

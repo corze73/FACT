@@ -28,6 +28,31 @@
   to = "/index.html"
   status = 200
 
+# ---------------------------------------------------------------------------
+# Environment-based Stripe mode
+#
+# STRIPE_MODE controls whether the Stripe functions accept test or live keys.
+# It must match the prefix of STRIPE_SECRET_KEY (sk_test_ / sk_live_).
+# Setting STRIPE_MODE here for non-production contexts makes misconfigurations
+# visible immediately via the /health endpoint and blocks accidental charges.
+#
+# The actual secret values (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+# VITE_STRIPE_PUBLISHABLE_KEY) must be set in the Netlify UI per context
+# (Site Settings → Environment Variables → Add context overrides).
+#
+# Beta / preview contexts  → set test keys in the UI + STRIPE_MODE = "test"
+# Production context       → set live keys in the UI + STRIPE_MODE = "live"
+# ---------------------------------------------------------------------------
+
+[context.deploy-preview.environment]
+  STRIPE_MODE = "test"
+
+[context.branch-deploy.environment]
+  STRIPE_MODE = "test"
+
+[context.production.environment]
+  STRIPE_MODE = "live"
+
 [dev]
   command = "npm run dev:web"
   port = 8888

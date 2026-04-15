@@ -9,6 +9,14 @@ const rawHandler = async () => {
     const hasWebhook = !!process.env.STRIPE_WEBHOOK_SECRET;
     const hasPublishable = !!(process.env.VITE_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY);
     const stripeConfigured = hasStripeSecret && hasWebhook && hasPublishable;
+
+    // Derive mode from key prefix so testers can verify test vs live at a glance
+    const _key = process.env.STRIPE_SECRET_KEY || '';
+    const stripeMode = _key.startsWith('sk_live_') ? 'live'
+      : _key.startsWith('sk_test_') ? 'test'
+      : 'unknown';
+    const expectedMode = (process.env.STRIPE_MODE || '').toLowerCase();
+    const stripeModeMismatch = !!(expectedMode && expectedMode !== stripeMode);
     const build = getBuildMeta();
 
     let db = { configured: hasDb, connected: false };
@@ -43,7 +51,9 @@ const rawHandler = async () => {
         },
         db,
         stripe: {
-          configured: stripeConfigured
+          configured: stripeConfigured,
+          mode: stripeMode,
+          mode_mismatch: stripeModeMismatch
         },
         env: {
           database_url: hasDb ? 'present' : 'missing',
