@@ -21,7 +21,7 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = FACTMobile/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = FACTMobile/Info.plist; sourceTree = "<group>"; };
 		3FF3D82327F2318AC406F97F /* Pods-FACTMobile.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FACTMobile.release.xcconfig"; path = "Target Support Files/Pods-FACTMobile/Pods-FACTMobile.release.xcconfig"; sourceTree = "<group>"; };
-		686812EB612E953BD48976C6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = FACTMobile/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		686812EB612E953BD48976C6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = FACTMobile/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		9FD940B17A8DA0B596E05779 /* libPods-FACTMobile.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FACTMobile.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = FACTMobile/SplashScreen.storyboard; sourceTree = "<group>"; };
 		ADDD59B5FAF5EEDDF822ACD3 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-FACTMobile/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
@@ -73,7 +73,6 @@
 				F30CC6352ED9D8F01CBA8F30 /* Pods-FACTMobile.debug.xcconfig */,
 				3FF3D82327F2318AC406F97F /* Pods-FACTMobile.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -339,12 +338,15 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = FACTMobile/FACTMobile.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4YHDGF6D8L;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = FACTMobile/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FACT;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -375,7 +377,10 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = FACTMobile/FACTMobile.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4YHDGF6D8L;
 				INFOPLIST_FILE = FACTMobile/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FACT;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
