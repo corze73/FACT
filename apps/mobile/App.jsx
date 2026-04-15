@@ -501,10 +501,10 @@ function buildDashboardState(accountType, payload) {
       stats: [
         { label: 'Pending', value: pendingCount },
         { label: 'Upcoming', value: confirmedCount },
-        { label: 'Completed', value: completedCount },
+        { label: 'History', value: completedCount },
+        { label: 'Total Sessions', value: bookings.length },
       ],
       spotlight: [
-        { label: 'Total sessions', value: bookings.length },
         { label: 'Latest status', value: bookings[0]?.status || 'none' },
       ],
       bookings,
@@ -6127,18 +6127,18 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
   actionButton: {
-    borderRadius: 22,
+    borderRadius: 12,
     paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderWidth: 1,
   },
   actionButtonPrimary: {
-    backgroundColor: '#f59e0b',
-    borderColor: '#f59e0b',
+    backgroundColor: '#f97316',
+    borderColor: '#f97316',
   },
   actionButtonSecondary: {
     backgroundColor: '#0f172a',
-    borderColor: '#1d4ed8',
+    borderColor: '#334155',
   },
   actionButtonGhost: {
     backgroundColor: '#111827',
@@ -6149,9 +6149,9 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   actionTitle: {
-    color: '#08111f',
-    fontSize: 18,
-    fontWeight: '800',
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '700',
   },
   actionTitleGhost: {
     color: '#f8fafc',
@@ -6160,10 +6160,10 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
   },
   actionBody: {
-    color: 'rgba(8, 17, 31, 0.8)',
+    color: 'rgba(255, 255, 255, 0.75)',
     fontSize: 14,
     lineHeight: 20,
-    marginTop: 6,
+    marginTop: 4,
   },
   actionBodySecondary: {
     color: '#dbe4f3',
@@ -6228,16 +6228,17 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     marginBottom: 14,
   },
   statTile: {
     backgroundColor: '#0f172a',
-    borderColor: '#1d4ed8',
-    borderRadius: 18,
+    borderColor: '#1e293b',
+    borderRadius: 12,
     borderWidth: 1,
-    width: '47%',
+    width: '48.5%',
     padding: 16,
+    flexShrink: 0,
   },
   statLabel: {
     color: '#94a3b8',
