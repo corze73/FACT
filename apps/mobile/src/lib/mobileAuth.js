@@ -41,7 +41,7 @@ export const mobileApi = createFactApiClient({
   },
 });
 
-const GOOGLE_CLIENT_ID = '187916773186-jh93b6hb24e6mjcv9chn7qi9f590tbfj.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '1061540997688-07hhmogi1sk7ctc3thmgrjh5ikq5l0ut.apps.googleusercontent.com';
 
 export async function signInWithGoogle(idToken) {
   const signedInUser = await mobileApi.createUser({
