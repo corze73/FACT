@@ -2061,6 +2061,15 @@ function HelpScreen({
     return true;
   });
 
+  const filteredAllFaqs = allFaqs.filter(item => {
+    if (category !== 'all' && item.category !== category) return false;
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      return item.q.toLowerCase().includes(q) || item.a.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
   const categories = ['all', ...Array.from(new Set(faqs.map(f => f.category).filter(Boolean)))];
   const editorRoles = ['coach', 'client', 'admin', 'both'];
   const editorCategories = Object.keys(helpCategoryLabels).filter(k => k !== 'all');
@@ -2189,22 +2198,22 @@ function HelpScreen({
             )}
 
             {/* All FAQs list */}
-            {allFaqs.length === 0 && !loading && !editorEntry && (
-              <Text style={styles.cardCopy}>No FAQs yet. Tap + Add FAQ to create one.</Text>
+            {filteredAllFaqs.length === 0 && !loading && !editorEntry && (
+              <Text style={styles.cardCopy}>{category !== 'all' || searchTerm ? 'No FAQs match your filter.' : 'No FAQs yet. Tap + Add FAQ to create one.'}</Text>
             )}
-            {allFaqs.map(faq => (
+            {filteredAllFaqs.map(faq => (
               <View key={faq.id} style={{ borderTopWidth: 1, borderColor: '#1e3a5f', paddingTop: 10, marginTop: 10 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={styles.compactListTitle} numberOfLines={2}>{faq.q}</Text>
-                    <Text style={styles.compactListMeta}>{faq.role} · {helpCategoryLabels[faq.category] || faq.category} · {faq.is_active ? 'active' : 'hidden'}</Text>
+                    <Text style={styles.compactListTitle}>{faq.q}</Text>
+                    <Text style={[styles.compactListMeta, { marginTop: 2 }]} numberOfLines={1}>{faq.role} · {helpCategoryLabels[faq.category] || faq.category} · {faq.is_active ? 'active' : 'hidden'}</Text>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Pressable onPress={() => onStartEdit(faq)} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
-                      <Text style={styles.inlineActionButtonText}>Edit</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
+                    <Pressable onPress={() => onStartEdit(faq)} style={({ pressed }) => [styles.selectionChip, pressed && styles.actionButtonPressed]}>
+                      <Text style={styles.selectionChipText}>Edit</Text>
                     </Pressable>
-                    <Pressable onPress={() => onDeleteFaq(faq)} style={({ pressed }) => [styles.inlineDangerButton, pressed && styles.actionButtonPressed]}>
-                      <Text style={styles.inlineDangerButtonText}>Delete</Text>
+                    <Pressable onPress={() => onDeleteFaq(faq)} style={({ pressed }) => [styles.selectionChip, { backgroundColor: '#7f1d1d', borderColor: '#7f1d1d' }, pressed && styles.actionButtonPressed]}>
+                      <Text style={[styles.selectionChipText, { color: '#fca5a5' }]}>Delete</Text>
                     </Pressable>
                   </View>
                 </View>
