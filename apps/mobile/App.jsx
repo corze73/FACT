@@ -1707,6 +1707,193 @@ function AdminOperationsScreen({
   );
 }
 
+function AdminVerificationsScreen({
+  verifications,
+  verificationFilter,
+  verificationTotal,
+  verificationNotes,
+  verificationSubmittingId,
+  verificationError,
+  verificationSuccess,
+  loading,
+  errorMessage,
+  onBack,
+  onRefresh,
+  onVerificationFilterChange,
+  onVerificationNoteChange,
+  onUpdateVerification,
+  onLoadMoreVerifications,
+}) {
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Coach Verifications</Text>
+        <Text style={styles.signInTitleDark}>Pending verification queue</Text>
+        <Text style={styles.signInSubtitleDark}>Review and approve or reject coach verification submissions.</Text>
+
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+          <Text style={styles.inlineActionButtonText}>Refresh</Text>
+        </Pressable>
+
+        {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading verifications...</Text>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Coach verifications</Text>
+
+            <View style={styles.filterToggleRow}>
+              {adminVerificationFilterOptions.map((status) => (
+                <Pressable
+                  key={status}
+                  onPress={() => onVerificationFilterChange(status)}
+                  style={[styles.filterToggle, verificationFilter === status && styles.recipientToggleActive]}
+                >
+                  <Text style={[styles.recipientToggleText, verificationFilter === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.metaCaption}>Showing {verifications.length} of {verificationTotal}</Text>
+
+            {verificationError ? <Text style={styles.errorTextLight}>{verificationError}</Text> : null}
+            {verificationSuccess ? <Text style={styles.successTextLight}>{verificationSuccess}</Text> : null}
+
+            {verifications.length > 0 ? verifications.map((coach) => {
+              const noteDraft = verificationNotes[coach.id] ?? (coach.verification_notes || '');
+              return (
+                <View key={coach.id} style={styles.availabilityCard}>
+                  <Text style={styles.compactListTitle}>{coach.full_name || coach.email || 'Coach'}</Text>
+                  <Text style={styles.compactListMeta}>Qualification: {formatStatusLabel(coach.qualification_status)}</Text>
+                  <Text style={styles.compactListMeta}>Background: {coach.has_background_check ? formatStatusLabel(coach.background_check_status) : 'Not required'}</Text>
+
+                  <View style={styles.inlineButtonRow}>
+                    {coach.qualification_file_url ? (
+                      <Pressable onPress={() => openHref(coach.qualification_file_url)} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                        <Text style={styles.inlineSecondaryButtonText}>Open qualification file</Text>
+                      </Pressable>
+                    ) : null}
+                    {coach.background_check_file_url ? (
+                      <Pressable onPress={() => openHref(coach.background_check_file_url)} style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}>
+                        <Text style={styles.inlineSecondaryButtonText}>Open background file</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabelLight}>Verification notes</Text>
+                    <TextInput
+                      multiline={true}
+                      onChangeText={(value) => onVerificationNoteChange(coach.id, value)}
+                      placeholder="Add approval/rejection notes"
+                      placeholderTextColor="#64748b"
+                      style={[styles.inputDark, styles.notesInput]}
+                      value={noteDraft}
+                    />
+                  </View>
+
+                  <View style={styles.inlineButtonRow}>
+                    <Pressable
+                      disabled={verificationSubmittingId === coach.id}
+                      onPress={() => onUpdateVerification(coach, 'verified')}
+                      style={({ pressed }) => [styles.inlinePrimaryButton, (pressed || verificationSubmittingId === coach.id) && styles.actionButtonPressed]}
+                    >
+                      <Text style={styles.inlinePrimaryButtonText}>Approve</Text>
+                    </Pressable>
+
+                    <Pressable
+                      disabled={verificationSubmittingId === coach.id}
+                      onPress={() => onUpdateVerification(coach, 'rejected')}
+                      style={({ pressed }) => [styles.inlineDangerButton, (pressed || verificationSubmittingId === coach.id) && styles.actionButtonPressed]}
+                    >
+                      <Text style={styles.inlineDangerButtonText}>Reject</Text>
+                    </Pressable>
+
+                    <Pressable
+                      disabled={verificationSubmittingId === coach.id}
+                      onPress={() => onUpdateVerification(coach, 'pending')}
+                      style={({ pressed }) => [styles.inlineSecondaryButton, (pressed || verificationSubmittingId === coach.id) && styles.actionButtonPressed]}
+                    >
+                      <Text style={styles.inlineSecondaryButtonText}>Mark pending</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            }) : <Text style={styles.cardCopy}>No coaches found for this verification status.</Text>}
+
+            {verifications.length < verificationTotal ? (
+              <Pressable onPress={onLoadMoreVerifications} style={({ pressed }) => [styles.inlineActionButton, styles.loadMoreButton, pressed && styles.actionButtonPressed]}>
+                <Text style={styles.inlineActionButtonText}>Load more verifications</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function AdminAuditLogsScreen({
+  auditLogs,
+  loading,
+  errorMessage,
+  onBack,
+  onRefresh,
+}) {
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Audit Logs</Text>
+        <Text style={styles.signInTitleDark}>Admin action history</Text>
+        <Text style={styles.signInSubtitleDark}>Recent admin actions recorded on the platform.</Text>
+
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.inlineActionButton, pressed && styles.actionButtonPressed]}>
+          <Text style={styles.inlineActionButtonText}>Refresh</Text>
+        </Pressable>
+
+        {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading audit logs...</Text>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Recent admin actions</Text>
+            <Text style={styles.metaCaption}>{auditLogs.length} entries</Text>
+
+            {auditLogs.length > 0 ? auditLogs.map((entry) => (
+              <View key={entry.id} style={styles.availabilityCard}>
+                <Text style={styles.compactListTitle}>{formatStatusLabel(entry.action)}</Text>
+                <Text style={styles.compactListMeta}>{formatFullDateTime(entry.created_at)}</Text>
+                {entry.actor_user_id ? <Text style={styles.compactListMeta}>Actor: {entry.actor_user_id}</Text> : null}
+                {entry.target_user_id ? <Text style={styles.compactListMeta}>Target: {entry.target_user_id}</Text> : null}
+              </View>
+            )) : <Text style={styles.cardCopy}>No audit log entries found.</Text>}
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 function CoachOperationsScreen({
   profile,
   profileForm,
@@ -2872,6 +3059,9 @@ export default function App() {
   const [adminInviteHours, setAdminInviteHours] = useState('72');
   const [adminInviteSubmitting, setAdminInviteSubmitting] = useState(false);
   const [adminInviteError, setAdminInviteError] = useState('');
+  const [adminAuditLogs, setAdminAuditLogs] = useState([]);
+  const [adminAuditLogsLoading, setAdminAuditLogsLoading] = useState(false);
+  const [adminAuditLogsError, setAdminAuditLogsError] = useState('');
   const [coachOpsLoading, setCoachOpsLoading] = useState(false);
   const [coachOpsError, setCoachOpsError] = useState('');
   const [coachProfileForm, setCoachProfileForm] = useState(buildCoachProfileForm(null));
@@ -4462,6 +4652,36 @@ export default function App() {
     setView('admin_operations');
   };
 
+  const openAdminVerificationsView = async () => {
+    await openAdminOperationsView({
+      verificationFilter: 'pending',
+      caseFilter: 'all',
+      disputeFilter: 'all',
+      caseLimit: 5,
+      disputeLimit: 5,
+      verificationLimit: 6,
+    });
+    setView('admin_verifications');
+  };
+
+  const loadAdminAuditLogs = async () => {
+    setAdminAuditLogsLoading(true);
+    setAdminAuditLogsError('');
+    try {
+      const response = await mobileApi.getAdminAuditExport({ limit: 50, redaction: 'masked' });
+      setAdminAuditLogs(Array.isArray(response?.data) ? response.data : []);
+    } catch {
+      setAdminAuditLogsError('Failed to load audit logs.');
+    } finally {
+      setAdminAuditLogsLoading(false);
+    }
+  };
+
+  const openAdminAuditLogsView = async () => {
+    await loadAdminAuditLogs();
+    setView('admin_audit_logs');
+  };
+
   if (bootstrapping) {
     return (
       <SafeAreaProvider>
@@ -4687,6 +4907,41 @@ export default function App() {
             onVerificationNoteChange={handleVerificationNoteChange}
             onUpdateVerification={handleUpdateVerification}
           />
+        ) : view === 'admin_verifications' ? (
+          <AdminVerificationsScreen
+            verifications={adminVerifications}
+            verificationFilter={adminVerificationFilter}
+            verificationTotal={adminVerificationTotal}
+            verificationNotes={adminVerificationNotes}
+            verificationSubmittingId={adminVerificationSubmittingId}
+            verificationError={adminVerificationError}
+            verificationSuccess={adminVerificationSuccess}
+            loading={adminOpsLoading}
+            errorMessage={adminOpsError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadAdminOperations(currentUser, profile, { verificationFilter: adminVerificationFilter, verificationLimit: adminVerificationLimit })}
+            onVerificationFilterChange={async (status) => {
+              setAdminVerificationFilter(status);
+              setAdminVerificationLimit(6);
+              setAdminVerificationSuccess('');
+              await loadAdminOperations(currentUser, profile, { verificationFilter: status, verificationLimit: 6 });
+            }}
+            onVerificationNoteChange={handleVerificationNoteChange}
+            onUpdateVerification={handleUpdateVerification}
+            onLoadMoreVerifications={async () => {
+              const nextLimit = adminVerificationLimit + 6;
+              setAdminVerificationLimit(nextLimit);
+              await loadAdminOperations(currentUser, profile, { verificationLimit: nextLimit });
+            }}
+          />
+        ) : view === 'admin_audit_logs' ? (
+          <AdminAuditLogsScreen
+            auditLogs={adminAuditLogs}
+            loading={adminAuditLogsLoading}
+            errorMessage={adminAuditLogsError}
+            onBack={() => setView('account')}
+            onRefresh={loadAdminAuditLogs}
+          />
         ) : view === 'coach_operations' ? (
           <CoachOperationsScreen
             profile={profile}
@@ -4813,22 +5068,8 @@ export default function App() {
             onOpenAdminBookings={openAdminBookingsView}
                       onOpenAdminPending={openAdminPendingView}
                       onOpenAdminFilteredBookings={openAdminFilteredView}
-            onOpenAdminVerifications={() => openAdminOperationsView({
-              verificationFilter: 'pending',
-              caseFilter: 'all',
-              disputeFilter: 'all',
-              caseLimit: 5,
-              disputeLimit: 5,
-              verificationLimit: 6,
-            })}
-            onOpenAdminAuditLogs={() => openAdminOperationsView({
-              verificationFilter: 'all',
-              caseFilter: 'all',
-              disputeFilter: 'all',
-              caseLimit: 5,
-              disputeLimit: 5,
-              verificationLimit: 6,
-            })}
+            onOpenAdminVerifications={openAdminVerificationsView}
+            onOpenAdminAuditLogs={openAdminAuditLogsView}
             onOpenAdminOperations={() => openAdminOperationsView({
               verificationFilter: 'pending',
               caseFilter: 'open',
