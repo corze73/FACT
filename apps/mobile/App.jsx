@@ -99,6 +99,23 @@ const adminDisputeFilterOptions = ['all', 'open', 'under_review', 'resolved', 'c
 const adminVerificationFilterOptions = ['pending', 'verified', 'rejected', 'incomplete'];
 const adminAuditActionOptions = ['all', 'user_deactivated', 'user_hard_delete', 'account_deletion_approved', 'account_deletion_rejected', 'message_deleted', 'message_conversation_cleared'];
 
+const helpCategoryLabels = { all: 'All', onboarding: 'Getting Started', verification: 'Verification', bookings: 'Bookings', messaging: 'Messaging', payments: 'Payments', support: 'Support', security: 'Security' };
+
+function normalizeFaqRow(row) {
+  const isDbRow = row.slug !== undefined;
+  return {
+    id: isDbRow ? (row.slug || row.id) : row.id,
+    uuid: isDbRow ? row.id : null,
+    role: row.role,
+    category: row.category,
+    q: row.question || row.q || '',
+    a: row.answer || row.a || '',
+    keywords: Array.isArray(row.keywords) ? row.keywords : [],
+    position: row.position || 0,
+    is_active: row.is_active !== false,
+  };
+}
+
 async function openHref(href) {
   const supported = await Linking.canOpenURL(href);
   if (!supported) {
@@ -2000,6 +2017,240 @@ function AdminAuditLogsScreen({
   );
 }
 
+function HelpScreen({
+  profile,
+  faqs,
+  allFaqs,
+  loading,
+  errorMessage,
+  searchTerm,
+  category,
+  expandedIds,
+  editorEntry,
+  editorSaving,
+  editorError,
+  onBack,
+  onRefresh,
+  onSearchChange,
+  onCategoryChange,
+  onToggleExpand,
+  onOpenMessages,
+  onStartAdd,
+  onStartEdit,
+  onDeleteFaq,
+  onSaveEditor,
+  onCancelEditor,
+  onEditorChange,
+}) {
+  const userType = normalizeUserType(profile?.user_type);
+  const isAdmin = userType === 'admin';
+  const roleLabel = userType === 'coach' ? 'coach' : userType === 'admin' ? 'admin' : 'client';
+
+  const filtered = faqs.filter(item => {
+    const matchesRole = item.role === roleLabel || item.role === 'both' || item.role === 'admin' || isAdmin;
+    if (!matchesRole) return false;
+    if (category !== 'all' && item.category !== category) return false;
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      return (
+        item.q.toLowerCase().includes(q) ||
+        item.a.toLowerCase().includes(q) ||
+        item.keywords.some(k => k.toLowerCase().includes(q))
+      );
+    }
+    return true;
+  });
+
+  const categories = ['all', ...Array.from(new Set(faqs.map(f => f.category).filter(Boolean)))];
+
+  const editorRoles = ['coach', 'client', 'admin', 'both'];
+  const editorCategories = Object.keys(helpCategoryLabels).filter(k => k !== 'all');
+
+  const isNewEntry = editorEntry && !editorEntry.uuid;
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+      {/* Header */}
+      <View style={styles.screenHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </Pressable>
+        <Text style={styles.screenTitle}>Help & FAQs</Text>
+        <Text style={styles.screenSubtitle}>
+          {isAdmin ? 'Manage help content and support topics' : `Answers and guidance for ${roleLabel}s`}
+        </Text>
+      </View>
+
+      {/* Search */}
+      <View style={[styles.card, { marginHorizontal: 16, marginBottom: 12 }]}>
+        <TextInput
+          style={styles.textInput}
+          placeholder="Search FAQs…"
+          placeholderTextColor="#9ca3af"
+          value={searchTerm}
+          onChangeText={onSearchChange}
+          returnKeyType="search"
+        />
+      </View>
+
+      {/* Category filter pills */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+        {categories.map(cat => (
+          <Pressable
+            key={cat}
+            onPress={() => onCategoryChange(cat)}
+            style={[styles.filterToggle, category === cat && styles.filterToggleActive]}
+          >
+            <Text style={[styles.filterToggleText, category === cat && styles.filterToggleTextActive]}>
+              {helpCategoryLabels[cat] || cat}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Error / loading */}
+      {errorMessage ? (
+        <View style={[styles.card, { marginHorizontal: 16, marginBottom: 12 }]}>
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <Pressable onPress={onRefresh} style={[styles.btn, { marginTop: 8 }]}>
+            <Text style={styles.btnText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : loading ? (
+        <ActivityIndicator size="small" color="#f59e0b" style={{ marginVertical: 24 }} />
+      ) : null}
+
+      {/* Admin: Manage FAQs */}
+      {isAdmin && (
+        <View style={[styles.card, { marginHorizontal: 16, marginBottom: 16 }]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>Manage FAQs</Text>
+            <Pressable onPress={onStartAdd} style={styles.btnSmall}>
+              <Text style={styles.btnSmallText}>+ Add FAQ</Text>
+            </Pressable>
+          </View>
+
+          {/* Inline editor */}
+          {editorEntry && (
+            <View style={{ marginTop: 12, borderTopWidth: 1, borderColor: '#374151', paddingTop: 12 }}>
+              <Text style={[styles.label, { marginBottom: 8 }]}>{isNewEntry ? 'New FAQ' : 'Edit FAQ'}</Text>
+              <Text style={styles.label}>Question</Text>
+              <TextInput
+                style={[styles.textInput, { marginBottom: 8 }]}
+                value={editorEntry.q}
+                onChangeText={t => onEditorChange('q', t)}
+                placeholder="Question…"
+                placeholderTextColor="#9ca3af"
+                multiline
+              />
+              <Text style={styles.label}>Answer</Text>
+              <TextInput
+                style={[styles.textInput, { height: 88, marginBottom: 8 }]}
+                value={editorEntry.a}
+                onChangeText={t => onEditorChange('a', t)}
+                placeholder="Answer…"
+                placeholderTextColor="#9ca3af"
+                multiline
+                textAlignVertical="top"
+              />
+              <Text style={styles.label}>Role</Text>
+              <View style={[styles.filterToggleRow, { marginBottom: 8 }]}>
+                {editorRoles.map(r => (
+                  <Pressable key={r} onPress={() => onEditorChange('role', r)} style={[styles.filterToggle, editorEntry.role === r && styles.filterToggleActive]}>
+                    <Text style={[styles.filterToggleText, editorEntry.role === r && styles.filterToggleTextActive]}>{r}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.label}>Category</Text>
+              <View style={[styles.filterToggleRow, { marginBottom: 8 }]}>
+                {editorCategories.map(c => (
+                  <Pressable key={c} onPress={() => onEditorChange('category', c)} style={[styles.filterToggle, editorEntry.category === c && styles.filterToggleActive]}>
+                    <Text style={[styles.filterToggleText, editorEntry.category === c && styles.filterToggleTextActive]}>{helpCategoryLabels[c] || c}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.filterToggleRow}>
+                <Pressable onPress={() => onEditorChange('is_active', !editorEntry.is_active)} style={[styles.filterToggle, editorEntry.is_active && styles.filterToggleActive]}>
+                  <Text style={[styles.filterToggleText, editorEntry.is_active && styles.filterToggleTextActive]}>Active</Text>
+                </Pressable>
+              </View>
+              {editorError ? <Text style={[styles.errorText, { marginTop: 6 }]}>{editorError}</Text> : null}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <Pressable onPress={onSaveEditor} disabled={editorSaving} style={[styles.btn, { flex: 1, opacity: editorSaving ? 0.6 : 1 }]}>
+                  <Text style={styles.btnText}>{editorSaving ? 'Saving…' : 'Save'}</Text>
+                </Pressable>
+                <Pressable onPress={onCancelEditor} style={[styles.btnSecondary, { flex: 1 }]}>
+                  <Text style={styles.btnSecondaryText}>Cancel</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* All FAQs list */}
+          {allFaqs.length === 0 && !loading && !editorEntry && (
+            <Text style={styles.emptyText}>No FAQs yet.</Text>
+          )}
+          {allFaqs.map(faq => (
+            <View key={faq.id} style={{ borderTopWidth: 1, borderColor: '#374151', paddingTop: 10, marginTop: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={[styles.label, { color: '#f3f4f6', fontWeight: '600', marginBottom: 2 }]} numberOfLines={2}>{faq.q}</Text>
+                  <Text style={styles.metaText}>{faq.role} · {helpCategoryLabels[faq.category] || faq.category} · {faq.is_active ? 'active' : 'hidden'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <Pressable onPress={() => onStartEdit(faq)} style={styles.btnSmall}>
+                    <Text style={styles.btnSmallText}>Edit</Text>
+                  </Pressable>
+                  <Pressable onPress={() => onDeleteFaq(faq)} style={[styles.btnSmall, { backgroundColor: '#7f1d1d' }]}>
+                    <Text style={styles.btnSmallText}>Delete</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* FAQ accordion */}
+      <View style={[styles.card, { marginHorizontal: 16, marginBottom: 16 }]}>
+        <Text style={styles.cardTitle}>Frequently Asked Questions</Text>
+        {filtered.length === 0 && !loading && (
+          <Text style={styles.emptyText}>{searchTerm ? 'No results for your search.' : 'No FAQs available.'}</Text>
+        )}
+        {filtered.map(item => {
+          const expanded = expandedIds.includes(item.id);
+          return (
+            <Pressable key={item.id} onPress={() => onToggleExpand(item.id)} style={{ borderTopWidth: 1, borderColor: '#374151', paddingVertical: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Text style={[styles.label, { flex: 1, marginRight: 8, color: '#f3f4f6', fontWeight: '500' }]}>{item.q}</Text>
+                <Text style={{ color: '#f59e0b', fontSize: 18, lineHeight: 22 }}>{expanded ? '−' : '+'}</Text>
+              </View>
+              {expanded && (
+                <Text style={[styles.metaText, { marginTop: 8, color: '#d1d5db', lineHeight: 20 }]}>{item.a}</Text>
+              )}
+              <Text style={[styles.metaText, { marginTop: 4, color: '#6b7280' }]}>{helpCategoryLabels[item.category] || item.category}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Still Need Help? */}
+      <View style={[styles.card, { marginHorizontal: 16 }]}>
+        <Text style={styles.cardTitle}>Still Need Help?</Text>
+        <Text style={[styles.metaText, { marginBottom: 12, color: '#d1d5db' }]}>
+          Our support team is available to help with any questions not covered above.
+        </Text>
+        <Pressable onPress={onOpenMessages} style={[styles.btn, { marginBottom: 10 }]}>
+          <Text style={styles.btnText}>Open Messages</Text>
+        </Pressable>
+        <Pressable onPress={() => openHref('mailto:support@findacoachtoday.com')} style={styles.btnSecondary}>
+          <Text style={styles.btnSecondaryText}>Email support@findacoachtoday.com</Text>
+        </Pressable>
+      </View>
+    </ScrollView>
+  );
+}
+
 function CoachOperationsScreen({
   profile,
   profileForm,
@@ -3180,6 +3431,16 @@ export default function App() {
   const [adminAuditAction, setAdminAuditAction] = useState('all');
   const [adminAuditTotal, setAdminAuditTotal] = useState(0);
   const [adminAuditLimit, setAdminAuditLimit] = useState(25);
+  const [helpFaqs, setHelpFaqs] = useState([]);
+  const [helpAllFaqs, setHelpAllFaqs] = useState([]);
+  const [helpLoading, setHelpLoading] = useState(false);
+  const [helpError, setHelpError] = useState('');
+  const [helpSearchTerm, setHelpSearchTerm] = useState('');
+  const [helpCategory, setHelpCategory] = useState('all');
+  const [helpExpandedIds, setHelpExpandedIds] = useState([]);
+  const [helpEditorEntry, setHelpEditorEntry] = useState(null);
+  const [helpEditorSaving, setHelpEditorSaving] = useState(false);
+  const [helpEditorError, setHelpEditorError] = useState('');
   const [coachOpsLoading, setCoachOpsLoading] = useState(false);
   const [coachOpsError, setCoachOpsError] = useState('');
   const [coachProfileForm, setCoachProfileForm] = useState(buildCoachProfileForm(null));
@@ -4851,6 +5112,33 @@ export default function App() {
     setView('admin_audit_logs');
   };
 
+  const loadHelpFaqs = async (nextProfile = profile) => {
+    const isAdmin = normalizeUserType(nextProfile?.user_type) === 'admin';
+    setHelpLoading(true);
+    setHelpError('');
+    try {
+      const opts = isAdmin ? { include_inactive: 1 } : {};
+      const res = await mobileApi.getFaqEntries(opts);
+      const rows = (res?.faqs || []).map(normalizeFaqRow);
+      setHelpFaqs(rows.filter(r => r.is_active));
+      if (isAdmin) setHelpAllFaqs(rows);
+    } catch {
+      setHelpError('Failed to load FAQs. Please try again.');
+    } finally {
+      setHelpLoading(false);
+    }
+  };
+
+  const openAdminHelpView = async () => {
+    setHelpSearchTerm('');
+    setHelpCategory('all');
+    setHelpExpandedIds([]);
+    setHelpEditorEntry(null);
+    setHelpEditorError('');
+    await loadHelpFaqs(profile);
+    setView('admin_help');
+  };
+
   if (bootstrapping) {
     return (
       <SafeAreaProvider>
@@ -5140,6 +5428,59 @@ export default function App() {
               await loadAdminAuditLogs({ limit: nextLimit });
             }}
           />
+        ) : view === 'admin_help' ? (
+          <HelpScreen
+            profile={profile}
+            faqs={helpFaqs}
+            allFaqs={helpAllFaqs}
+            loading={helpLoading}
+            errorMessage={helpError}
+            searchTerm={helpSearchTerm}
+            category={helpCategory}
+            expandedIds={helpExpandedIds}
+            editorEntry={helpEditorEntry}
+            editorSaving={helpEditorSaving}
+            editorError={helpEditorError}
+            onBack={() => setView('account')}
+            onRefresh={() => loadHelpFaqs(profile)}
+            onSearchChange={setHelpSearchTerm}
+            onCategoryChange={setHelpCategory}
+            onToggleExpand={(id) => setHelpExpandedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+            onOpenMessages={openMessagesInboxView}
+            onStartAdd={() => setHelpEditorEntry({ uuid: null, q: '', a: '', role: 'both', category: 'onboarding', is_active: true })}
+            onStartEdit={(faq) => setHelpEditorEntry({ ...faq })}
+            onDeleteFaq={async (faq) => {
+              if (!faq.uuid) return;
+              try {
+                await mobileApi.deleteFaqEntry(faq.uuid);
+                await loadHelpFaqs(profile);
+              } catch {
+                setHelpEditorError('Failed to delete FAQ.');
+              }
+            }}
+            onSaveEditor={async () => {
+              if (!helpEditorEntry) return;
+              setHelpEditorSaving(true);
+              setHelpEditorError('');
+              try {
+                const { uuid, q, a, role, category, is_active, position } = helpEditorEntry;
+                const payload = { question: q, answer: a, role, category, is_active, position };
+                if (uuid) {
+                  await mobileApi.updateFaqEntry(uuid, payload);
+                } else {
+                  await mobileApi.createFaqEntry({ ...payload, slug: `faq-${Date.now()}` });
+                }
+                setHelpEditorEntry(null);
+                await loadHelpFaqs(profile);
+              } catch {
+                setHelpEditorError('Failed to save FAQ. Please check all fields.');
+              } finally {
+                setHelpEditorSaving(false);
+              }
+            }}
+            onCancelEditor={() => { setHelpEditorEntry(null); setHelpEditorError(''); }}
+            onEditorChange={(field, value) => setHelpEditorEntry(prev => ({ ...prev, [field]: value }))}
+          />
         ) : view === 'coach_operations' ? (
           <CoachOperationsScreen
             profile={profile}
@@ -5276,7 +5617,7 @@ export default function App() {
               disputeLimit: 5,
               verificationLimit: 6,
             })}
-            onOpenAdminHelp={openMessagesInboxView}
+            onOpenAdminHelp={openAdminHelpView}
             onOpenCoachOperations={async () => {
               await loadCoachOperations(currentUser, profile);
               setView('coach_operations');
