@@ -527,7 +527,7 @@ function BookingCard({ booking }) {
   );
 }
 
-function BookingListScreen({ accountType, bookings, loading, errorMessage, onBack, onRefresh, onSelectBooking }) {
+function BookingListScreen({ accountType, bookings, loading, errorMessage, onBack, onRefresh, onSelectBooking, titleOverride, subtitleOverride }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredBookings, setFilteredBookings] = useState(bookings);
 
@@ -547,12 +547,14 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
     setFilteredBookings(filtered);
   }, [searchTerm, bookings]);
 
-  const title = accountType === 'admin' ? 'Booking Queue' : accountType === 'coach' ? 'Coach Sessions' : 'My Bookings';
-  const subtitle = accountType === 'admin'
+  const defaultTitle = accountType === 'admin' ? 'Booking Queue' : accountType === 'coach' ? 'Coach Sessions' : 'My Bookings';
+  const defaultSubtitle = accountType === 'admin'
     ? 'Review recent booking activity from the native app.'
     : accountType === 'coach'
       ? 'See requests, confirmed sessions, and history in one place.'
       : 'Review your upcoming and past bookings without leaving the app.';
+  const title = titleOverride || defaultTitle;
+  const subtitle = subtitleOverride || defaultSubtitle;
 
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent}>
@@ -4521,6 +4523,8 @@ export default function App() {
               setSelectedBooking(booking);
               setView('booking_detail');
             }}
+            titleOverride="Pending Bookings"
+            subtitleOverride="Bookings awaiting confirmation from coaches or clients."
           />
         ) : view === 'messages_inbox' ? (
           <MessagesInboxScreen
