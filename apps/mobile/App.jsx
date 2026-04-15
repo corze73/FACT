@@ -1389,12 +1389,12 @@ function AdminOperationsScreen({
 
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Recent cases</Text>
-                <View style={styles.recipientToggleRow}>
+                <View style={styles.filterToggleRow}>
                   {adminCaseFilterOptions.map((status) => (
                     <Pressable
                       key={`case-filter-${status}`}
                       onPress={() => onCaseFilterChange(status)}
-                      style={[styles.recipientToggle, caseFilter === status && styles.recipientToggleActive]}
+                      style={[styles.filterToggle, caseFilter === status && styles.recipientToggleActive]}
                     >
                       <Text style={[styles.recipientToggleText, caseFilter === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
                     </Pressable>
@@ -1491,12 +1491,12 @@ function AdminOperationsScreen({
 
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Recent disputes</Text>
-                <View style={styles.recipientToggleRow}>
+                <View style={styles.filterToggleRow}>
                   {adminDisputeFilterOptions.map((status) => (
                     <Pressable
                       key={`dispute-filter-${status}`}
                       onPress={() => onDisputeFilterChange(status)}
-                      style={[styles.recipientToggle, disputeFilter === status && styles.recipientToggleActive]}
+                      style={[styles.filterToggle, disputeFilter === status && styles.recipientToggleActive]}
                     >
                       <Text style={[styles.recipientToggleText, disputeFilter === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
                     </Pressable>
@@ -1615,12 +1615,12 @@ function AdminOperationsScreen({
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Coach verifications</Text>
 
-                <View style={styles.recipientToggleRow}>
+                <View style={styles.filterToggleRow}>
                   {adminVerificationFilterOptions.map((status) => (
                     <Pressable
                       key={status}
                       onPress={() => onVerificationFilterChange(status)}
-                      style={[styles.recipientToggle, verificationFilter === status && styles.recipientToggleActive]}
+                      style={[styles.filterToggle, verificationFilter === status && styles.recipientToggleActive]}
                     >
                       <Text style={[styles.recipientToggleText, verificationFilter === status && styles.recipientToggleTextActive]}>{formatStatusLabel(status)}</Text>
                     </Pressable>
@@ -5393,6 +5393,12 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
   },
+  filterToggleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
   recipientToggle: {
     backgroundColor: '#0f172a',
     borderColor: '#243041',
@@ -5401,6 +5407,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
+  },
+  filterToggle: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   recipientToggleActive: {
     backgroundColor: '#1d4ed8',
