@@ -1274,6 +1274,17 @@ function AdminOperationsScreen({
   onVerificationFilterChange,
   onVerificationNoteChange,
   onUpdateVerification,
+  adminUsers,
+  adminInvites,
+  snapshots,
+  snapshotsTotal,
+  signupAttempts,
+  signupTotal,
+  revokeSessionLoadingId,
+  revokeInviteLoadingId,
+  onRevokeSession,
+  onRevokeInvite,
+  onLoadMoreSignupAttempts,
 }) {
   return (
     <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
@@ -1386,6 +1397,46 @@ function AdminOperationsScreen({
                   <Text style={styles.actionTitle}>Send admin invite</Text>
                   <Text style={styles.actionBody}>Issue an invitation using the live admin ops endpoint.</Text>
                 </Pressable>
+
+                {adminInvites.length > 0 ? (
+                  <>
+                    <Text style={[styles.cardTitle, { marginTop: 16 }]}>Existing invites</Text>
+                    {adminInvites.map((invite) => (
+                      <View key={invite.id} style={styles.availabilityCard}>
+                        <Text style={styles.compactListTitle}>{invite.email}</Text>
+                        <Text style={styles.compactListMeta}>{invite.admin_scope} • {formatStatusLabel(invite.status)}</Text>
+                        {invite.expires_at ? <Text style={styles.compactListMeta}>Expires: {formatFullDateTime(invite.expires_at)}</Text> : null}
+                        {invite.status === 'pending' ? (
+                          <Pressable
+                            disabled={revokeInviteLoadingId === invite.id}
+                            onPress={() => onRevokeInvite(invite.id)}
+                            style={({ pressed }) => [styles.inlineDangerButton, (pressed || revokeInviteLoadingId === invite.id) && styles.actionButtonPressed, { marginTop: 8 }]}
+                          >
+                            <Text style={styles.inlineDangerButtonText}>{revokeInviteLoadingId === invite.id ? 'Revoking…' : 'Revoke'}</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Admin team</Text>
+                <Text style={styles.metaCaption}>{adminUsers.length} admin records</Text>
+                {adminUsers.length > 0 ? adminUsers.map((admin) => (
+                  <View key={admin.id} style={styles.availabilityCard}>
+                    <Text style={styles.compactListTitle}>{admin.full_name || admin.email || 'Admin'}</Text>
+                    <Text style={styles.compactListMeta}>Scope: {admin.admin_scope || 'full'} • {admin.is_active === false ? 'Inactive' : 'Active'}</Text>
+                    <Pressable
+                      disabled={revokeSessionLoadingId === admin.id}
+                      onPress={() => onRevokeSession(admin.id)}
+                      style={({ pressed }) => [styles.inlineDangerButton, (pressed || revokeSessionLoadingId === admin.id) && styles.actionButtonPressed, { marginTop: 8 }]}
+                    >
+                      <Text style={styles.inlineDangerButtonText}>{revokeSessionLoadingId === admin.id ? 'Revoking…' : 'Revoke session'}</Text>
+                    </Pressable>
+                  </View>
+                )) : <Text style={styles.cardCopy}>No admin users found.</Text>}
               </View>
 
               <View style={styles.card}>
@@ -1697,6 +1748,36 @@ function AdminOperationsScreen({
                 {verifications.length < verificationTotal ? (
                   <Pressable onPress={onLoadMoreVerifications} style={({ pressed }) => [styles.inlineActionButton, styles.loadMoreButton, pressed && styles.actionButtonPressed]}>
                     <Text style={styles.inlineActionButtonText}>Load more verifications</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Hard delete snapshots</Text>
+                <Text style={styles.metaCaption}>{snapshotsTotal} total</Text>
+                {snapshots.length > 0 ? snapshots.map((s) => (
+                  <View key={s.id} style={styles.availabilityCard}>
+                    <Text style={styles.compactListTitle}>User: {s.user_id}</Text>
+                    <Text style={styles.compactListMeta}>Deleted: {formatFullDateTime(s.created_at)}</Text>
+                    {s.reason ? <Text style={styles.compactListMeta}>Reason: {s.reason}</Text> : null}
+                  </View>
+                )) : <Text style={styles.cardCopy}>No snapshots yet.</Text>}
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Signup attempts</Text>
+                <Text style={styles.metaCaption}>Showing {signupAttempts.length} of {signupTotal}</Text>
+                {signupAttempts.length > 0 ? signupAttempts.map((attempt) => (
+                  <View key={attempt.id} style={styles.availabilityCard}>
+                    <Text style={styles.compactListTitle}>{attempt.user_email || 'unknown'} — <Text style={attempt.success ? styles.successTextLight : styles.errorTextLight}>{attempt.success ? 'success' : 'failed'}</Text></Text>
+                    <Text style={styles.compactListMeta}>{formatFullDateTime(attempt.timestamp || attempt.created_at)} • {attempt.event_type || 'signup'}</Text>
+                    <Text style={styles.compactListMeta}>Source: {attempt.signup_source || 'unknown'}</Text>
+                    {!attempt.success && attempt.error_details ? <Text style={styles.errorTextLight}>{String(attempt.error_details)}</Text> : null}
+                  </View>
+                )) : <Text style={styles.cardCopy}>No signup attempts logged yet.</Text>}
+                {signupAttempts.length < signupTotal ? (
+                  <Pressable onPress={onLoadMoreSignupAttempts} style={({ pressed }) => [styles.inlineActionButton, styles.loadMoreButton, pressed && styles.actionButtonPressed]}>
+                    <Text style={styles.inlineActionButtonText}>Load more</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -3084,6 +3165,15 @@ export default function App() {
   const [adminInviteHours, setAdminInviteHours] = useState('72');
   const [adminInviteSubmitting, setAdminInviteSubmitting] = useState(false);
   const [adminInviteError, setAdminInviteError] = useState('');
+  const [adminOpsUsers, setAdminOpsUsers] = useState([]);
+  const [adminOpsInvites, setAdminOpsInvites] = useState([]);
+  const [adminOpsSnapshots, setAdminOpsSnapshots] = useState([]);
+  const [adminOpsSnapshotsTotal, setAdminOpsSnapshotsTotal] = useState(0);
+  const [adminOpsSignupAttempts, setAdminOpsSignupAttempts] = useState([]);
+  const [adminOpsSignupTotal, setAdminOpsSignupTotal] = useState(0);
+  const [adminOpsSignupLimit, setAdminOpsSignupLimit] = useState(10);
+  const [adminRevokeSessionLoadingId, setAdminRevokeSessionLoadingId] = useState(null);
+  const [adminRevokeInviteLoadingId, setAdminRevokeInviteLoadingId] = useState(null);
   const [adminAuditLogs, setAdminAuditLogs] = useState([]);
   const [adminAuditLogsLoading, setAdminAuditLogsLoading] = useState(false);
   const [adminAuditLogsError, setAdminAuditLogsError] = useState('');
@@ -3523,6 +3613,12 @@ export default function App() {
       setAdminDisputeError('');
       setAdminVerificationError('');
       setAdminOpsError('');
+      setAdminOpsUsers([]);
+      setAdminOpsInvites([]);
+      setAdminOpsSnapshots([]);
+      setAdminOpsSnapshotsTotal(0);
+      setAdminOpsSignupAttempts([]);
+      setAdminOpsSignupTotal(0);
       return;
     }
 
@@ -3592,6 +3688,20 @@ export default function App() {
         });
         return nextNotes;
       });
+
+      // Supplementary data — failures are tolerated
+      const [usersResult, invitesResult, snapshotsResult, signupResult] = await Promise.allSettled([
+        mobileApi.getAdminUsersOps({ limit: 50, offset: 0 }),
+        mobileApi.listAdminInvites({ include_total: 1, limit: 20, offset: 0 }),
+        mobileApi.listDeletedUserSnapshots({ include_total: 1, limit: 10, offset: 0 }),
+        mobileApi.listAuthLogs({ event_type: 'signup', include_total: 1, limit: 10, offset: 0 }),
+      ]);
+      setAdminOpsUsers(usersResult.status === 'fulfilled' ? (usersResult.value?.data || []) : []);
+      setAdminOpsInvites(invitesResult.status === 'fulfilled' ? (invitesResult.value?.data || []) : []);
+      setAdminOpsSnapshots(snapshotsResult.status === 'fulfilled' ? (snapshotsResult.value?.data || []) : []);
+      setAdminOpsSnapshotsTotal(snapshotsResult.status === 'fulfilled' ? Number(snapshotsResult.value?.total || 0) : 0);
+      setAdminOpsSignupAttempts(signupResult.status === 'fulfilled' ? (signupResult.value?.data || []) : []);
+      setAdminOpsSignupTotal(signupResult.status === 'fulfilled' ? Number(signupResult.value?.total || 0) : 0);
     } catch (error) {
       setAdminOpsError(error?.message || 'Unable to load admin operations.');
     } finally {
@@ -4482,6 +4592,30 @@ export default function App() {
     }
   };
 
+  const handleRevokeAdminSession = async (userId) => {
+    setAdminRevokeSessionLoadingId(userId);
+    try {
+      await mobileApi.revokeUserSessions(userId);
+      await loadAdminOperations(currentUser, profile);
+    } catch {
+      // silent - refresh will show current state
+    } finally {
+      setAdminRevokeSessionLoadingId(null);
+    }
+  };
+
+  const handleRevokeAdminInvite = async (inviteId) => {
+    setAdminRevokeInviteLoadingId(inviteId);
+    try {
+      await mobileApi.revokeAdminInvite(inviteId);
+      await loadAdminOperations(currentUser, profile);
+    } catch {
+      // silent
+    } finally {
+      setAdminRevokeInviteLoadingId(null);
+    }
+  };
+
   const syncUpdatedBooking = (updatedBooking) => {
     setSelectedBooking(updatedBooking);
     setBookingsViewItems((previousBookings) => previousBookings.map((booking) => (
@@ -4941,6 +5075,23 @@ export default function App() {
             }}
             onVerificationNoteChange={handleVerificationNoteChange}
             onUpdateVerification={handleUpdateVerification}
+            adminUsers={adminOpsUsers}
+            adminInvites={adminOpsInvites}
+            snapshots={adminOpsSnapshots}
+            snapshotsTotal={adminOpsSnapshotsTotal}
+            signupAttempts={adminOpsSignupAttempts}
+            signupTotal={adminOpsSignupTotal}
+            revokeSessionLoadingId={adminRevokeSessionLoadingId}
+            revokeInviteLoadingId={adminRevokeInviteLoadingId}
+            onRevokeSession={handleRevokeAdminSession}
+            onRevokeInvite={handleRevokeAdminInvite}
+            onLoadMoreSignupAttempts={async () => {
+              const nextLimit = adminOpsSignupLimit + 10;
+              setAdminOpsSignupLimit(nextLimit);
+              const result = await mobileApi.listAuthLogs({ event_type: 'signup', include_total: 1, limit: nextLimit, offset: 0 });
+              setAdminOpsSignupAttempts(result?.data || []);
+              setAdminOpsSignupTotal(Number(result?.total || 0));
+            }}
           />
         ) : view === 'admin_verifications' ? (
           <AdminVerificationsScreen
