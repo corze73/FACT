@@ -14,10 +14,20 @@
         "EXPO_PUBLIC_API_BASE": "http://localhost:8888/.netlify/functions"
       }
     },
-    "preview": {
+    "device": {
       "distribution": "internal",
       "ios": {
         "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions"
+      }
+    },
+    "preview": {
+      "distribution": "store",
+      "ios": {
+        "buildConfiguration": "Release",
+        "autoIncrement": true
       },
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions"
@@ -35,6 +45,13 @@
     }
   },
   "submit": {
+    "preview": {
+      "ios": {
+        "appleId": "REPLACE_WITH_YOUR_APPLE_ID_EMAIL",
+        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "4YHDGF6D8L"
+      }
+    },
     "production": {
       "ios": {
         "appleId": "REPLACE_WITH_YOUR_APPLE_ID_EMAIL",
@@ -44,3 +61,4 @@
     }
   }
 }
+
