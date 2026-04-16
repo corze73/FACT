@@ -3131,7 +3131,7 @@ function FindCoachesScreen({
                   {(coach.city || coach.country) ? (
                     <Text style={styles.coachCardMeta}>{[coach.city, coach.country].filter(Boolean).join(', ')}</Text>
                   ) : null}
-                  <Text style={styles.coachCardRate}>£{coach.hourly_rate || 0}/hr</Text>
+                  <Text style={styles.coachCardRate}>£{Number(coach.hourly_rate) || 0}/hr</Text>
                   {coach.bio ? (
                     <Text style={styles.coachCardBio} numberOfLines={3}>{coach.bio}</Text>
                   ) : null}
