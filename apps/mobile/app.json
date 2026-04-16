@@ -38,7 +38,8 @@
       ]
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-document-picker"
     ],
     "experiments": {
       "typedRoutes": false
