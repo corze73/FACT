@@ -3008,6 +3008,458 @@ function filterDashboardBookings(bookings, tab, accountType) {
   return bookings;
 }
 
+function FindCoachesScreen({
+  coaches,
+  loading,
+  errorMessage,
+  total,
+  page,
+  pageSize,
+  searchQuery,
+  serviceType,
+  onBack,
+  onRefresh,
+  onSearch,
+  onServiceTypeChange,
+  onNextPage,
+  onPrevPage,
+  onSelectCoach,
+}) {
+  const [localQuery, setLocalQuery] = React.useState(searchQuery);
+  const totalPages = pageSize > 0 ? Math.ceil(total / pageSize) : 1;
+
+  React.useEffect(() => {
+    setLocalQuery(searchQuery);
+  }, [searchQuery]);
+
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent}>
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Find a Coach</Text>
+        <Text style={styles.signInTitleDark}>Browse coaches</Text>
+        <Text style={styles.signInSubtitleDark}>Find a football coach and book a session without leaving the app.</Text>
+
+        <View style={styles.searchContainer}>
+          <Text style={styles.searchLabel}>Search</Text>
+          <TextInput
+            autoCapitalize="none"
+            onChangeText={setLocalQuery}
+            onSubmitEditing={() => onSearch(localQuery)}
+            placeholder="Name, specialty, bio..."
+            placeholderTextColor="#64748b"
+            returnKeyType="search"
+            style={styles.searchInput}
+            value={localQuery}
+          />
+        </View>
+
+        <View style={styles.inlineButtonRow}>
+          <Pressable
+            onPress={() => onSearch(localQuery)}
+            style={({ pressed }) => [styles.inlinePrimaryButton, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={styles.inlinePrimaryButtonText}>Search</Text>
+          </Pressable>
+          {(localQuery || serviceType) ? (
+            <Pressable
+              onPress={() => { setLocalQuery(''); onSearch(''); onServiceTypeChange(''); }}
+              style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.inlineSecondaryButtonText}>Clear</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={onRefresh}
+            style={({ pressed }) => [styles.inlineSecondaryButton, pressed && styles.actionButtonPressed]}
+          >
+            <Text style={styles.inlineSecondaryButtonText}>Refresh</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterToggleRow}>
+          <Pressable
+            onPress={() => onServiceTypeChange('')}
+            style={[styles.filterToggle, !serviceType && styles.recipientToggleActive]}
+          >
+            <Text style={[styles.recipientToggleText, !serviceType && styles.recipientToggleTextActive]}>All types</Text>
+          </Pressable>
+          {coachingTypes.map(type => (
+            <Pressable
+              key={type.value}
+              onPress={() => onServiceTypeChange(type.value)}
+              style={[styles.filterToggle, serviceType === type.value && styles.recipientToggleActive]}
+            >
+              <Text style={[styles.recipientToggleText, serviceType === type.value && styles.recipientToggleTextActive]}>{type.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {total > 0 ? (
+          <Text style={styles.helperText}>Showing {coaches.length} of {total} coaches</Text>
+        ) : null}
+
+        {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <View style={styles.dashboardLoadingRow}>
+            <ActivityIndicator color="#f59e0b" />
+            <Text style={styles.cardCopy}>Loading coaches...</Text>
+          </View>
+        ) : coaches.length > 0 ? (
+          <>
+            <View style={styles.featureGrid}>
+              {coaches.map(coach => (
+                <Pressable
+                  key={coach.id}
+                  onPress={() => onSelectCoach(coach)}
+                  style={({ pressed }) => [styles.coachCard, pressed && styles.actionButtonPressed]}
+                >
+                  <View style={styles.coachCardHeader}>
+                    <Text style={styles.coachCardName}>{coach.full_name || 'Coach'}</Text>
+                    {coach.has_background_check && coach.background_check_status === 'verified' ? (
+                      <View style={styles.verifiedBadge}>
+                        <Text style={styles.verifiedBadgeText}>✓ Verified</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  {(coach.city || coach.country) ? (
+                    <Text style={styles.coachCardMeta}>{[coach.city, coach.country].filter(Boolean).join(', ')}</Text>
+                  ) : null}
+                  <Text style={styles.coachCardRate}>£{coach.hourly_rate || 0}/hr</Text>
+                  {coach.bio ? (
+                    <Text style={styles.coachCardBio} numberOfLines={3}>{coach.bio}</Text>
+                  ) : null}
+                  {Array.isArray(coach.services_offered) && coach.services_offered.length > 0 ? (
+                    <View style={styles.coachCardServices}>
+                      {coach.services_offered.slice(0, 3).map(s => {
+                        const label = coachingTypes.find(t => t.value === s)?.label || formatServiceType(s);
+                        return (
+                          <View key={s} style={styles.coachServiceChip}>
+                            <Text style={styles.coachServiceChipText}>{label}</Text>
+                          </View>
+                        );
+                      })}
+                      {coach.services_offered.length > 3 ? (
+                        <View style={styles.coachServiceChip}>
+                          <Text style={styles.coachServiceChipText}>+{coach.services_offered.length - 3}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+
+            {totalPages > 1 ? (
+              <View style={styles.paginationRow}>
+                <Pressable
+                  disabled={page === 0}
+                  onPress={onPrevPage}
+                  style={({ pressed }) => [
+                    styles.inlineSecondaryButton,
+                    { flex: 1 },
+                    (pressed || page === 0) && styles.actionButtonPressed,
+                    page === 0 && { opacity: 0.4 },
+                  ]}
+                >
+                  <Text style={styles.inlineSecondaryButtonText}>← Prev</Text>
+                </Pressable>
+                <Text style={[styles.helperText, { flex: 1, textAlign: 'center', marginBottom: 0 }]}>
+                  {page + 1} / {totalPages}
+                </Text>
+                <Pressable
+                  disabled={page + 1 >= totalPages}
+                  onPress={onNextPage}
+                  style={({ pressed }) => [
+                    styles.inlineSecondaryButton,
+                    { flex: 1 },
+                    (pressed || page + 1 >= totalPages) && styles.actionButtonPressed,
+                    page + 1 >= totalPages && { opacity: 0.4 },
+                  ]}
+                >
+                  <Text style={styles.inlineSecondaryButtonText}>Next →</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardCopy}>No coaches found. Try adjusting your search or filters.</Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function CoachDetailScreen({ coach, currentUser, onBack, onBook }) {
+  const isVerified = coach?.has_background_check && coach?.background_check_status === 'verified';
+  const accountType = normalizeUserType(currentUser?.user_type || 'client');
+  const canBook = accountType === 'client';
+  const services = Array.isArray(coach?.services_offered) ? coach.services_offered : [];
+
+  return (
+    <ScrollView contentContainerStyle={styles.signInScrollContent}>
+      <View style={styles.signInHeader}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.signInCardDark}>
+        <Text style={styles.sectionEyebrow}>Coach Profile</Text>
+        <Text style={styles.signInTitleDark}>{coach?.full_name || 'Coach'}</Text>
+        {(coach?.city || coach?.country) ? (
+          <Text style={styles.signInSubtitleDark}>{[coach?.city, coach?.country].filter(Boolean).join(', ')}</Text>
+        ) : null}
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statTile}>
+            <Text style={styles.statLabel}>Rate</Text>
+            <Text style={styles.statValue}>£{coach?.hourly_rate || 0}</Text>
+          </View>
+          {Number(coach?.rating) > 0 ? (
+            <View style={styles.statTile}>
+              <Text style={styles.statLabel}>Rating</Text>
+              <Text style={styles.statValue}>{Number(coach.rating).toFixed(1)}</Text>
+            </View>
+          ) : null}
+          {Number(coach?.total_reviews) > 0 ? (
+            <View style={styles.statTile}>
+              <Text style={styles.statLabel}>Reviews</Text>
+              <Text style={styles.statValue}>{coach.total_reviews}</Text>
+            </View>
+          ) : null}
+          <View style={styles.statTile}>
+            <Text style={styles.statLabel}>Background</Text>
+            <Text style={styles.statValueSmall}>{isVerified ? 'Verified ✓' : 'Unverified'}</Text>
+          </View>
+        </View>
+
+        {coach?.bio ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>About</Text>
+            <Text style={styles.cardCopy}>{coach.bio}</Text>
+          </View>
+        ) : null}
+
+        {services.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Services offered</Text>
+            <View style={styles.chipGrid}>
+              {services.map(s => {
+                const label = coachingTypes.find(t => t.value === s)?.label || formatServiceType(s);
+                return (
+                  <View key={s} style={styles.selectionChip}>
+                    <Text style={styles.selectionChipText}>{label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {coach?.qualification_status === 'verified' ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Qualifications</Text>
+            <Text style={styles.cardCopy}>Qualification verified ✓</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.actionGroupSignedIn}>
+          {canBook ? (
+            <Pressable
+              onPress={onBook}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Book a session</Text>
+              <Text style={styles.actionBody}>Submit a booking request to this coach.</Text>
+            </Pressable>
+          ) : accountType === 'coach' ? (
+            <View style={styles.card}>
+              <Text style={styles.cardCopy}>You are signed in as a coach. A client account is needed to book a session.</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function NewBookingScreen({
+  coach,
+  serviceType,
+  date,
+  time,
+  locationType,
+  locationAddress,
+  notes,
+  submitting,
+  errorMessage,
+  successMessage,
+  onServiceTypeChange,
+  onDateChange,
+  onTimeChange,
+  onLocationTypeChange,
+  onLocationAddressChange,
+  onNotesChange,
+  onBack,
+  onSubmit,
+}) {
+  const hourlyRate = Number(coach?.hourly_rate || 0);
+  const adminFee = 3;
+  const total = hourlyRate + adminFee;
+  const services = Array.isArray(coach?.services_offered) && coach.services_offered.length > 0
+    ? coach.services_offered
+    : coachingTypes.map(t => t.value);
+
+  return (
+    <KeyboardAvoidingView behavior="padding" style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.signInScrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.signInHeader}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>← Back</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.signInCardDark}>
+          <Text style={styles.sectionEyebrow}>New Booking</Text>
+          <Text style={styles.signInTitleDark}>Book {coach?.full_name || 'this coach'}</Text>
+          <Text style={styles.signInSubtitleDark}>Submit a session request. The coach will confirm or decline it.</Text>
+
+          {hourlyRate > 0 ? (
+            <View style={styles.statsGrid}>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Session rate</Text>
+                <Text style={styles.statValueSmall}>£{hourlyRate}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Platform fee</Text>
+                <Text style={styles.statValueSmall}>£{adminFee}</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Total</Text>
+                <Text style={styles.statValueSmall}>£{total}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabelLight}>Service type</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterToggleRow}>
+              {services.map(s => {
+                const label = coachingTypes.find(t => t.value === s)?.label || formatServiceType(s);
+                return (
+                  <Pressable
+                    key={s}
+                    onPress={() => onServiceTypeChange(s)}
+                    style={[styles.selectionChip, serviceType === s && styles.selectionChipActive]}
+                  >
+                    <Text style={[styles.selectionChipText, serviceType === s && styles.selectionChipTextActive]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          <View style={styles.dualInputRow}>
+            <View style={styles.dualInputColumn}>
+              <Text style={styles.inputLabelLight}>Date</Text>
+              <TextInput
+                onChangeText={onDateChange}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#64748b"
+                style={styles.inputDark}
+                value={date}
+              />
+            </View>
+            <View style={styles.dualInputColumn}>
+              <Text style={styles.inputLabelLight}>Time</Text>
+              <TextInput
+                onChangeText={onTimeChange}
+                placeholder="HH:MM"
+                placeholderTextColor="#64748b"
+                style={styles.inputDark}
+                value={time}
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabelLight}>Location</Text>
+            <View style={styles.recipientToggleRow}>
+              <Pressable
+                onPress={() => onLocationTypeChange('online')}
+                style={[styles.recipientToggle, locationType === 'online' && styles.recipientToggleActive]}
+              >
+                <Text style={[styles.recipientToggleText, locationType === 'online' && styles.recipientToggleTextActive]}>Online</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onLocationTypeChange('in_person')}
+                style={[styles.recipientToggle, locationType === 'in_person' && styles.recipientToggleActive]}
+              >
+                <Text style={[styles.recipientToggleText, locationType === 'in_person' && styles.recipientToggleTextActive]}>In person</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {locationType === 'in_person' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabelLight}>Address</Text>
+              <TextInput
+                onChangeText={onLocationAddressChange}
+                placeholder="Pitch, training ground..."
+                placeholderTextColor="#64748b"
+                style={styles.inputDark}
+                value={locationAddress}
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabelLight}>Notes for the coach</Text>
+            <TextInput
+              multiline
+              onChangeText={onNotesChange}
+              placeholder="Goals, level, anything the coach should know..."
+              placeholderTextColor="#64748b"
+              style={[styles.inputDark, styles.notesInput]}
+              textAlignVertical="top"
+              value={notes}
+            />
+          </View>
+
+          {errorMessage ? <Text style={styles.errorTextLight}>{errorMessage}</Text> : null}
+          {successMessage ? <Text style={styles.successTextLight}>{successMessage}</Text> : null}
+
+          <View style={styles.actionGroupSignedIn}>
+            <Pressable
+              disabled={submitting}
+              onPress={onSubmit}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, (pressed || submitting) && styles.actionButtonPressed]}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <>
+                  <Text style={styles.actionTitle}>Submit booking request</Text>
+                  <Text style={styles.actionBody}>Your request will go to the coach for review.</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 function AuthenticatedHome({
   currentUser,
   profile,
@@ -3029,6 +3481,7 @@ function AuthenticatedHome({
   onOpenAdminOperations,
   onOpenAdminHelp,
   onOpenCoachOperations,
+  onOpenFindCoaches,
   onSignOut,
 }) {
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
@@ -3273,6 +3726,16 @@ function AuthenticatedHome({
             >
               <Text style={styles.actionTitle}>Open coach operations</Text>
               <Text style={styles.actionBody}>Manage compliance details and live availability blocks inside the app.</Text>
+            </Pressable>
+          ) : null}
+
+          {accountType === 'client' ? (
+            <Pressable
+              onPress={onOpenFindCoaches}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.actionTitle}>Find a coach</Text>
+              <Text style={styles.actionBody}>Browse verified coaches, view profiles, and book a session without leaving the app.</Text>
             </Pressable>
           ) : null}
 
@@ -3603,6 +4066,26 @@ export default function App() {
   const [coachRecurringForm, setCoachRecurringForm] = useState(buildRecurringAvailabilityForm());
   const [coachRecurringSubmitting, setCoachRecurringSubmitting] = useState(false);
   const [coachRecurringError, setCoachRecurringError] = useState('');
+
+  // Find Coaches flow
+  const [findCoachesItems, setFindCoachesItems] = useState([]);
+  const [findCoachesLoading, setFindCoachesLoading] = useState(false);
+  const [findCoachesError, setFindCoachesError] = useState('');
+  const [findCoachesTotal, setFindCoachesTotal] = useState(0);
+  const [findCoachesPage, setFindCoachesPage] = useState(0);
+  const [findCoachesQuery, setFindCoachesQuery] = useState('');
+  const [findCoachesServiceType, setFindCoachesServiceType] = useState('');
+  const [selectedCoach, setSelectedCoach] = useState(null);
+  // New Booking flow
+  const [newBookingServiceType, setNewBookingServiceType] = useState('');
+  const [newBookingDate, setNewBookingDate] = useState('');
+  const [newBookingTime, setNewBookingTime] = useState('');
+  const [newBookingLocationType, setNewBookingLocationType] = useState('online');
+  const [newBookingAddress, setNewBookingAddress] = useState('');
+  const [newBookingNotes, setNewBookingNotes] = useState('');
+  const [newBookingSubmitting, setNewBookingSubmitting] = useState(false);
+  const [newBookingError, setNewBookingError] = useState('');
+  const [newBookingSuccess, setNewBookingSuccess] = useState('');
 
   const loadDashboard = async (nextUser, nextProfile) => {
     if (!nextUser?.id) {
@@ -5341,6 +5824,97 @@ export default function App() {
     setView('admin_help');
   };
 
+  const FIND_COACHES_PAGE_SIZE = 12;
+
+  const loadFindCoaches = async (page = 0, query = findCoachesQuery, serviceType = findCoachesServiceType) => {
+    setFindCoachesLoading(true);
+    setFindCoachesError('');
+    try {
+      const filters = {
+        limit: FIND_COACHES_PAGE_SIZE,
+        offset: page * FIND_COACHES_PAGE_SIZE,
+        include_total: '1',
+      };
+      if (query.trim()) filters.q = query.trim();
+      if (serviceType) filters.service_type = serviceType;
+      const response = await mobileApi.getCoaches(filters);
+      const rows = Array.isArray(response) ? response : response?.data || [];
+      const total = !Array.isArray(response)
+        ? Number(response?.total || rows.length)
+        : rows.length > 0 ? Number(rows[0]?.total_count || rows.length) : 0;
+      setFindCoachesItems(rows);
+      setFindCoachesTotal(total);
+      setFindCoachesPage(page);
+    } catch (error) {
+      setFindCoachesError(error?.message || 'Unable to load coaches.');
+      setFindCoachesItems([]);
+    } finally {
+      setFindCoachesLoading(false);
+    }
+  };
+
+  const openFindCoachesView = async () => {
+    setFindCoachesQuery('');
+    setFindCoachesServiceType('');
+    await loadFindCoaches(0, '', '');
+    setView('find_coaches');
+  };
+
+  const handleSubmitNewBooking = async () => {
+    if (!selectedCoach?.id || !currentUser?.id) {
+      setNewBookingError('Coach or user session not found. Please go back and try again.');
+      return;
+    }
+    if (!newBookingServiceType) {
+      setNewBookingError('Please select a service type.');
+      return;
+    }
+    if (!newBookingDate.trim() || !newBookingTime.trim()) {
+      setNewBookingError('Please enter a date (YYYY-MM-DD) and time (HH:MM).');
+      return;
+    }
+    const isoDateTime = buildIsoDateTime(newBookingDate.trim(), newBookingTime.trim());
+    if (!isoDateTime) {
+      setNewBookingError('Invalid date or time. Use YYYY-MM-DD and HH:MM.');
+      return;
+    }
+    const hourlyRate = Number(selectedCoach?.hourly_rate || 0);
+    const adminFee = 3;
+    const totalPrice = hourlyRate + adminFee;
+    setNewBookingSubmitting(true);
+    setNewBookingError('');
+    setNewBookingSuccess('');
+    try {
+      await mobileApi.createBooking({
+        coach_id: selectedCoach.id,
+        client_id: currentUser.id,
+        service_type: newBookingServiceType,
+        booking_date: isoDateTime,
+        duration: 60,
+        location_type: newBookingLocationType,
+        location_address: newBookingLocationType === 'in_person' ? (newBookingAddress.trim() || null) : null,
+        location_notes: null,
+        client_notes: newBookingNotes.trim() || null,
+        price: hourlyRate,
+        admin_fee: adminFee,
+        total_price: totalPrice,
+        status: 'pending',
+      });
+      setNewBookingSuccess('Booking request sent! The coach will confirm it shortly.');
+      setNewBookingDate('');
+      setNewBookingTime('');
+      setNewBookingNotes('');
+      setNewBookingAddress('');
+      setTimeout(() => {
+        loadDashboard(currentUser, profile);
+      }, 1200);
+    } catch (error) {
+      setNewBookingError(error?.message || 'Unable to submit booking. Please try again.');
+    } finally {
+      setNewBookingSubmitting(false);
+    }
+  };
+
   if (bootstrapping) {
     return (
       <SafeAreaProvider>
@@ -5799,6 +6373,74 @@ export default function App() {
             onRefresh={() => loadDirectMessages(selectedDirectThread, currentUser)}
             onSend={handleSendDirectMessage}
           />
+        ) : view === 'find_coaches' ? (
+          <FindCoachesScreen
+            coaches={findCoachesItems}
+            loading={findCoachesLoading}
+            errorMessage={findCoachesError}
+            total={findCoachesTotal}
+            page={findCoachesPage}
+            pageSize={FIND_COACHES_PAGE_SIZE}
+            searchQuery={findCoachesQuery}
+            serviceType={findCoachesServiceType}
+            onBack={() => setView('account')}
+            onRefresh={() => loadFindCoaches(0, findCoachesQuery, findCoachesServiceType)}
+            onSearch={(q) => {
+              setFindCoachesQuery(q);
+              loadFindCoaches(0, q, findCoachesServiceType);
+            }}
+            onServiceTypeChange={(st) => {
+              setFindCoachesServiceType(st);
+              loadFindCoaches(0, findCoachesQuery, st);
+            }}
+            onNextPage={() => loadFindCoaches(findCoachesPage + 1)}
+            onPrevPage={() => loadFindCoaches(Math.max(0, findCoachesPage - 1))}
+            onSelectCoach={(coach) => {
+              setSelectedCoach(coach);
+              setView('coach_detail');
+            }}
+          />
+        ) : view === 'coach_detail' && selectedCoach ? (
+          <CoachDetailScreen
+            coach={selectedCoach}
+            currentUser={currentUser}
+            onBack={() => setView('find_coaches')}
+            onBook={() => {
+              const services = Array.isArray(selectedCoach?.services_offered) && selectedCoach.services_offered.length > 0
+                ? selectedCoach.services_offered
+                : [];
+              setNewBookingServiceType(services.length === 1 ? services[0] : '');
+              setNewBookingDate('');
+              setNewBookingTime('');
+              setNewBookingLocationType('online');
+              setNewBookingAddress('');
+              setNewBookingNotes('');
+              setNewBookingError('');
+              setNewBookingSuccess('');
+              setView('new_booking');
+            }}
+          />
+        ) : view === 'new_booking' && selectedCoach ? (
+          <NewBookingScreen
+            coach={selectedCoach}
+            serviceType={newBookingServiceType}
+            date={newBookingDate}
+            time={newBookingTime}
+            locationType={newBookingLocationType}
+            locationAddress={newBookingAddress}
+            notes={newBookingNotes}
+            submitting={newBookingSubmitting}
+            errorMessage={newBookingError}
+            successMessage={newBookingSuccess}
+            onServiceTypeChange={setNewBookingServiceType}
+            onDateChange={setNewBookingDate}
+            onTimeChange={setNewBookingTime}
+            onLocationTypeChange={setNewBookingLocationType}
+            onLocationAddressChange={setNewBookingAddress}
+            onNotesChange={setNewBookingNotes}
+            onBack={() => setView('coach_detail')}
+            onSubmit={handleSubmitNewBooking}
+          />
         ) : currentUser ? (
           <AuthenticatedHome
             currentUser={currentUser}
@@ -5830,6 +6472,7 @@ export default function App() {
               await loadCoachOperations(currentUser, profile);
               setView('coach_operations');
             }}
+            onOpenFindCoaches={openFindCoachesView}
             onOpenBookings={async () => {
               if (normalizeUserType(profile?.user_type || currentUser?.user_type || 'client') === 'admin') {
                 await openAdminBookingsView();
@@ -6829,5 +7472,100 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     marginTop: 4,
+  },
+  // Coach card styles
+  coachCard: {
+    backgroundColor: '#0f172a',
+    borderColor: '#243041',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 18,
+  },
+  coachCardHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  coachCardName: {
+    color: '#f8fafc',
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 22,
+    marginRight: 8,
+  },
+  coachCardMeta: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  coachCardRate: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  coachCardBio: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  coachCardServices: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  coachServiceChip: {
+    backgroundColor: '#1e293b',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  coachServiceChipText: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  verifiedBadge: {
+    backgroundColor: '#166534',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  verifiedBadgeText: {
+    color: '#bbf7d0',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  paginationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  signInTitleDark: {
+    color: '#f8fafc',
+    fontSize: 26,
+    fontWeight: '800',
+    lineHeight: 32,
+    marginBottom: 6,
+  },
+  signInSubtitleDark: {
+    color: '#94a3b8',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 18,
+  },
+  signInCardDark: {
+    backgroundColor: '#0b1728',
+    borderRadius: 24,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    padding: 24,
   },
 });
