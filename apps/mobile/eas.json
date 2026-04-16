@@ -41,7 +41,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "REPLACE_WITH_ANDROID_CLIENT_ID"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "187916773186-g5tbjsagtnie08i97hl5bbbtiqqufc3c.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -56,7 +56,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "REPLACE_WITH_ANDROID_CLIENT_ID"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "187916773186-g5tbjsagtnie08i97hl5bbbtiqqufc3c.apps.googleusercontent.com"
       }
     }
   },
