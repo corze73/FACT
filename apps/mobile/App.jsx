@@ -1360,22 +1360,26 @@ function AdminOperationsScreen({
           </View>
         ) : (
           <>
-            <View style={styles.statsGrid}>
-              <View style={styles.statTile}>
-                <Text style={styles.statLabel}>Accounts</Text>
-                <Text style={styles.statValue}>{overview?.users?.total_accounts || 0}</Text>
+            <View style={styles.adminStatGrid}>
+              <View style={styles.adminStatRow}>
+                <View style={[styles.statTile, styles.adminStatTile]}>
+                  <Text style={styles.statLabel}>Accounts</Text>
+                  <Text style={styles.statValue}>{overview?.users?.total_accounts || 0}</Text>
+                </View>
+                <View style={[styles.statTile, styles.adminStatTile]}>
+                  <Text style={styles.statLabel}>Open Cases</Text>
+                  <Text style={styles.statValue}>{overview?.operations?.open_cases || 0}</Text>
+                </View>
               </View>
-              <View style={styles.statTile}>
-                <Text style={styles.statLabel}>Open Cases</Text>
-                <Text style={styles.statValue}>{overview?.operations?.open_cases || 0}</Text>
-              </View>
-              <View style={styles.statTile}>
-                <Text style={styles.statLabel}>Open Disputes</Text>
-                <Text style={styles.statValue}>{overview?.operations?.open_disputes || 0}</Text>
-              </View>
-              <View style={styles.statTile}>
-                <Text style={styles.statLabel}>Deletion Requests</Text>
-                <Text style={styles.statValue}>{overview?.operations?.pending_deletion_requests || 0}</Text>
+              <View style={styles.adminStatRow}>
+                <View style={[styles.statTile, styles.adminStatTile]}>
+                  <Text style={styles.statLabel}>Open Disputes</Text>
+                  <Text style={styles.statValue}>{overview?.operations?.open_disputes || 0}</Text>
+                </View>
+                <View style={[styles.statTile, styles.adminStatTile]}>
+                  <Text style={styles.statLabel}>Deletion Requests</Text>
+                  <Text style={styles.statValue}>{overview?.operations?.pending_deletion_requests || 0}</Text>
+                </View>
               </View>
             </View>
 
@@ -7037,6 +7041,18 @@ const styles = StyleSheet.create({
     width: '48.5%',
     padding: 16,
     flexShrink: 0,
+  },
+  adminStatGrid: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  adminStatRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  adminStatTile: {
+    flex: 1,
+    width: undefined,
   },
   statLabel: {
     color: '#94a3b8',
