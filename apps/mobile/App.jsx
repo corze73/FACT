@@ -538,9 +538,21 @@ const BOOKING_STATUS_COLOURS = {
   cancelled: { backgroundColor: '#fee2e2', color: '#991b1b' },
 };
 
-function BookingCard({ booking }) {
+function resolveBookingPartnerLine(booking, accountType) {
+  if (accountType === 'admin') {
+    const client = booking.client_name || 'Client';
+    const coach = booking.coach_name || 'Coach';
+    return `${client} → ${coach}`;
+  }
+  if (accountType === 'coach' && booking.client_name) return booking.client_name;
+  if (accountType === 'client' && booking.coach_name) return booking.coach_name;
+  return null;
+}
+
+function BookingCard({ booking, accountType }) {
   const status = booking.status || 'pending';
   const statusColours = BOOKING_STATUS_COLOURS[status] || { backgroundColor: '#f3f4f6', color: '#374151' };
+  const partnerLine = resolveBookingPartnerLine(booking, accountType);
   return (
     <View style={styles.bookingCard}>
       <View style={styles.bookingHeader}>
@@ -549,6 +561,7 @@ function BookingCard({ booking }) {
           <Text style={[styles.bookingStatus, { color: statusColours.color }]}>{status}</Text>
         </View>
       </View>
+      {partnerLine ? <Text style={styles.bookingPartner}>{partnerLine}</Text> : null}
       <Text style={styles.bookingMeta}>{formatSessionDate(getBookingDateValue(booking))}</Text>
       <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
     </View>
@@ -625,20 +638,28 @@ function BookingListScreen({ accountType, bookings, loading, errorMessage, onBac
           </View>
         ) : filteredBookings.length > 0 ? (
           <View style={styles.bookingListLarge}>
-            {filteredBookings.map((booking) => (
-              <Pressable key={booking.id} onPress={() => onSelectBooking(booking)} style={({ pressed }) => [styles.bookingCard, pressed && styles.actionButtonPressed]}>
-                <View style={styles.bookingHeader}>
-                  <Text style={styles.bookingTitle}>{formatServiceType(booking.service_type)}</Text>
-                  <Text style={styles.bookingStatus}>{booking.status || 'pending'}</Text>
-                </View>
-                {booking.reference_code ? (
-                  <Text style={styles.bookingMeta}>Ref: {booking.reference_code}</Text>
-                ) : null}
-                <Text style={styles.bookingMeta}>{formatSessionDate(getBookingDateValue(booking))}</Text>
-                <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
-                <Text style={styles.bookingMeta}>{formatBookingLocation(booking)}</Text>
-              </Pressable>
-            ))}
+            {filteredBookings.map((booking) => {
+              const bStatus = booking.status || 'pending';
+              const bColours = BOOKING_STATUS_COLOURS[bStatus] || { backgroundColor: '#f3f4f6', color: '#374151' };
+              const bPartner = resolveBookingPartnerLine(booking, accountType);
+              return (
+                <Pressable key={booking.id} onPress={() => onSelectBooking(booking)} style={({ pressed }) => [styles.bookingCard, pressed && styles.actionButtonPressed]}>
+                  <View style={styles.bookingHeader}>
+                    <Text style={styles.bookingTitle}>{formatServiceType(booking.service_type)}</Text>
+                    <View style={[styles.bookingStatusBadge, { backgroundColor: bColours.backgroundColor }]}>
+                      <Text style={[styles.bookingStatus, { color: bColours.color }]}>{bStatus}</Text>
+                    </View>
+                  </View>
+                  {bPartner ? <Text style={styles.bookingPartner}>{bPartner}</Text> : null}
+                  {booking.reference_code ? (
+                    <Text style={styles.bookingMeta}>Ref: {booking.reference_code}</Text>
+                  ) : null}
+                  <Text style={styles.bookingMeta}>{formatSessionDate(getBookingDateValue(booking))}</Text>
+                  <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
+                  <Text style={styles.bookingMeta}>{formatBookingLocation(booking)}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         ) : (
           <View style={styles.card}>
@@ -2950,6 +2971,43 @@ function CoachOperationsScreen({
   );
 }
 
+const COACH_BOOKING_TABS = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'history', label: 'History' },
+];
+
+const CLIENT_BOOKING_TABS = [
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'past', label: 'Past' },
+  { key: 'cancelled', label: 'Cancelled' },
+];
+
+function filterDashboardBookings(bookings, tab, accountType) {
+  const now = new Date();
+  if (accountType === 'coach') {
+    if (tab === 'pending') return bookings.filter(b => b.status === 'pending');
+    if (tab === 'upcoming') return bookings.filter(b => b.status === 'confirmed' || b.status === 'in_session');
+    if (tab === 'history') return bookings.filter(b => b.status === 'completed' || b.status === 'cancelled');
+  }
+  if (accountType === 'client') {
+    if (tab === 'upcoming') {
+      return bookings.filter(b => {
+        const date = new Date(getBookingDateValue(b) || '');
+        return (b.status === 'confirmed' || b.status === 'pending') && (isNaN(date.getTime()) || date >= now);
+      });
+    }
+    if (tab === 'past') {
+      return bookings.filter(b => {
+        const date = new Date(getBookingDateValue(b) || '');
+        return b.status === 'completed' || (!isNaN(date.getTime()) && date < now);
+      });
+    }
+    if (tab === 'cancelled') return bookings.filter(b => b.status === 'cancelled');
+  }
+  return bookings;
+}
+
 function AuthenticatedHome({
   currentUser,
   profile,
@@ -2976,6 +3034,12 @@ function AuthenticatedHome({
   const accountType = normalizeUserType(profile?.user_type || currentUser?.user_type || 'client');
   const displayName = profile?.full_name || currentUser?.full_name || currentUser?.email || 'FACT user';
   const resolvedDashboard = dashboard || buildDashboardState(accountType, {});
+  const defaultTab = accountType === 'coach' ? 'pending' : 'upcoming';
+  const [activeBookingTab, setActiveBookingTab] = useState(defaultTab);
+  const tabs = accountType === 'coach' ? COACH_BOOKING_TABS : accountType === 'client' ? CLIENT_BOOKING_TABS : null;
+  const tabBookings = tabs
+    ? filterDashboardBookings(resolvedDashboard.bookings, activeBookingTab, accountType)
+    : resolvedDashboard.bookings.slice(0, 8);
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -3122,20 +3186,38 @@ function AuthenticatedHome({
           {dashboardError ? <Text style={styles.errorText}>{dashboardError}</Text> : null}
         </View>
 
+        {tabs ? (
+          <View style={styles.bookingTabRow}>
+            {tabs.map(tab => (
+              <Pressable
+                key={tab.key}
+                onPress={() => setActiveBookingTab(tab.key)}
+                style={[styles.bookingTab, activeBookingTab === tab.key && styles.bookingTabActive]}
+              >
+                <Text style={[styles.bookingTabText, activeBookingTab === tab.key && styles.bookingTabTextActive]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
         {dashboardLoading ? (
           <View style={styles.dashboardLoadingRow}>
             <ActivityIndicator color="#f59e0b" />
             <Text style={styles.cardCopy}>Loading your dashboard</Text>
           </View>
-        ) : resolvedDashboard.bookings.length > 0 ? (
+        ) : tabBookings.length > 0 ? (
           <View style={styles.bookingList}>
-            {resolvedDashboard.bookings.slice(0, 5).map((booking) => (
-              <BookingCard key={booking.id} booking={booking} />
+            {tabBookings.map((booking) => (
+              <BookingCard key={booking.id} booking={booking} accountType={accountType} />
             ))}
           </View>
         ) : (
           <View style={styles.card}>
-            <Text style={styles.cardCopy}>{resolvedDashboard.emptyBookingsText}</Text>
+            <Text style={styles.cardCopy}>
+              {tabs ? `No ${activeBookingTab} bookings.` : resolvedDashboard.emptyBookingsText}
+            </Text>
           </View>
         )}
 
@@ -6672,6 +6754,35 @@ const styles = StyleSheet.create({
     color: '#92400e',
     fontSize: 14,
     fontWeight: '600',
+  },
+  bookingPartner: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  bookingTabRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 8,
+  },
+  bookingTab: {
+    borderColor: '#1e3a8a',
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  bookingTabActive: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#f59e0b',
+  },
+  bookingTabText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bookingTabTextActive: {
+    color: '#08111f',
   },
   bookingMeta: {
     color: '#cbd5e1',
