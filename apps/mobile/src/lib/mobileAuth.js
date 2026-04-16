@@ -2,7 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createFactApiClient } from '@fact/api';
 import { createAuthSession } from '@fact/auth';
 
-const API_BASE = 'https://findacoachtoday.com/.netlify/functions';
+// EXPO_PUBLIC_API_BASE is baked into the bundle at EAS build time via eas.json env blocks.
+// Falls back to production so local runs without a .env file work correctly.
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE ||
+  'https://findacoachtoday.com/.netlify/functions';
 
 const nativeStorage = {
   async getItem(key) {

@@ -15,7 +15,6 @@
       "icon": "./assets/icon.png",
       "infoPlist": {
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
         },
         "NSLocalNetworkUsageDescription": "FACT Mobile uses local network access to connect to nearby services.",
