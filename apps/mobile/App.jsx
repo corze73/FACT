@@ -70,7 +70,7 @@ const featureCards = [
   },
   {
     title: 'Shared account system',
-    body: `normalizeUserType('coach') = ${normalizeUserType('coach')}`,
+    body: 'One login works across both coach and client accounts — no duplicate sign-ups.',
   },
 ];
 
@@ -5836,7 +5836,7 @@ export default function App() {
 
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionEyebrow}>Why FACT</Text>
-              <Text style={styles.sectionTitle}>A stronger first screen than the placeholder shell</Text>
+              <Text style={styles.sectionTitle}>Everything you need to train smarter</Text>
             </View>
 
             <View style={styles.featureGrid}>

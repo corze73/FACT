@@ -18,7 +18,7 @@
           "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
         },
-        "NSLocalNetworkUsageDescription": "FACT Mobile uses your local network during development to connect to the Metro bundler.",
+        "NSLocalNetworkUsageDescription": "FACT Mobile uses local network access to connect to nearby services.",
         "NSBonjourServices": [
           "_react-native._tcp",
           "_http._tcp"
