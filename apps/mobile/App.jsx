@@ -460,9 +460,9 @@ function buildDashboardState(accountType, payload) {
     const bookings = Array.isArray(payload.recentBookings) ? payload.recentBookings : [];
 
     return {
-      eyebrow: 'Admin overview',
-      heading: 'Platform activity at a glance',
-      subheading: 'A native summary of accounts, coaches, clients, and booking flow.',
+      eyebrow: 'Admin Dashboard',
+      heading: 'Overview of users, bookings, and platform activity.',
+      subheading: 'Monitor accounts, coaches, clients, and booking flow across the platform.',
       stats: [
         { label: 'Accounts', value: userStats.total_accounts || 0 },
         { label: 'Coaches', value: userStats.total_coaches || 0 },
@@ -531,12 +531,23 @@ function buildDashboardState(accountType, payload) {
   };
 }
 
+const BOOKING_STATUS_COLOURS = {
+  pending: { backgroundColor: '#fef3c7', color: '#92400e' },
+  confirmed: { backgroundColor: '#dcfce7', color: '#166534' },
+  completed: { backgroundColor: '#dbeafe', color: '#1e40af' },
+  cancelled: { backgroundColor: '#fee2e2', color: '#991b1b' },
+};
+
 function BookingCard({ booking }) {
+  const status = booking.status || 'pending';
+  const statusColours = BOOKING_STATUS_COLOURS[status] || { backgroundColor: '#f3f4f6', color: '#374151' };
   return (
     <View style={styles.bookingCard}>
       <View style={styles.bookingHeader}>
         <Text style={styles.bookingTitle}>{formatServiceType(booking.service_type)}</Text>
-        <Text style={styles.bookingStatus}>{booking.status || 'pending'}</Text>
+        <View style={[styles.bookingStatusBadge, { backgroundColor: statusColours.backgroundColor }]}>
+          <Text style={[styles.bookingStatus, { color: statusColours.color }]}>{status}</Text>
+        </View>
       </View>
       <Text style={styles.bookingMeta}>{formatSessionDate(getBookingDateValue(booking))}</Text>
       <Text style={styles.bookingMeta}>{booking.session_time || 'Time TBD'} • {formatPrice(booking.total_price || booking.price)}</Text>
@@ -2976,14 +2987,10 @@ function AuthenticatedHome({
         <View style={styles.heroOverlay}>
           <View style={styles.brandRow}>
             <BrandLogo />
-            <Text style={styles.brandText}>FACT Mobile</Text>
+            <Text style={styles.brandText}>FACT</Text>
           </View>
 
-          <Text style={styles.eyebrow}>Native session active</Text>
           <Text style={styles.title}>Welcome back, {displayName}.</Text>
-          <Text style={styles.subtitle}>
-            You are signed in as {accountType}. Native login is working, and this screen now reflects your role instead of dropping straight into the browser.
-          </Text>
         </View>
       </ImageBackground>
 
@@ -2994,20 +3001,13 @@ function AuthenticatedHome({
           <Text style={styles.sectionSubtitle}>{resolvedDashboard.subheading}</Text>
         </View>
 
-        <View style={styles.featureGrid}>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Account</Text>
-            <Text style={styles.cardCopy}>{currentUser?.email}</Text>
+        {accountType === 'coach' && resolvedDashboard.stats.find(s => s.label === 'Pending')?.value > 0 ? (
+          <View style={styles.pendingAlertBanner}>
+            <Text style={styles.pendingAlertText}>
+              You have {resolvedDashboard.stats.find(s => s.label === 'Pending').value} new booking request{resolvedDashboard.stats.find(s => s.label === 'Pending').value === 1 ? '' : 's'} to review
+            </Text>
           </View>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Role</Text>
-            <Text style={styles.cardCopy}>{accountType}</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Session</Text>
-            <Text style={styles.cardCopy}>{loadingProfile ? 'Refreshing profile...' : 'Signed in on device'}</Text>
-          </View>
-        </View>
+        ) : null}
 
         <View style={styles.statsGrid}>
           {resolvedDashboard.stats.map((item) => {
@@ -6651,11 +6651,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginRight: 10,
   },
+  bookingStatusBadge: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
   bookingStatus: {
-    color: '#f59e0b',
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'capitalize',
+  },
+  pendingAlertBanner: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pendingAlertText: {
+    color: '#92400e',
+    fontSize: 14,
+    fontWeight: '600',
   },
   bookingMeta: {
     color: '#cbd5e1',
