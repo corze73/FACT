@@ -46,7 +46,7 @@ export const mobileApi = createFactApiClient({
 });
 
 // iOS OAuth 2.0 client ID (from Google Cloud Console → Credentials → iOS client)
-const GOOGLE_CLIENT_ID = '1061540997688-07hhmogi1sk7ctc3thmgrjh5ikq5l0ut.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '187916773186-pjp0ov3plq51qj38hm50ekk75hgvhv9c.apps.googleusercontent.com';
 
 // Android OAuth 2.0 client ID (from Google Cloud Console → Credentials → Android client)
 // Create this credential at https://console.cloud.google.com/ for package com.findacoachtoday.mobile
