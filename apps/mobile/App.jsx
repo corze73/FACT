@@ -5907,7 +5907,8 @@ export default function App() {
       setNewBookingAddress('');
       setTimeout(() => {
         loadDashboard(currentUser, profile);
-      }, 1200);
+        setView('account');
+      }, 1500);
     } catch (error) {
       setNewBookingError(error?.message || 'Unable to submit booking. Please try again.');
     } finally {
@@ -7547,25 +7548,5 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 14,
     marginBottom: 4,
-  },
-  signInTitleDark: {
-    color: '#f8fafc',
-    fontSize: 26,
-    fontWeight: '800',
-    lineHeight: 32,
-    marginBottom: 6,
-  },
-  signInSubtitleDark: {
-    color: '#94a3b8',
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 18,
-  },
-  signInCardDark: {
-    backgroundColor: '#0b1728',
-    borderRadius: 24,
-    marginHorizontal: 16,
-    marginBottom: 24,
-    padding: 24,
   },
 });
