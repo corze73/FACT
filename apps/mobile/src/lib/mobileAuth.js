@@ -45,7 +45,13 @@ export const mobileApi = createFactApiClient({
   },
 });
 
+// iOS OAuth 2.0 client ID (from Google Cloud Console → Credentials → iOS client)
 const GOOGLE_CLIENT_ID = '1061540997688-07hhmogi1sk7ctc3thmgrjh5ikq5l0ut.apps.googleusercontent.com';
+
+// Android OAuth 2.0 client ID (from Google Cloud Console → Credentials → Android client)
+// Create this credential at https://console.cloud.google.com/ for package com.findacoachtoday.mobile
+// then replace the placeholder below before building for Android.
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || null;
 
 export async function signInWithGoogle(idToken) {
   const signedInUser = await mobileApi.createUser({
@@ -69,7 +75,7 @@ export async function signInWithGoogle(idToken) {
   return signedInUser;
 }
 
-export { GOOGLE_CLIENT_ID };
+export { GOOGLE_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID };
 
 export async function signInWithEmail(email, password) {
   const normalizedEmail = String(email || '').trim().toLowerCase();

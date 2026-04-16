@@ -10,6 +10,9 @@
         "simulator": true,
         "buildConfiguration": "Debug"
       },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE": "http://localhost:8888/.netlify/functions"
       }
@@ -19,6 +22,9 @@
       "ios": {
         "buildConfiguration": "Release"
       },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions"
       }
@@ -29,8 +35,13 @@
         "buildConfiguration": "Release",
         "autoIncrement": true
       },
+      "android": {
+        "buildType": "app-bundle",
+        "autoIncrement": true
+      },
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions"
+        "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "REPLACE_WITH_ANDROID_CLIENT_ID"
       }
     },
     "production": {
@@ -39,8 +50,13 @@
         "buildConfiguration": "Release",
         "autoIncrement": true
       },
+      "android": {
+        "buildType": "app-bundle",
+        "autoIncrement": true
+      },
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions"
+        "EXPO_PUBLIC_API_BASE": "https://findacoachtoday.com/.netlify/functions",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "REPLACE_WITH_ANDROID_CLIENT_ID"
       }
     }
   },
@@ -50,6 +66,10 @@
         "appleId": "REPLACE_WITH_YOUR_APPLE_ID_EMAIL",
         "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
         "appleTeamId": "4YHDGF6D8L"
+      },
+      "android": {
+        "serviceAccountKeyPath": "REPLACE_WITH_PATH_TO_GOOGLE_SERVICE_ACCOUNT_JSON",
+        "track": "internal"
       }
     },
     "production": {
@@ -57,8 +77,13 @@
         "appleId": "REPLACE_WITH_YOUR_APPLE_ID_EMAIL",
         "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
         "appleTeamId": "4YHDGF6D8L"
+      },
+      "android": {
+        "serviceAccountKeyPath": "REPLACE_WITH_PATH_TO_GOOGLE_SERVICE_ACCOUNT_JSON",
+        "track": "production"
       }
     }
   }
 }
+
 

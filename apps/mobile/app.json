@@ -31,7 +31,11 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#08111f"
       },
-      "package": "com.findacoachtoday.mobile"
+      "package": "com.findacoachtoday.mobile",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
       "expo-web-browser"

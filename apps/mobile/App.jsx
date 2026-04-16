@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeUserType } from '@fact/domain';
-import { getCurrentProfile, GOOGLE_CLIENT_ID, mobileApi, mobileAuth, signInWithEmail, signInWithGoogle, signOut, uploadComplianceAsset } from './src/lib/mobileAuth';
+import { getCurrentProfile, GOOGLE_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID, mobileApi, mobileAuth, signInWithEmail, signInWithGoogle, signOut, uploadComplianceAsset } from './src/lib/mobileAuth';
 
 const factIcon = require('./assets/icon.png');
 
@@ -3387,6 +3387,7 @@ function SignInScreen({ email, password, errorMessage, submitting, onEmailChange
 export default function App() {
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
     iosClientId: GOOGLE_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     scopes: ['email', 'profile', 'openid'],
   });
 
