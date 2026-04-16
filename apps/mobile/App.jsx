@@ -42,35 +42,30 @@ function BrandLogo({ compact = false }) {
 const primaryActions = [
   {
     label: 'Find a Coach',
-    description: 'Browse verified football coaches and start training.',
-    href: 'https://findacoachtoday.com/findcoaches',
-    variant: 'primary',
-  },
-  {
-    label: 'Login',
-    description: 'Sign in to your FACT account.',
     variant: 'primary',
   },
   {
     label: 'Become a Coach',
-    description: 'Create a coach profile and start receiving bookings.',
-    href: 'https://findacoachtoday.com/register?type=coach',
-    variant: 'primary',
+    variant: 'ghost',
   },
 ];
 
 const featureCards = [
   {
-    title: 'Verified coaches',
-    body: 'Train with specialists across attacking, defending, conditioning, and technical development.',
+    title: 'Defensive Mastery',
+    body: 'Master tackling, positioning, and tactical awareness with coaches who know the game inside out.',
   },
   {
-    title: 'Book faster',
-    body: 'Move from discovery to a live session without jumping between channels or spreadsheets.',
+    title: 'Midfield Engine',
+    body: 'Improve passing, vision, and control of the game with specialist midfield coaching.',
   },
   {
-    title: 'Shared account system',
-    body: 'One login works across both coach and client accounts — no duplicate sign-ups.',
+    title: "Striker's Instinct",
+    body: 'Sharpen your finishing, movement, and goal-scoring with dedicated attacking coaches.',
+  },
+  {
+    title: 'Verified Coaches',
+    body: 'Learn from experienced and vetted football experts — every coach on FACT is reviewed.',
   },
 ];
 
@@ -5773,71 +5768,48 @@ export default function App() {
             <View style={styles.heroOverlay}>
               <View style={styles.brandRow}>
                 <Image source={factIcon} style={styles.logo} />
-                <Text style={styles.brandText}>FACT Mobile</Text>
+                <Text style={styles.brandText}>FACT</Text>
               </View>
 
-              <Text style={styles.eyebrow}>Find A Coach Today</Text>
-              <Text style={styles.title}>Train smarter with expert football coaching.</Text>
+              <Text style={styles.title}>Elevate Your Game</Text>
+              <Text style={styles.titleAccent}>With Expert Football Coaching</Text>
               <Text style={styles.subtitle}>
-                Discover trusted coaches, manage your account, and move into the first native FACT experience.
+                Connect with top-tier football coaches for personalised training. Find local experts and book sessions to unlock your true potential on the pitch.
               </Text>
             </View>
           </ImageBackground>
 
           <View style={styles.content}>
-            <View style={styles.actionGroup}>
-              {primaryActions.map((action) => (
-                <Pressable
-                  key={action.label}
-                  onPress={() => {
-                    if (action.label === 'Login') {
-                      setEmail('');
-                      setPassword('');
-                      setErrorMessage('');
-                      setView('login_picker');
-                      return;
-                    }
-
-                    if (action.label === 'Find a Coach') {
-                      openHref('https://findacoachtoday.com/findcoaches');
-                      return;
-                    }
-
-                    openHref('https://findacoachtoday.com/register?type=coach');
-                  }}
-                  style={({ pressed }) => [
-                    styles.actionButton,
-                    action.variant === 'primary' && styles.actionButtonPrimary,
-                    action.variant === 'secondary' && styles.actionButtonSecondary,
-                    action.variant === 'ghost' && styles.actionButtonGhost,
-                    pressed && styles.actionButtonPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.actionTitle,
-                      action.variant === 'secondary' && styles.actionTitleSecondary,
-                      action.variant === 'ghost' && styles.actionTitleGhost,
-                    ]}
-                  >
-                    {action.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.actionBody,
-                      action.variant === 'secondary' && styles.actionBodySecondary,
-                      action.variant === 'ghost' && styles.actionBodyGhost,
-                    ]}
-                  >
-                    {action.description}
-                  </Text>
-                </Pressable>
-              ))}
+            <View style={styles.heroCtaRow}>
+              <Pressable
+                onPress={() => openHref('https://findacoachtoday.com/findcoaches')}
+                style={({ pressed }) => [styles.heroCtaPrimary, pressed && styles.actionButtonPressed]}
+              >
+                <Text style={styles.heroCtaPrimaryText}>Find a Coach</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => openHref('https://findacoachtoday.com/register?type=coach')}
+                style={({ pressed }) => [styles.heroCtaGhost, pressed && styles.actionButtonPressed]}
+              >
+                <Text style={styles.heroCtaGhostText}>Become a Coach</Text>
+              </Pressable>
             </View>
 
+            <Pressable
+              style={styles.loginLinkRow}
+              onPress={() => {
+                setEmail('');
+                setPassword('');
+                setErrorMessage('');
+                setView('login_picker');
+              }}
+            >
+              <Text style={styles.loginLinkText}>Already have an account? <Text style={styles.loginLinkEmphasis}>Login</Text></Text>
+            </Pressable>
+
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionEyebrow}>Why FACT</Text>
-              <Text style={styles.sectionTitle}>Everything you need to train smarter</Text>
+              <Text style={styles.sectionTitle}>Train Like a Pro</Text>
+              <Text style={styles.sectionSubtitle}>Access elite coaching tailored to every aspect of your game.</Text>
             </View>
 
             <View style={styles.featureGrid}>
@@ -5848,6 +5820,19 @@ export default function App() {
                 </View>
               ))}
             </View>
+          </View>
+
+          <View style={styles.bottomCtaSection}>
+            <Text style={styles.bottomCtaTitle}>Ready to Transform Your Game?</Text>
+            <Text style={styles.bottomCtaSubtitle}>
+              Join thousands who&apos;ve found their perfect coach and achieved remarkable results. All payments are securely processed by Stripe.
+            </Text>
+            <Pressable
+              onPress={() => openHref('https://findacoachtoday.com/findcoaches')}
+              style={({ pressed }) => [styles.bottomCtaButton, pressed && styles.actionButtonPressed]}
+            >
+              <Text style={styles.bottomCtaButtonText}>Get Started Today</Text>
+            </Pressable>
           </View>
         </ScrollView>
         )}
@@ -6082,19 +6067,19 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   hero: {
-    minHeight: 420,
+    minHeight: 480,
     justifyContent: 'flex-end',
   },
   heroImage: {
     resizeMode: 'cover',
   },
   heroOverlay: {
-    minHeight: 420,
+    minHeight: 480,
     justifyContent: 'flex-end',
     paddingHorizontal: 24,
     paddingTop: 28,
-    paddingBottom: 32,
-    backgroundColor: 'rgba(6, 14, 28, 0.68)',
+    paddingBottom: 36,
+    backgroundColor: 'rgba(6, 14, 28, 0.72)',
   },
   brandRow: {
     alignItems: 'center',
@@ -6182,17 +6167,103 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#f8fafc',
-    fontSize: 38,
+    fontSize: 40,
     fontWeight: '800',
-    lineHeight: 44,
-    maxWidth: 320,
+    lineHeight: 46,
+    maxWidth: 340,
+  },
+  titleAccent: {
+    color: '#fdba74',
+    fontSize: 40,
+    fontWeight: '800',
+    lineHeight: 46,
+    maxWidth: 340,
+    marginBottom: 4,
   },
   subtitle: {
     color: '#dbe4f3',
     fontSize: 16,
-    lineHeight: 24,
-    marginTop: 16,
+    lineHeight: 25,
+    marginTop: 14,
     maxWidth: 340,
+  },
+  heroCtaRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  heroCtaPrimary: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#f97316',
+    borderRadius: 14,
+    paddingVertical: 16,
+  },
+  heroCtaPrimaryText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  heroCtaGhost: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+    paddingVertical: 16,
+  },
+  heroCtaGhostText: {
+    color: '#f8fafc',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  loginLinkRow: {
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  loginLinkText: {
+    color: '#94a3b8',
+    fontSize: 14,
+  },
+  loginLinkEmphasis: {
+    color: '#f59e0b',
+    fontWeight: '700',
+  },
+  bottomCtaSection: {
+    backgroundColor: '#0f1e35',
+    marginTop: 28,
+    paddingHorizontal: 24,
+    paddingVertical: 36,
+    alignItems: 'center',
+  },
+  bottomCtaTitle: {
+    color: '#f8fafc',
+    fontSize: 26,
+    fontWeight: '800',
+    lineHeight: 32,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  bottomCtaSubtitle: {
+    color: '#93c5fd',
+    fontSize: 15,
+    lineHeight: 23,
+    textAlign: 'center',
+    marginBottom: 24,
+    maxWidth: 320,
+  },
+  bottomCtaButton: {
+    backgroundColor: '#f97316',
+    borderRadius: 14,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+  },
+  bottomCtaButtonText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '800',
   },
   sectionHeader: {
     marginTop: 28,
