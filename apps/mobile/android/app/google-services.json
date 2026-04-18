@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "53559678288",
+    "project_id": "fact-mobile",
+    "storage_bucket": "fact-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:53559678288:android:2aaa20c25a3434807e0855",
+        "android_client_info": {
+          "package_name": "com.findacoachtoday.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvFybOg7EiQ72EmC6Ekxqm2ToBX6cSlII"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
