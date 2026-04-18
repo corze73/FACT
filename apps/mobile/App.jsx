@@ -3502,27 +3502,37 @@ function AuthenticatedHome({
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1600&q=80' }}
-        style={styles.hero}
-        imageStyle={styles.heroImage}
-      >
-        <View style={styles.heroOverlay}>
-          <View style={styles.brandRow}>
-            <BrandLogo />
-            <Text style={styles.brandText}>FACT</Text>
-          </View>
+      {accountType !== 'coach' ? (
+        <ImageBackground
+          source={{ uri: 'https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1600&q=80' }}
+          style={styles.hero}
+          imageStyle={styles.heroImage}
+        >
+          <View style={styles.heroOverlay}>
+            <View style={styles.brandRow}>
+              <BrandLogo />
+              <Text style={styles.brandText}>FACT</Text>
+            </View>
 
-          <Text style={styles.title}>Welcome back, {displayName}.</Text>
-        </View>
-      </ImageBackground>
+            <Text style={styles.title}>Welcome back, {displayName}.</Text>
+          </View>
+        </ImageBackground>
+      ) : null}
 
       <View style={styles.content}>
-        <View style={styles.sectionHeaderCompact}>
-          <Text style={styles.sectionEyebrow}>{resolvedDashboard.eyebrow}</Text>
-          <Text style={styles.sectionTitle}>{resolvedDashboard.heading}</Text>
-          <Text style={styles.sectionSubtitle}>{resolvedDashboard.subheading}</Text>
-        </View>
+        {accountType === 'coach' ? (
+          <View style={styles.sectionHeaderCompact}>
+            <Text style={styles.sectionEyebrow}>Coach Dashboard</Text>
+            <Text style={styles.sectionTitle}>Coach Dashboard</Text>
+            <Text style={styles.sectionSubtitle}>Manage your bookings and schedule.</Text>
+          </View>
+        ) : (
+          <View style={styles.sectionHeaderCompact}>
+            <Text style={styles.sectionEyebrow}>{resolvedDashboard.eyebrow}</Text>
+            <Text style={styles.sectionTitle}>{resolvedDashboard.heading}</Text>
+            <Text style={styles.sectionSubtitle}>{resolvedDashboard.subheading}</Text>
+          </View>
+        )}
 
         {accountType === 'coach' && resolvedDashboard.stats.find(s => s.label === 'Pending')?.value > 0 ? (
           <View style={styles.pendingAlertBanner}>
@@ -3614,30 +3624,32 @@ function AuthenticatedHome({
           })}
         </View>
 
-        <View style={styles.spotlightRow}>
-          {resolvedDashboard.spotlight.map((item) => {
-            const statusLabel = item.label.toLowerCase();
-            const isStatusCta = accountType === 'admin' && ['pending', 'confirmed', 'completed', 'cancelled'].includes(statusLabel);
-            if (isStatusCta) {
+        {accountType !== 'coach' ? (
+          <View style={styles.spotlightRow}>
+            {resolvedDashboard.spotlight.map((item) => {
+              const statusLabel = item.label.toLowerCase();
+              const isStatusCta = accountType === 'admin' && ['pending', 'confirmed', 'completed', 'cancelled'].includes(statusLabel);
+              if (isStatusCta) {
+                return (
+                  <Pressable
+                    key={item.label}
+                    onPress={() => onOpenAdminFilteredBookings(statusLabel)}
+                    style={({ pressed }) => [styles.spotlightCard, pressed && styles.actionButtonPressed]}
+                  >
+                    <Text style={styles.spotlightLabel}>{item.label}</Text>
+                    <Text style={styles.spotlightValue}>{item.value}</Text>
+                  </Pressable>
+                );
+              }
               return (
-                <Pressable
-                  key={item.label}
-                  onPress={() => onOpenAdminFilteredBookings(statusLabel)}
-                  style={({ pressed }) => [styles.spotlightCard, pressed && styles.actionButtonPressed]}
-                >
+                <View key={item.label} style={styles.spotlightCard}>
                   <Text style={styles.spotlightLabel}>{item.label}</Text>
                   <Text style={styles.spotlightValue}>{item.value}</Text>
-                </Pressable>
+                </View>
               );
-            }
-            return (
-              <View key={item.label} style={styles.spotlightCard}>
-                <Text style={styles.spotlightLabel}>{item.label}</Text>
-                <Text style={styles.spotlightValue}>{item.value}</Text>
-              </View>
-            );
-          })}
-        </View>
+            })}
+          </View>
+        ) : null}
 
         <View style={styles.sectionHeaderCompact}>
           <Text style={styles.sectionEyebrow}>{resolvedDashboard.bookingsTitle}</Text>
@@ -3725,16 +3737,6 @@ function AuthenticatedHome({
             </>
           ) : null}
 
-          {accountType === 'coach' ? (
-            <Pressable
-              onPress={onOpenCoachOperations}
-              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
-            >
-              <Text style={styles.actionTitle}>Open coach operations</Text>
-              <Text style={styles.actionBody}>Manage compliance details and live availability blocks inside the app.</Text>
-            </Pressable>
-          ) : null}
-
           {accountType === 'client' ? (
             <Pressable
               onPress={onOpenFindCoaches}
@@ -3745,7 +3747,7 @@ function AuthenticatedHome({
             </Pressable>
           ) : null}
 
-          {accountType !== 'admin' ? (
+          {accountType === 'client' ? (
             <Pressable
               onPress={onOpenMessages}
               style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
@@ -3755,7 +3757,7 @@ function AuthenticatedHome({
             </Pressable>
           ) : null}
 
-          {accountType !== 'admin' ? (
+          {accountType === 'client' ? (
             <Pressable
               onPress={onOpenBookings}
               style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
