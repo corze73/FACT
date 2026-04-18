@@ -3521,8 +3521,8 @@ function AuthenticatedHome({
 
       <View style={styles.content}>
         {accountType === 'coach' ? (
-          <View style={styles.sectionHeaderCompact}>
-            <Text style={styles.sectionEyebrow}>Coach Dashboard</Text>
+          <View style={[styles.sectionHeaderCompact, styles.coachDashboardHeader]}>
+            <Text style={styles.sectionEyebrow}>COACH DASHBOARD</Text>
             <Text style={styles.sectionTitle}>Coach Dashboard</Text>
             <Text style={styles.sectionSubtitle}>Manage your bookings and schedule.</Text>
           </View>
@@ -3542,8 +3542,28 @@ function AuthenticatedHome({
           </View>
         ) : null}
 
-        <View style={styles.statsGrid}>
-          {resolvedDashboard.stats.map((item) => {
+        {accountType === 'coach' ? (
+          <View style={styles.coachStatsGrid}>
+            <View style={styles.coachStatsRow}>
+              {resolvedDashboard.stats.slice(0, 2).map(item => (
+                <View key={item.label} style={[styles.statTile, styles.coachStatTile]}>
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.coachStatsRow}>
+              {resolvedDashboard.stats.slice(2, 4).map(item => (
+                <View key={item.label} style={[styles.statTile, styles.coachStatTile]}>
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.statsGrid}>
+            {resolvedDashboard.stats.map((item) => {
             const isAccountsCta = accountType === 'admin' && item.label === 'Accounts';
             const isCoachesCta = accountType === 'admin' && item.label === 'Coaches';
             const isClientsCta = accountType === 'admin' && item.label === 'Clients';
@@ -3622,7 +3642,8 @@ function AuthenticatedHome({
               </View>
             );
           })}
-        </View>
+          </View>
+        )}
 
         {accountType !== 'coach' ? (
           <View style={styles.spotlightRow}>
@@ -3651,7 +3672,7 @@ function AuthenticatedHome({
           </View>
         ) : null}
 
-        <View style={styles.sectionHeaderCompact}>
+        <View style={[styles.sectionHeaderCompact, accountType === 'coach' && styles.coachSectionHeader]}>
           <Text style={styles.sectionEyebrow}>{resolvedDashboard.bookingsTitle}</Text>
           {dashboardLoading ? <Text style={styles.sectionSubtitle}>Refreshing native dashboard data...</Text> : null}
           {dashboardError ? <Text style={styles.errorText}>{dashboardError}</Text> : null}
@@ -7110,6 +7131,26 @@ const styles = StyleSheet.create({
   adminStatTile: {
     flex: 1,
     width: undefined,
+  },
+  coachDashboardHeader: {
+    marginBottom: 10,
+  },
+  coachStatsGrid: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  coachStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  coachStatTile: {
+    flex: 1,
+    width: undefined,
+    padding: 12,
+  },
+  coachSectionHeader: {
+    marginBottom: 8,
   },
   statLabel: {
     color: '#94a3b8',
