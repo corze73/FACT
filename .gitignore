@@ -7,6 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Android keystores (never commit — store credentials in ~/.gradle/gradle.properties)
+*.jks
+
 node_modules
 dist
 dist-ssr
