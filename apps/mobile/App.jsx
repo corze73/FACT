@@ -2983,6 +2983,13 @@ const COACH_BOOKING_TABS = [
   { key: 'history', label: 'History' },
 ];
 
+const COACH_STAT_DISPLAY_LABELS = {
+  'Pending': 'Pending Requests',
+  'Upcoming': 'Upcoming Sessions',
+  'History': 'Completed Sessions',
+  'Total Sessions': 'Total Sessions',
+};
+
 const CLIENT_BOOKING_TABS = [
   { key: 'upcoming', label: 'Upcoming' },
   { key: 'past', label: 'Past' },
@@ -3547,7 +3554,7 @@ function AuthenticatedHome({
             <View style={styles.coachStatsRow}>
               {resolvedDashboard.stats.slice(0, 2).map(item => (
                 <View key={item.label} style={[styles.statTile, styles.coachStatTile]}>
-                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statLabel}>{COACH_STAT_DISPLAY_LABELS[item.label] || item.label}</Text>
                   <Text style={styles.statValue}>{item.value}</Text>
                 </View>
               ))}
@@ -3555,7 +3562,7 @@ function AuthenticatedHome({
             <View style={styles.coachStatsRow}>
               {resolvedDashboard.stats.slice(2, 4).map(item => (
                 <View key={item.label} style={[styles.statTile, styles.coachStatTile]}>
-                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statLabel}>{COACH_STAT_DISPLAY_LABELS[item.label] || item.label}</Text>
                   <Text style={styles.statValue}>{item.value}</Text>
                 </View>
               ))}
@@ -7148,6 +7155,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: undefined,
     padding: 12,
+    borderColor: '#162032',
   },
   coachSectionHeader: {
     marginBottom: 8,
