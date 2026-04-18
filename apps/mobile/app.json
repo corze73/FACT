@@ -50,7 +50,10 @@
     },
     "plugins": [
       "expo-web-browser",
-      "expo-document-picker"
+      "expo-document-picker",
+      ["@react-native-google-signin/google-signin", {
+        "iosUrlScheme": "com.googleusercontent.apps.187916773186-pjp0ov3plq51qj38hm50ekk75hgvhv9c"
+      }]
     ],
     "experiments": {
       "typedRoutes": false

@@ -4,12 +4,14 @@ import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 WebBrowser.maybeCompleteAuthSession();
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import {
   ActivityIndicator,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -4794,6 +4796,14 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (Platform.OS === 'android' && GOOGLE_ANDROID_CLIENT_ID) {
+      GoogleSignin.configure({
+        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     let active = true;
 
     const hydrate = async () => {
@@ -4940,7 +4950,52 @@ export default function App() {
     }
   };
 
+  const handleAndroidGoogleSignIn = async () => {
+    setErrorMessage('');
+    setSubmitting(true);
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      // v13 returns response.data.user; v14 may return response.user — handle both
+      const googleUser = response.data?.user ?? response.user;
+      const signedInUser = await mobileApi.createUser({
+        email: googleUser.email,
+        full_name: googleUser.name || '',
+        avatar_url: googleUser.photo || null,
+      });
+      if (!signedInUser?.id) throw new Error(signedInUser?.error || 'Google sign-in failed.');
+      await mobileAuth.setCurrentUser({
+        id: signedInUser.id,
+        email: signedInUser.email,
+        full_name: signedInUser.full_name,
+        user_type: signedInUser.user_type,
+        role: signedInUser.role,
+        token: signedInUser.token,
+      });
+      setCurrentUser(signedInUser);
+      setView('account');
+      setProfileLoading(true);
+      try {
+        const nextProfile = await getCurrentProfile();
+        setProfile(nextProfile);
+        await loadDashboard(signedInUser, nextProfile);
+      } finally {
+        setProfileLoading(false);
+      }
+    } catch (error) {
+      if (error.code !== statusCodes.SIGN_IN_CANCELLED) {
+        setErrorMessage(error?.message || 'Unable to sign in with Google.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
+    if (Platform.OS === 'android') {
+      await handleAndroidGoogleSignIn();
+      return;
+    }
     setErrorMessage('');
     setSubmitting(true);
     setView('login_picker');
