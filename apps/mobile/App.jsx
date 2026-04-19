@@ -3509,7 +3509,7 @@ function AuthenticatedHome({
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      {accountType !== 'coach' ? (
+      {accountType === 'admin' ? (
         <ImageBackground
           source={{ uri: 'https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=1600&q=80' }}
           style={styles.hero}
@@ -3532,6 +3532,12 @@ function AuthenticatedHome({
             <Text style={styles.sectionEyebrow}>COACH DASHBOARD</Text>
             <Text style={styles.sectionTitle}>Coach Dashboard</Text>
             <Text style={styles.sectionSubtitle}>Manage your bookings and schedule.</Text>
+          </View>
+        ) : accountType === 'client' ? (
+          <View style={[styles.sectionHeaderCompact, styles.clientDashboardHeader]}>
+            <Text style={styles.sectionEyebrow}>CLIENT DASHBOARD</Text>
+            <Text style={styles.sectionTitle}>Your Bookings</Text>
+            <Text style={styles.sectionSubtitle}>Manage your coaching sessions.</Text>
           </View>
         ) : (
           <View style={styles.sectionHeaderCompact}>
@@ -3652,7 +3658,7 @@ function AuthenticatedHome({
           </View>
         )}
 
-        {accountType !== 'coach' ? (
+        {accountType === 'admin' ? (
           <View style={styles.spotlightRow}>
             {resolvedDashboard.spotlight.map((item) => {
               const statusLabel = item.label.toLowerCase();
@@ -3778,20 +3784,20 @@ function AuthenticatedHome({
           {accountType === 'client' ? (
             <Pressable
               onPress={onOpenMessages}
-              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
             >
-              <Text style={styles.actionTitle}>Open native messages</Text>
-              <Text style={styles.actionBody}>Browse booking conversations in the app instead of jumping out to the website.</Text>
+              <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>Messages</Text>
+              <Text style={[styles.actionBody, styles.actionBodySecondary]}>Browse booking conversations without leaving the app.</Text>
             </Pressable>
           ) : null}
 
           {accountType === 'client' ? (
             <Pressable
               onPress={onOpenBookings}
-              style={({ pressed }) => [styles.actionButton, styles.actionButtonPrimary, pressed && styles.actionButtonPressed]}
+              style={({ pressed }) => [styles.actionButton, styles.actionButtonSecondary, pressed && styles.actionButtonPressed]}
             >
-              <Text style={styles.actionTitle}>Open native bookings</Text>
-              <Text style={styles.actionBody}>Stay in the app for booking lists and booking detail.</Text>
+              <Text style={[styles.actionTitle, styles.actionTitleSecondary]}>My Bookings</Text>
+              <Text style={[styles.actionBody, styles.actionBodySecondary]}>View booking lists and booking detail in the app.</Text>
             </Pressable>
           ) : null}
 
@@ -7140,6 +7146,9 @@ const styles = StyleSheet.create({
     width: undefined,
   },
   coachDashboardHeader: {
+    marginBottom: 10,
+  },
+  clientDashboardHeader: {
     marginBottom: 10,
   },
   coachStatsGrid: {
