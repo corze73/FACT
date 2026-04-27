@@ -3,6 +3,7 @@
 
 import Stripe from 'stripe'
 import { executeQuery, executeQueryOne } from './lib/db.js'
+import { getAuthContext } from './lib/auth.js'
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js'
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js'
 
@@ -126,6 +127,15 @@ const rawHandler = async (event) => {
       }
     }
 
+    // ---- Authentication ----
+    // Resolve auth once here for all non-webhook routes.
+    // Webhook route is handled above and returns early before reaching this point.
+    const authCtx = await getAuthContext(event)
+    if (!authCtx.userId) {
+      return json(401, { error: 'Authentication required' })
+    }
+    // ---- End Authentication ----
+
     if (method === 'POST' && path.startsWith('/create-payment-intent')) {
       console.log('[Stripe] create-payment-intent invoked');
       const payload = JSON.parse(event.body || '{}')
@@ -203,6 +213,7 @@ const rawHandler = async (event) => {
     }
 
     if (method === 'POST' && path.startsWith('/capture-payment')) {
+      if (!authCtx.isAdmin) return json(403, { error: 'Admin access required' })
       const { payment_intent_id, amount_to_capture } = JSON.parse(event.body || '{}')
       if (!payment_intent_id) return json(400, { error: 'Missing payment_intent_id' })
       
@@ -223,6 +234,7 @@ const rawHandler = async (event) => {
     }
 
     if (method === 'POST' && path.startsWith('/refund-payment')) {
+      if (!authCtx.isAdmin) return json(403, { error: 'Admin access required' })
       const { payment_intent_id, refund_type = 'full', reason = 'requested_by_customer' } = JSON.parse(event.body || '{}')
       if (!payment_intent_id) return json(400, { error: 'Missing payment_intent_id' })
       
@@ -295,6 +307,7 @@ const rawHandler = async (event) => {
     }
 
     if (method === 'POST' && path.startsWith('/process-no-show')) {
+      if (!authCtx.isAdmin) return json(403, { error: 'Admin access required' })
       const { booking_id, no_show_type } = JSON.parse(event.body || '{}')
       if (!booking_id || !no_show_type) return json(400, { error: 'Missing booking_id or no_show_type' })
       if (!['coach_no_show', 'client_no_show'].includes(no_show_type)) return json(400, { error: 'Invalid no_show_type' })

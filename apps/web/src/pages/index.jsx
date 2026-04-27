@@ -44,7 +44,7 @@ import PrivacyPolicy from "./PrivacyPolicy";
 
 import Terms from "./Terms";
 
-import DataDiagnostic from "../components/DataDiagnostic";
+
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
 const PAGES = {
@@ -92,8 +92,6 @@ const PAGES = {
     PrivacyPolicy: PrivacyPolicy,
     
     Terms: Terms,
-    
-    DataDiagnostic: DataDiagnostic,
     
 }
 
@@ -187,9 +185,6 @@ function PagesContent() {
                 
                 <Route path="/Terms" element={<Terms />} />
                 <Route path="/terms" element={<Terms />} />
-                
-                <Route path="/DataDiagnostic" element={<DataDiagnostic />} />
-                <Route path="/datadiagnostic" element={<DataDiagnostic />} />
                 
             </Routes>
         </Layout>
