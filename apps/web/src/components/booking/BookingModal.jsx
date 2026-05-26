@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,20 @@ import { checkRateLimit } from "@/lib/rateLimiter";
 import { alertToast } from "@/utils/notifications";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
+  const DEFAULT_SERVICE_TYPE = '1-to-1 Football Coaching';
   const servicePrice = coach?.coach_profile?.hourly_rate || 50;
   const paymentBreakdown = calculatePaymentBreakdown(servicePrice);
+  const serviceTypes = useMemo(() => {
+    const coachServices = coach?.services_offered ?? coach?.coach_profile?.services_offered ?? [];
+    const normalizedServices = Array.isArray(coachServices)
+      ? coachServices.filter((service) => typeof service === 'string' && service.trim())
+      : [];
+
+    return normalizedServices.length > 0 ? normalizedServices : [DEFAULT_SERVICE_TYPE];
+  }, [coach, DEFAULT_SERVICE_TYPE]);
   
   const [bookingData, setBookingData] = useState({
-    service_type: '',
+    service_type: serviceTypes[0] || DEFAULT_SERVICE_TYPE,
     session_date: null,
     session_time: '',
     duration: 60,
@@ -35,6 +44,18 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   });
 
   const [validationErrors, setValidationErrors] = useState({});
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setBookingData((prev) => {
+      const currentService = typeof prev.service_type === 'string' ? prev.service_type : '';
+      const nextService = serviceTypes.includes(currentService) ? currentService : serviceTypes[0];
+
+      if (nextService === currentService) return prev;
+      return { ...prev, service_type: nextService };
+    });
+  }, [isOpen, serviceTypes]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -102,8 +123,6 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
     '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', 
     '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
   ];
-
-  const serviceTypes = coach?.coach_profile?.services_offered || [];
 
   const formatServiceName = (service) => {
     return service.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
