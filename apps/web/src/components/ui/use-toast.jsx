@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 
 const TOAST_LIMIT = 20;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_DEFAULT_DURATION = 5000;
+const TOAST_REMOVE_DELAY = 250;
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -19,6 +20,7 @@ function genId() {
 }
 
 const toastTimeouts = new Map();
+const toastDismissTimeouts = new Map();
 
 const addToRemoveQueue = (toastId) => {
   if (toastTimeouts.has(toastId)) {
@@ -34,6 +36,33 @@ const addToRemoveQueue = (toastId) => {
   }, TOAST_REMOVE_DELAY);
 
   toastTimeouts.set(toastId, timeout);
+};
+
+const addToDismissQueue = (toastId, duration) => {
+  if (!toastId || toastDismissTimeouts.has(toastId)) {
+    return;
+  }
+
+  const timeout = setTimeout(() => {
+    toastDismissTimeouts.delete(toastId);
+    dispatch({ type: actionTypes.DISMISS_TOAST, toastId });
+  }, duration);
+
+  toastDismissTimeouts.set(toastId, timeout);
+};
+
+const clearToastTimers = (toastId) => {
+  const removeTimeout = toastTimeouts.get(toastId);
+  if (removeTimeout) {
+    clearTimeout(removeTimeout);
+    toastTimeouts.delete(toastId);
+  }
+
+  const dismissTimeout = toastDismissTimeouts.get(toastId);
+  if (dismissTimeout) {
+    clearTimeout(dismissTimeout);
+    toastDismissTimeouts.delete(toastId);
+  }
 };
 
 
@@ -81,11 +110,13 @@ export const reducer = (state, action) => {
     }
     case actionTypes.REMOVE_TOAST:
       if (action.toastId === undefined) {
+        state.toasts.forEach((toast) => clearToastTimers(toast.id));
         return {
           ...state,
           toasts: [],
         };
       }
+      clearToastTimers(action.toastId);
       return {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.toastId),
@@ -106,6 +137,9 @@ function dispatch(action) {
 
 function toast({ ...props }) {
   const id = genId();
+  const duration = typeof props.duration === 'number' && props.duration > 0
+    ? props.duration
+    : TOAST_DEFAULT_DURATION;
 
   const update = (props) =>
     dispatch({
@@ -128,6 +162,8 @@ function toast({ ...props }) {
     },
   });
 
+  addToDismissQueue(id, duration);
+
   return {
     id,
     dismiss,
@@ -146,7 +182,7 @@ function useToast() {
         listeners.splice(index, 1);
       }
     };
-  }, [state]);
+  }, []);
 
   return {
     ...state,
