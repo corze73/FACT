@@ -180,22 +180,29 @@ const rawHandler = async (event) => {
         capture_method: 'manual'
       }, { idempotencyKey: `booking-${booking_id}-authorization` });
 
-      // Create payment record
-      await executeQuery(
-         `INSERT INTO payments (
-           booking_id, amount, currency, status, payment_method, transaction_id, admin_fee, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-         ON CONFLICT (transaction_id) DO NOTHING`,
-        [
-          booking_id,
-          amount / 100,
-          currency,
-          'pending',
-          'stripe',
-          paymentIntent.id,
-          admin_fee / 100
-        ]
+      // Stripe returns the same intent for an idempotent retry. Older production
+      // schemas may not yet have a UNIQUE constraint on transaction_id, so avoid
+      // relying on ON CONFLICT here.
+      const existingPayment = await executeQueryOne(
+        'SELECT id FROM payments WHERE transaction_id = $1 LIMIT 1',
+        [paymentIntent.id]
       );
+      if (!existingPayment) {
+        await executeQuery(
+          `INSERT INTO payments (
+             booking_id, amount, currency, status, payment_method, transaction_id, admin_fee, created_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+          [
+            booking_id,
+            amount / 100,
+            currency,
+            'pending',
+            'stripe',
+            paymentIntent.id,
+            admin_fee / 100
+          ]
+        );
+      }
 
       return json(200, {
         client_secret: paymentIntent.client_secret,
