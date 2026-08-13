@@ -49,7 +49,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
         if (resp.status === 404) { lastErr = new Error('Create intent 404'); continue; }
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || `Create payment intent failed (${resp.status})`);
+          throw new Error(err.message || err.error || `Create payment intent failed (${resp.status})`);
         }
         return resp.json();
       } catch (e) {
@@ -79,7 +79,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
         if (resp.status === 404) { lastErr = new Error('Confirm 404'); continue; }
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || `Confirm payment failed (${resp.status})`);
+          throw new Error(err.message || err.error || `Confirm payment failed (${resp.status})`);
         }
         return resp.json();
       } catch (e) {
