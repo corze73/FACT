@@ -3,6 +3,7 @@ import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, getLimitByMethod } from './lib/rateLimiter.js';
 import { getAuthContext } from './lib/auth.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
+import { calculateBookingPrice } from './lib/bookingPricing.js';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -259,6 +260,36 @@ const rawHandler = async (event) => {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'booking_date is required (timestamptz)' }) };
         }
 
+        if (!isAdmin && bookingData.client_id !== currentUserId) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Bookings can only be created for the authenticated client' }) };
+        }
+
+        const duration = Number(bookingData.duration || 60);
+        if (!Number.isInteger(duration) || duration < 30 || duration > 240) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'duration must be between 30 and 240 minutes' }) };
+        }
+
+        const coach = await executeQueryOne(
+          `SELECT id, user_type, is_active, coach_profile
+           FROM profiles
+           WHERE id = $1`,
+          [bookingData.coach_id]
+        );
+        if (!coach || coach.user_type !== 'coach' || coach.is_active === false) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Coach is unavailable' }) };
+        }
+
+        let pricing;
+        try {
+          pricing = calculateBookingPrice({
+            hourlyRate: coach.coach_profile?.hourly_rate,
+            durationMinutes: duration,
+          });
+        } catch {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Coach does not have valid session pricing' }) };
+        }
+        const { servicePrice, adminFee, totalPrice } = pricing;
+
         const insertQuery = `INSERT INTO bookings (
             coach_id, client_id, service_type, booking_date,
             duration, location_type, location_address, location_notes, client_notes,
@@ -275,15 +306,15 @@ const rawHandler = async (event) => {
             bookingData.client_id,
             bookingData.service_type || 'football_session',
             bookingData.booking_date,
-            bookingData.duration || 60,
+            duration,
             bookingData.location_type || 'online',
             bookingData.location_address || null,
             bookingData.location_notes || null,
             bookingData.client_notes || null,
-            bookingData.price || 0,
-            bookingData.admin_fee ?? 3,
-            bookingData.total_price ?? ((bookingData.price || 0) + 3),
-            bookingData.status || 'pending'
+            servicePrice,
+            adminFee,
+            totalPrice,
+            'pending'
           ]
         );
 
@@ -299,6 +330,32 @@ const rawHandler = async (event) => {
         }
 
         const updateData = JSON.parse(body || '{}');
+
+        const existingBooking = await executeQueryOne(
+          'SELECT id, client_id, coach_id, status FROM bookings WHERE id = $1',
+          [bookingId]
+        );
+        if (!existingBooking) {
+          return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+        }
+        const isClient = existingBooking.client_id === currentUserId;
+        const isCoach = existingBooking.coach_id === currentUserId;
+        if (!isAdmin && !isClient && !isCoach) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not permitted to update this booking' }) };
+        }
+        if (!isAdmin) {
+          const requestedKeys = Object.keys(updateData);
+          const permittedKeys = new Set(['accept', 'cancel', 'cancellation_reason']);
+          if (requestedKeys.some((key) => !permittedKeys.has(key))) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'This booking change requires administrator approval' }) };
+          }
+          if (updateData.accept === true && (!isCoach || existingBooking.status !== 'pending')) {
+            return { statusCode: 409, headers, body: JSON.stringify({ error: 'Only the coach can accept a pending booking' }) };
+          }
+          if (updateData.cancel === true && !['pending', 'confirmed'].includes(existingBooking.status)) {
+            return { statusCode: 409, headers, body: JSON.stringify({ error: 'This booking can no longer be cancelled' }) };
+          }
+        }
 
         const updateFields = [];
         const updateParams = [];
@@ -321,7 +378,7 @@ const rawHandler = async (event) => {
           }
         }
 
-        if (updateData.status !== undefined) setField('status', updateData.status);
+        if (isAdmin && updateData.status !== undefined) setField('status', updateData.status);
         if (updateData.booking_date !== undefined) setField('booking_date', updateData.booking_date);
         if (updateData.duration !== undefined) setField('duration', updateData.duration);
         if (updateData.reschedule_requested_by !== undefined) setField('reschedule_requested_by', updateData.reschedule_requested_by);

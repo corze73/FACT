@@ -33,6 +33,7 @@ import CancelBookingModal from "../components/booking/CancelBookingModal";
 import RescheduleBookingModal from "../components/booking/RescheduleBookingModal";
 import { BookingReference } from "../components/booking/BookingReference";
 import SessionStatus from "../components/booking/SessionStatus";
+import StripePaymentModal from "../components/payment/StripePaymentModal";
 
 const MY_BOOKINGS_QUERY_KEY = ["bookings", "my-bookings"];
 const MY_BOOKING_PARTNERS_QUERY_KEY = ["users", "booking-partners"];
@@ -55,6 +56,7 @@ export default function MyBookings() {
   const [activeTab, setActiveTab] = useState("upcoming");
   const [bookingToCancel, setBookingToCancel] = useState(null);
   const [bookingToReschedule, setBookingToReschedule] = useState(null);
+  const [bookingToPay, setBookingToPay] = useState(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -340,6 +342,20 @@ export default function MyBookings() {
                                 Message
                               </Button>
 
+                              {isClient && booking.status === 'confirmed' && booking.payment_status !== 'authorized' && booking.payment_status !== 'released' && (
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => setBookingToPay({
+                                    ...booking,
+                                    client_name: currentUser.full_name,
+                                    client_email: currentUser.email,
+                                  })}
+                                >
+                                  Pay securely
+                                </Button>
+                              )}
+
                               {/* Reschedule button for pending/confirmed bookings */}
                               {(booking.status === "pending" || booking.status === "confirmed") && (
                                 <Button 
@@ -480,6 +496,18 @@ export default function MyBookings() {
         }}
         currentUserId={currentUser?.id}
       />
+
+      {bookingToPay && (
+        <StripePaymentModal
+          booking={bookingToPay}
+          isOpen
+          onClose={() => setBookingToPay(null)}
+          onPaymentSuccess={async () => {
+            setBookingToPay(null);
+            await refreshBookings();
+          }}
+        />
+      )}
     </div>
   );
 }

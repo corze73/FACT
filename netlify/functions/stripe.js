@@ -139,8 +139,8 @@ const rawHandler = async (event) => {
     if (method === 'POST' && path.startsWith('/create-payment-intent')) {
       console.log('[Stripe] create-payment-intent invoked');
       const payload = JSON.parse(event.body || '{}')
-      const { booking_id, amount, currency = 'gbp', admin_fee = 0 } = payload
-      if (!booking_id || !amount) return json(400, { error: 'Missing required fields' })
+      const { booking_id } = payload
+      if (!booking_id) return json(400, { error: 'Missing booking_id' })
       
       // Get booking details
       const booking = await executeQueryOne(
@@ -149,6 +149,19 @@ const rawHandler = async (event) => {
       );
       if (!booking) {
         return json(404, { error: 'Booking not found' });
+      }
+      if (!authCtx.isAdmin && booking.client_id !== authCtx.userId) {
+        return json(403, { error: 'Only the booking client can authorize payment' })
+      }
+      if (!['pending', 'confirmed'].includes(booking.status)) {
+        return json(409, { error: 'Booking is not eligible for payment' })
+      }
+
+      const amount = Math.round(Number(booking.total_price) * 100)
+      const admin_fee = Math.round(Number(booking.admin_fee) * 100)
+      const currency = 'gbp'
+      if (!Number.isInteger(amount) || amount <= 0 || !Number.isInteger(admin_fee) || admin_fee < 0 || admin_fee >= amount) {
+        return json(409, { error: 'Booking has invalid server-side pricing' })
       }
       
       // Create payment intent
@@ -165,23 +178,31 @@ const rawHandler = async (event) => {
           coach_amount: (amount - admin_fee).toString()
         },
         capture_method: 'manual'
-      });
+      }, { idempotencyKey: `booking-${booking_id}-authorization` });
 
-      // Create payment record
-      await executeQuery(
-        `INSERT INTO payments (
-           booking_id, amount, currency, status, payment_method, transaction_id, admin_fee, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-        [
-          booking_id,
-          amount / 100,
-          currency,
-          'pending',
-          'stripe',
-          paymentIntent.id,
-          admin_fee / 100
-        ]
+      // Stripe returns the same intent for an idempotent retry. Older production
+      // schemas may not yet have a UNIQUE constraint on transaction_id, so avoid
+      // relying on ON CONFLICT here.
+      const existingPayment = await executeQueryOne(
+        'SELECT id FROM payments WHERE transaction_id = $1 LIMIT 1',
+        [paymentIntent.id]
       );
+      if (!existingPayment) {
+        await executeQuery(
+          `INSERT INTO payments (
+             booking_id, amount, currency, status, payment_method, transaction_id, admin_fee, created_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+          [
+            booking_id,
+            amount / 100,
+            currency,
+            'pending',
+            'stripe',
+            paymentIntent.id,
+            admin_fee / 100
+          ]
+        );
+      }
 
       return json(200, {
         client_secret: paymentIntent.client_secret,
@@ -192,6 +213,23 @@ const rawHandler = async (event) => {
     if (method === 'POST' && path.startsWith('/confirm-payment')) {
       const { booking_id, payment_intent_id } = JSON.parse(event.body || '{}')
       if (!booking_id || !payment_intent_id) return json(400, { error: 'Missing required fields' })
+
+      const booking = await executeQueryOne('SELECT * FROM bookings WHERE id = $1', [booking_id])
+      if (!booking) return json(404, { error: 'Booking not found' })
+      if (!authCtx.isAdmin && booking.client_id !== authCtx.userId) {
+        return json(403, { error: 'Only the booking client can confirm payment' })
+      }
+
+      const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id)
+      const expectedAmount = Math.round(Number(booking.total_price) * 100)
+      if (
+        paymentIntent.metadata?.booking_id !== booking_id ||
+        paymentIntent.amount !== expectedAmount ||
+        paymentIntent.currency !== 'gbp' ||
+        !['requires_capture', 'succeeded'].includes(paymentIntent.status)
+      ) {
+        return json(409, { error: 'Stripe payment does not match this booking' })
+      }
       
       // Update booking status
       await executeQuery(

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { CreditCard, Shield, Clock } from 'lucide-react';
 import { calculatePaymentBreakdown, formatCurrency, poundsToPence } from '../../utils/payment';
+import { getStoredAuthToken } from '../../api/databaseClient.js';
 
 // Initialize Stripe with guard for missing key
 const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
@@ -36,15 +37,19 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
     let lastErr;
     for (const url of endpoints) {
       try {
+        const authToken = await getStoredAuthToken();
         const resp = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          },
           body: JSON.stringify(payload)
         });
         if (resp.status === 404) { lastErr = new Error('Create intent 404'); continue; }
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || `Create payment intent failed (${resp.status})`);
+          throw new Error(err.message || err.error || `Create payment intent failed (${resp.status})`);
         }
         return resp.json();
       } catch (e) {
@@ -62,15 +67,19 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
     let lastErr;
     for (const url of endpoints) {
       try {
+        const authToken = await getStoredAuthToken();
         const resp = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          },
           body: JSON.stringify({ booking_id: bookingId, payment_intent_id: intentId })
         });
         if (resp.status === 404) { lastErr = new Error('Confirm 404'); continue; }
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || `Confirm payment failed (${resp.status})`);
+          throw new Error(err.message || err.error || `Confirm payment failed (${resp.status})`);
         }
         return resp.json();
       } catch (e) {
@@ -190,11 +199,13 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
 
 export default function StripePaymentModal({ booking, isOpen, onClose, onPaymentSuccess }) {
   const [paymentStep, setPaymentStep] = useState('payment'); // payment, success, error
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
 
   // Calculate payment breakdown with fixed £3 admin fee
   const paymentBreakdown = calculatePaymentBreakdown(booking.service_price || booking.price || booking.total_price);
 
   const handlePaymentSuccess = (paymentIntent) => {
+    setPaymentErrorMessage('');
     setPaymentStep('success');
     setTimeout(() => {
       onPaymentSuccess(paymentIntent);
@@ -203,8 +214,10 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
   };
 
   const handlePaymentError = (error) => {
+    const message = error?.message || 'There was an issue processing your payment. Please try again.';
+    setPaymentErrorMessage(message);
     setPaymentStep('error');
-    console.error('Payment failed:', error);
+    console.error('Payment failed:', message);
   };
 
   if (!isOpen) return null;
@@ -311,10 +324,13 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
               </div>
               <h3 className="text-lg font-medium mb-2">Payment Failed</h3>
               <p className="text-slate-600 mb-4">
-                There was an issue processing your payment. Please try again.
+                {paymentErrorMessage || 'There was an issue processing your payment. Please try again.'}
               </p>
               <div className="space-y-2">
-                <Button onClick={() => setPaymentStep('payment')} className="w-full">
+                <Button onClick={() => {
+                  setPaymentErrorMessage('');
+                  setPaymentStep('payment');
+                }} className="w-full">
                   Try Again
                 </Button>
                 <Button variant="outline" onClick={onClose} className="w-full">

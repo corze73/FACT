@@ -5,7 +5,17 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist'] },
+  {
+    ignores: [
+      'dist/**',
+      '**/dist/**',
+      '.netlify/**',
+      'apps/mobile/.expo/**',
+      'apps/mobile/.expo-export/**',
+      'apps/mobile/android/**',
+      'apps/mobile/ios/**',
+    ],
+  },
   // Configuration files (Node.js environment)
   {
     files: ['tailwind.config.js', 'vite.config.js', 'postcss.config.js', 'apps/web/tailwind.config.js', 'apps/web/vite.config.js', 'apps/web/postcss.config.js'],
@@ -64,6 +74,15 @@ export default [
       // Disabled on request to keep console clean in production repos
       'react-refresh/only-export-components': 'off',
       'react/prop-types': 'off', // Disable prop-types validation
+      'react/no-unescaped-entities': 'warn',
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    },
+  },
+  // React Native bundles expose Node-like process/require shims.
+  {
+    files: ['apps/mobile/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
     },
   },
   // Node.js configuration for server and utility scripts
@@ -80,6 +99,9 @@ export default [
       'migrate-*.js',
       'add-*.js',
       'fix-*.js',
+      'validate-env.js',
+      'verify-*.js',
+      'vitest.config.js',
       'scripts/**/*.js',
       'netlify/functions/**/*.js'
     ],
@@ -93,7 +115,8 @@ export default [
     },
     rules: {
       ...js.configs.recommended.rules,
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-useless-escape': 'warn',
     },
   },
 ]

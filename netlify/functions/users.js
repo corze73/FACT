@@ -35,6 +35,26 @@ const verifyPassword = (password, stored) => new Promise((resolve, reject) => {
   });
 });
 
+export const verifyGoogleAccessToken = async (accessToken) => {
+  if (!accessToken || typeof accessToken !== 'string') {
+    throw new Error('Google access token is required');
+  }
+
+  const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!response.ok) {
+    throw new Error('Google access token is invalid or expired');
+  }
+
+  const identity = await response.json();
+  if (!identity?.sub || !identity?.email || identity.email_verified !== true) {
+    throw new Error('Google account does not have a verified email address');
+  }
+
+  return identity;
+};
+
 // ---------------------------------------------------------------------------
 // Password reset email
 // ---------------------------------------------------------------------------
@@ -887,7 +907,25 @@ const rawHandler = async (event) => {
           };
         }
         
-        // Validate required fields
+        const authMode = userData.auth_mode === 'signin'
+          ? 'signin'
+          : (userData.auth_mode === 'signup' ? 'signup' : 'oauth');
+
+        if (authMode === 'oauth') {
+          if (userData.oauth_provider !== 'google') {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unsupported OAuth provider' }) };
+          }
+          try {
+            const googleIdentity = await verifyGoogleAccessToken(userData.oauth_access_token);
+            userData.email = googleIdentity.email;
+            userData.full_name = googleIdentity.name || userData.full_name || '';
+            userData.avatar_url = googleIdentity.picture || userData.avatar_url || null;
+          } catch (oauthError) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: oauthError.message }) };
+          }
+        }
+
+        // Validate required fields after the trusted identity provider has supplied them.
         if (!userData.email) {
           return {
             statusCode: 400,
@@ -898,9 +936,6 @@ const rawHandler = async (event) => {
 
         // Normalize and log email
         const email = String(userData.email).trim().toLowerCase();
-        const authMode = userData.auth_mode === 'signin'
-          ? 'signin'
-          : (userData.auth_mode === 'signup' ? 'signup' : 'oauth');
         const requestedUserType = userData.user_type === 'coach' ? 'coach' : 'client';
         // role is permission tier (user/admin); coach/client lives in user_type.
         const requestedRole = 'user';
@@ -982,19 +1017,16 @@ const rawHandler = async (event) => {
             'SELECT password_hash FROM users WHERE email = $1',
             [email]
           );
-          // Support existing users without passwords (pre-password-system accounts)
-          if (signinUserRow?.password_hash) {
-            // User has a password set — require it
-            if (!userData.password) {
-              return { statusCode: 401, headers, body: JSON.stringify({ error: 'Password is required' }) };
-            }
-            const signinValid = await verifyPassword(userData.password, signinUserRow.password_hash);
-            if (!signinValid) {
-              return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid email or password' }) };
-            }
+          if (!signinUserRow?.password_hash) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Password setup required. Use the password reset flow to secure this account.' }) };
           }
-          // If no password_hash exists, allow backward-compatible signin (legacy user)
-          // They will be prompted to set a password on their first visit
+          if (!userData.password) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Password is required' }) };
+          }
+          const signinValid = await verifyPassword(userData.password, signinUserRow.password_hash);
+          if (!signinValid) {
+            return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid email or password' }) };
+          }
         }
 
         // Pre-hash password for signup before INSERT

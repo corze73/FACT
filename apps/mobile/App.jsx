@@ -4956,6 +4956,9 @@ export default function App() {
       if (!userInfoRes.ok) throw new Error('Failed to get user info from Google.');
       const googleUser = await userInfoRes.json();
       const signedInUser = await mobileApi.createUser({
+        auth_mode: 'oauth',
+        oauth_provider: 'google',
+        oauth_access_token: accessToken,
         email: googleUser.email,
         full_name: googleUser.name || '',
         avatar_url: googleUser.picture || null,
@@ -4992,9 +4995,13 @@ export default function App() {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const response = await GoogleSignin.signIn();
+      const googleTokens = await GoogleSignin.getTokens();
       // v13 returns response.data.user; v14 may return response.user — handle both
       const googleUser = response.data?.user ?? response.user;
       const signedInUser = await mobileApi.createUser({
+        auth_mode: 'oauth',
+        oauth_provider: 'google',
+        oauth_access_token: googleTokens.accessToken,
         email: googleUser.email,
         full_name: googleUser.name || '',
         avatar_url: googleUser.photo || null,

@@ -1,1 +1,3 @@
+/api/*    /.netlify/functions/:splat    200
+/stripe/*    /.netlify/functions/stripe/:splat    200
 /*    /index.html   200
