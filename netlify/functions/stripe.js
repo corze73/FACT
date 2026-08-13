@@ -182,16 +182,10 @@ const rawHandler = async (event) => {
 
       // Create payment record
       await executeQuery(
-        `INSERT INTO payments (
+         `INSERT INTO payments (
            booking_id, amount, currency, status, payment_method, transaction_id, admin_fee, created_at
          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-         ON CONFLICT (transaction_id) DO UPDATE SET
-           booking_id = EXCLUDED.booking_id,
-           amount = EXCLUDED.amount,
-           currency = EXCLUDED.currency,
-           payment_method = EXCLUDED.payment_method,
-           admin_fee = EXCLUDED.admin_fee,
-           updated_at = NOW()`,
+         ON CONFLICT (transaction_id) DO NOTHING`,
         [
           booking_id,
           amount / 100,
