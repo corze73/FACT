@@ -44,3 +44,7 @@ REGISTRATION-ISSUE-RESOLVED.md
 
 # Local Netlify folder
 .netlify
+
+# Expo local state and generated caches
+.expo/
+.expo-export/

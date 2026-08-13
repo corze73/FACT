@@ -31,6 +31,9 @@ export const signInWithGoogle = async () => {
 
           const googleUser = await userInfoResponse.json();
           const profile = await apiClient.createUser({
+            auth_mode: 'oauth',
+            oauth_provider: 'google',
+            oauth_access_token: tokenResponse.access_token,
             email: googleUser.email,
             full_name: googleUser.name || '',
             avatar_url: googleUser.picture || null

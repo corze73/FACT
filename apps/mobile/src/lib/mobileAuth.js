@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { createFactApiClient } from '@fact/api';
 import { createAuthSession } from '@fact/auth';
 
@@ -32,9 +33,23 @@ const nativeStorage = {
   },
 };
 
+const secureTokenStorage = {
+  async getItem(key) {
+    return SecureStore.getItemAsync(key);
+  },
+  async setItem(key, value) {
+    await SecureStore.setItemAsync(key, value, {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
+  },
+  async removeItem(key) {
+    await SecureStore.deleteItemAsync(key);
+  },
+};
+
 export const mobileAuth = createAuthSession({
   userStorage: nativeStorage,
-  tokenStorage: nativeStorage,
+  tokenStorage: secureTokenStorage,
 });
 
 export const mobileApi = createFactApiClient({
@@ -53,10 +68,11 @@ const GOOGLE_CLIENT_ID = '187916773186-pjp0ov3plq51qj38hm50ekk75hgvhv9c.apps.goo
 // then replace the placeholder below before building for Android.
 const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || null;
 
-export async function signInWithGoogle(idToken) {
+export async function signInWithGoogle(accessToken) {
   const signedInUser = await mobileApi.createUser({
-    auth_mode: 'google',
-    id_token: idToken,
+    auth_mode: 'oauth',
+    oauth_provider: 'google',
+    oauth_access_token: accessToken,
   });
 
   if (!signedInUser?.id) {

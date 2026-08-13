@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { CreditCard, Shield, Clock } from 'lucide-react';
 import { calculatePaymentBreakdown, formatCurrency, poundsToPence } from '../../utils/payment';
+import { getStoredAuthToken } from '../../api/databaseClient.js';
 
 // Initialize Stripe with guard for missing key
 const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
@@ -36,9 +37,13 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
     let lastErr;
     for (const url of endpoints) {
       try {
+        const authToken = await getStoredAuthToken();
         const resp = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          },
           body: JSON.stringify(payload)
         });
         if (resp.status === 404) { lastErr = new Error('Create intent 404'); continue; }
@@ -62,9 +67,13 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
     let lastErr;
     for (const url of endpoints) {
       try {
+        const authToken = await getStoredAuthToken();
         const resp = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+          },
           body: JSON.stringify({ booking_id: bookingId, payment_intent_id: intentId })
         });
         if (resp.status === 404) { lastErr = new Error('Confirm 404'); continue; }
