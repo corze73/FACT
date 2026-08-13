@@ -144,7 +144,7 @@ export default function CoachDashboard() {
 
   const handleDeclineBooking = async (bookingId, reason) => {
     try {
-      await Booking.update(bookingId, { cancel: true, cancellation_reason: reason });
+      await Booking.cancel(bookingId, reason);
       setBookingToDecline(null);
       await refreshBookings();
     } catch (error) {

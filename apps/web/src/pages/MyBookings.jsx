@@ -218,13 +218,13 @@ export default function MyBookings() {
 
   const handleCancelBooking = async (reason) => {
     try {
-      await Booking.update(bookingToCancel.id, { 
-        cancel: true, 
-        cancellation_reason: reason 
-      });
+      const result = await Booking.cancel(bookingToCancel.id, reason);
       setBookingToCancel(null);
       await refreshBookings();
-      showSuccess("Booking Cancelled", "Booking cancelled successfully.");
+      const refund = Number(result?.refund_amount || 0);
+      showSuccess("Booking Cancelled", refund > 0
+        ? `Booking cancelled. A £${refund.toFixed(2)} refund has been requested.`
+        : "Booking cancelled successfully.");
     } catch (error) {
       console.error("Error cancelling booking:", error);
       showError("Cancellation Failed", error.message || "Error cancelling booking. Please try again.");

@@ -15,6 +15,7 @@ import AvailabilityCalendar from "@/components/coaches/AvailabilityCalendar";
 import { validateAndSanitize, profileUpdateSchema, coachProfileSchema, formatValidationErrors } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { alertToast } from "@/utils/notifications";
+import apiClient from "@/api/apiClient";
 import {
   getBackgroundCheckDisplayStatus,
   getBackgroundCheckGuidance,
@@ -37,6 +38,8 @@ export default function CoachProfile() {
   const [isUploadingQualification, setIsUploadingQualification] = useState(false);
   const [isUploadingBackgroundCheck, setIsUploadingBackgroundCheck] = useState(false);
   const [isViewingAnotherProfile, setIsViewingAnotherProfile] = useState(false);
+  const [payoutStatus, setPayoutStatus] = useState(null);
+  const [isConnectingPayouts, setIsConnectingPayouts] = useState(false);
   const fileInputRef = useRef(null);
   // Refs for video URL inputs (for clearing values reliably)
   const videoInputRefs = {
@@ -54,6 +57,9 @@ export default function CoachProfile() {
       // Get current logged-in user
       const loggedInUser = await User.me();
       setCurrentUser(loggedInUser);
+      if (loggedInUser.user_type === 'coach') {
+        apiClient.getStripeConnectStatus().then(setPayoutStatus).catch(() => setPayoutStatus(null));
+      }
 
       // Check if viewing another user's profile
       const urlParams = new URLSearchParams(window.location.search);
@@ -424,6 +430,21 @@ export default function CoachProfile() {
     navigate(isAdminUser(currentUser) ? createPageUrl("AdminUsers") : createPageUrl("FindCoaches"));
   };
 
+  const startPayoutOnboarding = async () => {
+    setIsConnectingPayouts(true);
+    try {
+      const base = window.location.origin;
+      const result = await apiClient.createStripeConnectOnboarding(
+        `${base}/coachprofile?connect=complete`,
+        `${base}/coachprofile?connect=refresh`
+      );
+      window.location.assign(result.url);
+    } catch (error) {
+      alertToast(error.message || 'Unable to start Stripe payout setup.');
+      setIsConnectingPayouts(false);
+    }
+  };
+
   return (
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -442,6 +463,31 @@ export default function CoachProfile() {
             {isViewingAsAdmin ? 'Viewing coach profile and coaching details.' : 'Update your public profile and coaching details.'}
           </p>
         </motion.div>
+
+        {!isViewingAnotherProfile && currentUser?.user_type === 'coach' && (
+          <Card className="mb-6">
+            <CardHeader><CardTitle>Coach payouts</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={payoutStatus?.onboarding_complete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                  {payoutStatus?.onboarding_complete ? 'Payouts ready' : 'Payout setup required'}
+                </Badge>
+                {Number(payoutStatus?.penalty_balance || 0) > 0 && (
+                  <Badge variant="destructive">£{Number(payoutStatus.penalty_balance).toFixed(2)} outstanding penalties</Badge>
+                )}
+              </div>
+              <p className="text-sm text-slate-600">
+                Stripe securely collects your identity and bank details. FACT never stores your bank account information.
+                Session earnings become eligible for payout 24 hours after both parties confirm completion, provided no dispute is open.
+              </p>
+              {!payoutStatus?.onboarding_complete && (
+                <Button type="button" onClick={startPayoutOnboarding} disabled={isConnectingPayouts}>
+                  {isConnectingPayouts ? 'Opening Stripe…' : 'Set up payouts with Stripe'}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader><CardTitle>{isViewingAsAdmin ? 'View Profile' : 'Edit Profile'}</CardTitle></CardHeader>
