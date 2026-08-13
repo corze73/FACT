@@ -199,11 +199,13 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
 
 export default function StripePaymentModal({ booking, isOpen, onClose, onPaymentSuccess }) {
   const [paymentStep, setPaymentStep] = useState('payment'); // payment, success, error
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
 
   // Calculate payment breakdown with fixed £3 admin fee
   const paymentBreakdown = calculatePaymentBreakdown(booking.service_price || booking.price || booking.total_price);
 
   const handlePaymentSuccess = (paymentIntent) => {
+    setPaymentErrorMessage('');
     setPaymentStep('success');
     setTimeout(() => {
       onPaymentSuccess(paymentIntent);
@@ -212,8 +214,10 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
   };
 
   const handlePaymentError = (error) => {
+    const message = error?.message || 'There was an issue processing your payment. Please try again.';
+    setPaymentErrorMessage(message);
     setPaymentStep('error');
-    console.error('Payment failed:', error);
+    console.error('Payment failed:', message);
   };
 
   if (!isOpen) return null;
@@ -320,10 +324,13 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
               </div>
               <h3 className="text-lg font-medium mb-2">Payment Failed</h3>
               <p className="text-slate-600 mb-4">
-                There was an issue processing your payment. Please try again.
+                {paymentErrorMessage || 'There was an issue processing your payment. Please try again.'}
               </p>
               <div className="space-y-2">
-                <Button onClick={() => setPaymentStep('payment')} className="w-full">
+                <Button onClick={() => {
+                  setPaymentErrorMessage('');
+                  setPaymentStep('payment');
+                }} className="w-full">
                   Try Again
                 </Button>
                 <Button variant="outline" onClick={onClose} className="w-full">
