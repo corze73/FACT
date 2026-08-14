@@ -2,10 +2,14 @@
 import { Buffer } from 'buffer';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import Stripe from 'stripe';
 import { executeQuery, executeQueryOne } from './lib/db.js';
 import { getAuthContext, signAuthToken } from './lib/auth.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
+import { calculateDisputeResolution } from './lib/disputeResolution.js';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -580,6 +584,60 @@ const updateDispute = async ({ event, headers, adminId, disputeId }) => {
   if (assignedAdminId === undefined && body.assigned_admin_id !== undefined) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid assigned_admin_id format' }) };
   if (refundAmount !== null && !Number.isFinite(refundAmount)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid refund_amount' }) };
 
+  const existing = await executeQueryOne(
+    `SELECT d.*, b.total_price, b.admin_fee, b.payment_status,
+            p.id AS payment_id, p.transaction_id, p.amount AS payment_amount,
+            COALESCE(p.refund_amount, 0) AS prior_refund_amount
+     FROM booking_disputes d
+     LEFT JOIN bookings b ON b.id = d.booking_id
+     LEFT JOIN LATERAL (
+       SELECT * FROM payments WHERE booking_id = b.id ORDER BY created_at DESC LIMIT 1
+     ) p ON true
+     WHERE d.id = $1`,
+    [disputeId]
+  );
+  if (!existing) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Dispute not found' }) };
+  if (existing.status === 'resolved' || existing.status === 'closed') {
+    return { statusCode: 200, headers, body: JSON.stringify({ data: existing, already_resolved: true }) };
+  }
+
+  let resolvedRefundAmount = refundAmount;
+  if (status === 'resolved' || status === 'closed') {
+    if (!existing.booking_id || !existing.payment_id || !existing.transaction_id) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'The disputed booking payment could not be found' }) };
+    }
+    let resolution;
+    try {
+      resolution = calculateDisputeResolution({ decision, refundAmount, totalAmount: existing.payment_amount });
+    } catch (error) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: error.message }) };
+    }
+    resolvedRefundAmount = resolution.refundPence / 100;
+    if (resolution.refundPence > 0) {
+      await stripe.refunds.create({
+        payment_intent: existing.transaction_id,
+        amount: resolution.refundPence,
+        reason: 'requested_by_customer',
+        metadata: { booking_id: existing.booking_id, dispute_id: disputeId }
+      }, { idempotencyKey: `booking-dispute-${disputeId}-${decision}` });
+    }
+    const fullRefund = resolution.refundPence >= Math.round(Number(existing.payment_amount) * 100);
+    await executeQuery(
+      `UPDATE payments SET refund_amount = $2::numeric, refund_reason = $3,
+         refunded_at = CASE WHEN $2::numeric > 0 THEN NOW() ELSE refunded_at END,
+         status = CASE WHEN $4::boolean THEN 'refunded' ELSE status END, updated_at = NOW()
+       WHERE id = $1`,
+      [existing.payment_id, resolvedRefundAmount, `Dispute resolved: ${decision}`, fullRefund]
+    );
+    await executeQuery(
+      `UPDATE bookings SET dispute_status = 'resolved',
+         payout_eligible_at = CASE WHEN $2::boolean THEN NULL ELSE NOW() END,
+         payment_status = CASE WHEN $2::boolean THEN 'refunded' ELSE payment_status END,
+         updated_at = NOW() WHERE id = $1`,
+      [existing.booking_id, fullRefund]
+    );
+  }
+
   const updated = await executeQueryOne(
     withUserCtx(
       `UPDATE booking_disputes
@@ -594,7 +652,7 @@ const updateDispute = async ({ event, headers, adminId, disputeId }) => {
        RETURNING *`,
       adminId
     ),
-    [status, decision, resolutionNotes, body.assigned_admin_id === undefined ? '__unset__' : '__set__', assignedAdminId, refundAmount, disputeId]
+    [status, decision, resolutionNotes, body.assigned_admin_id === undefined ? '__unset__' : '__set__', assignedAdminId ?? null, resolvedRefundAmount, disputeId]
   );
 
   if (!updated) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Dispute not found' }) };

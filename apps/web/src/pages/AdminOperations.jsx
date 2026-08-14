@@ -288,6 +288,29 @@ export default function AdminOperations() {
     showSuccess('Dispute Updated', 'Dispute status updated successfully.');
   };
 
+  const resolveDispute = async (dispute, decision) => {
+    const resolutionNotes = window.prompt('Add resolution notes for the audit record:');
+    if (!resolutionNotes?.trim()) return;
+    let refundAmount;
+    if (decision === 'refund_partial') {
+      const raw = window.prompt('Enter the partial refund amount in pounds (for example 20.00):');
+      if (raw === null) return;
+      refundAmount = Number(raw);
+      if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+        alertToast('Enter a valid partial refund amount.');
+        return;
+      }
+    }
+    await User.updateBookingDispute(dispute.id, {
+      status: 'resolved',
+      decision,
+      resolution_notes: resolutionNotes.trim(),
+      ...(refundAmount !== undefined ? { refund_amount: refundAmount } : {})
+    });
+    await Promise.all([disputesQuery.refetch(), overviewQuery.refetch()]);
+    showSuccess('Dispute Resolved', 'The payment decision has been applied successfully.');
+  };
+
   const updateAdminScope = async (adminUserId, admin_scope) => {
     await User.updateAdminUserScope(adminUserId, { admin_scope });
     await adminsQuery.refetch();
@@ -742,7 +765,9 @@ export default function AdminOperations() {
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => updateDisputeStatus(d.id, "under_review")} disabled={!canCasesDisputes}>Under Review</Button>
-                  <Button size="sm" variant="outline" onClick={() => updateDisputeStatus(d.id, "resolved")} disabled={!canCasesDisputes}>Resolve</Button>
+                  <Button size="sm" variant="outline" onClick={() => resolveDispute(d, "refund_full")} disabled={!canCasesDisputes}>Full Refund</Button>
+                  <Button size="sm" variant="outline" onClick={() => resolveDispute(d, "refund_partial")} disabled={!canCasesDisputes}>Partial Refund</Button>
+                  <Button size="sm" variant="outline" onClick={() => resolveDispute(d, "no_refund")} disabled={!canCasesDisputes}>No Refund</Button>
                 </div>
               </div>
             ))}

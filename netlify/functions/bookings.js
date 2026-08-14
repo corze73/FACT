@@ -331,10 +331,20 @@ const rawHandler = async (event) => {
               return { statusCode: 400, headers, body: JSON.stringify({ error: 'A dispute reason of at least 10 characters is required' }) };
             }
             const updated = await executeQueryOne(
-              `UPDATE bookings SET dispute_status = 'open', dispute_reason = $2,
-                 dispute_opened_at = NOW(), payout_eligible_at = NULL, updated_at = NOW()
-               WHERE id = $1 RETURNING *`,
-              [bookingId, reason]
+              `WITH updated_booking AS (
+                 UPDATE bookings SET dispute_status = 'open', dispute_reason = $2,
+                   dispute_opened_at = NOW(), payout_eligible_at = NULL, updated_at = NOW()
+                 WHERE id = $1 RETURNING *
+               ), admin_dispute AS (
+                 INSERT INTO booking_disputes (
+                   booking_id, opened_by, status, reason, created_at, updated_at
+                 )
+                 SELECT id, $3, 'open', $2, NOW(), NOW() FROM updated_booking
+                 RETURNING id
+               )
+               SELECT updated_booking.*, admin_dispute.id AS admin_dispute_id
+               FROM updated_booking CROSS JOIN admin_dispute`,
+              [bookingId, reason, currentUserId]
             );
             return { statusCode: 200, headers, body: JSON.stringify(updated) };
           }
