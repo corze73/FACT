@@ -117,14 +117,19 @@ export const getAuthContext = async (event) => {
   };
 };
 
-export const signAuthToken = (payload, { expiresInSeconds = 60 * 60 * 24 * 7 } = {}) => {
+export const signAuthToken = (payload, {
+  expiresInSeconds = 60 * 60 * 24 * 7,
+  issuedAtSeconds = Math.floor(Date.now() / 1000)
+} = {}) => {
   const secret = process.env.APP_JWT_SECRET || process.env.JWT_SECRET;
   if (!secret) {
     throw new Error('APP_JWT_SECRET or JWT_SECRET is not set');
   }
 
   const header = { alg: 'HS256', typ: 'JWT' };
-  const now = Math.floor(Date.now() / 1000);
+  const now = Number.isInteger(issuedAtSeconds)
+    ? issuedAtSeconds
+    : Math.floor(Date.now() / 1000);
   const fullPayload = {
     aud: 'authenticated',
     iat: now,
