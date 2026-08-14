@@ -56,7 +56,7 @@ function CoachCard({ coach, onBook, isGuest = false }) {
                 {isGuest ? '?' : (coach.full_name?.charAt(0) || 'C')}
               </span>
             </div>
-            {coach.coach_profile?.is_verified && (
+            {qualificationStatus === 'verified' && backgroundDisplayStatus === 'verified' && (
               <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                 <Star className="w-3 h-3 text-white fill-current" />
               </div>

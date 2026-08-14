@@ -373,13 +373,25 @@ const rawHandler = async (event) => {
         }
 
         const coach = await executeQueryOne(
-          `SELECT id, user_type, is_active, coach_profile
+          `SELECT id, user_type, is_active, coach_profile, qualification_status,
+                  has_background_check, background_check_status, background_check_expires_at,
+                  (background_check_expires_at IS NOT NULL AND background_check_expires_at >= CURRENT_DATE) AS background_check_current
            FROM profiles
            WHERE id = $1`,
           [bookingData.coach_id]
         );
         if (!coach || coach.user_type !== 'coach' || coach.is_active === false) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Coach is unavailable' }) };
+        }
+        const backgroundCheckCurrent = coach.has_background_check === true &&
+          coach.background_check_status === 'verified' &&
+          coach.background_check_current === true;
+        if (coach.qualification_status !== 'verified' || !backgroundCheckCurrent) {
+          return {
+            statusCode: 409,
+            headers,
+            body: JSON.stringify({ error: 'This coach is awaiting verification and cannot accept bookings' })
+          };
         }
 
         let pricing;

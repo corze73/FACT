@@ -55,6 +55,15 @@ const parseBody = (event) => {
 
 const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+const isPastDate = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return true;
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const dateUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  return dateUtc < todayUtc;
+};
+
 const isMissingRelationError = (error, relationName) => {
   const message = String(error?.message || '').toLowerCase();
   return message.includes(`relation \"${relationName}\" does not exist`) || message.includes(`relation '${relationName}' does not exist`);
@@ -139,6 +148,17 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
   const backgroundStatus = body.background_check_status;
   const notes = typeof body.verification_notes === 'string' ? body.verification_notes.trim().slice(0, 2000) : null;
 
+  const coach = await executeQueryOne(
+    withUserCtx(
+      `SELECT id, qualification_type, qualification_file_url, has_background_check,
+              background_check_type, background_check_file_url, background_check_expires_at
+       FROM profiles WHERE id = $1 AND user_type = 'coach'`,
+      adminId
+    ),
+    [coachId]
+  );
+  if (!coach) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Coach not found' }) };
+
   if (
     qualificationStatus !== undefined &&
     !allowedStatuses.has(qualificationStatus)
@@ -161,6 +181,19 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
     };
   }
 
+  if (qualificationStatus === 'verified' && (!coach.qualification_type || !coach.qualification_file_url)) {
+    return { statusCode: 409, headers, body: JSON.stringify({ error: 'A qualification type and document are required before approval' }) };
+  }
+
+  if (backgroundStatus === 'verified') {
+    if (!coach.has_background_check || !coach.background_check_type || !coach.background_check_file_url) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'A background-check type and document are required before approval' }) };
+    }
+    if (!coach.background_check_expires_at || isPastDate(coach.background_check_expires_at)) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'A current background-check expiry date is required before approval' }) };
+    }
+  }
+
   const stampVerification = [qualificationStatus, backgroundStatus].some(
     (value) => value === 'verified' || value === 'rejected'
   );
@@ -171,6 +204,17 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
        SET qualification_status = COALESCE($1, qualification_status),
            background_check_status = COALESCE($2, background_check_status),
            verification_notes = COALESCE($3, verification_notes),
+           coach_profile = jsonb_set(
+             COALESCE(coach_profile, '{}'::jsonb),
+             '{is_verified}',
+             to_jsonb(
+               COALESCE($1, qualification_status) = 'verified'
+               AND COALESCE($2, background_check_status) = 'verified'
+               AND background_check_expires_at IS NOT NULL
+               AND background_check_expires_at >= CURRENT_DATE
+             ),
+             true
+           ),
            verified_at = CASE WHEN $4 THEN NOW() ELSE verified_at END,
            verified_by = CASE WHEN $4 THEN $5::uuid ELSE verified_by END,
            updated_at = NOW()
