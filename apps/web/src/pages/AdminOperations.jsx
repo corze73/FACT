@@ -270,6 +270,19 @@ export default function AdminOperations() {
     showSuccess('Case Updated', 'Case status updated successfully.');
   };
 
+  const suspendSafeguardingCoach = async (adminCase) => {
+    const reason = window.prompt('Enter the safeguarding reason for suspending this coach (minimum 10 characters):');
+    if (!reason || reason.trim().length < 10) return;
+    await User.updateAdminCase(adminCase.id, {
+      status: 'in_progress',
+      priority: 'critical',
+      suspend_target: true,
+      suspension_reason: reason.trim()
+    });
+    await Promise.all([casesQuery.refetch(), overviewQuery.refetch()]);
+    showSuccess('Coach Suspended', 'The coach is now signed out, hidden and unavailable for bookings.');
+  };
+
   const createDispute = async () => {
     if (!newDisputeReason.trim()) return;
     await User.createBookingDispute({
@@ -708,14 +721,19 @@ export default function AdminOperations() {
             <Textarea value={newCaseDesc} onChange={(e) => setNewCaseDesc(e.target.value)} placeholder="Case description (optional)" />
             {casesError && <p className="text-xs text-red-600">{casesError}</p>}
             {cases.map((c) => (
-              <div key={c.id} className="border rounded p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                <div>
+              <div key={c.id} className="border rounded p-3 flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                <div className="space-y-1">
                   <p className="font-medium">{c.title}</p>
-                  <p className="text-xs text-slate-500">{c.status} • {c.priority}</p>
+                  <p className="text-xs text-slate-500">{c.status} • {c.priority} • {c.category || 'general'}</p>
+                  {c.target_name && <p className="text-xs text-slate-600">Subject: {c.target_name}</p>}
+                  {c.description && <p className="text-sm text-slate-700 whitespace-pre-wrap max-w-2xl">{c.description}</p>}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => updateCaseStatus(c.id, "in_progress")} disabled={!canCasesDisputes}>In Progress</Button>
                   <Button size="sm" variant="outline" onClick={() => updateCaseStatus(c.id, "resolved")} disabled={!canCasesDisputes}>Resolve</Button>
+                  {c.category === 'safeguarding' && c.target_user_id && (
+                    <Button size="sm" variant="destructive" onClick={() => suspendSafeguardingCoach(c)} disabled={!canCasesDisputes}>Suspend Coach</Button>
+                  )}
                 </div>
               </div>
             ))}

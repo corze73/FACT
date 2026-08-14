@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createLoginUrl, createPageUrl, isAdminUser, normalizeUserType } from "@/utils";
-import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, ShieldCheck, ScrollText, BriefcaseBusiness, CircleHelp } from "lucide-react";
+import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, ShieldCheck, ShieldAlert, ScrollText, BriefcaseBusiness, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
 import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
@@ -198,6 +198,7 @@ export default function Layout({ children, currentPageName }) {
         { title: "Audit Logs", url: createPageUrl("AdminAuditLogs"), icon: ScrollText },
         { title: "Operations", url: createPageUrl("AdminOperations"), icon: BriefcaseBusiness },
         { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: navIndicators.hasUnreadMessages },
+        { title: "Report Concern", url: createPageUrl("SafeguardingReport"), icon: ShieldAlert },
         { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
       ];
     }
@@ -208,6 +209,7 @@ export default function Layout({ children, currentPageName }) {
             { title: "Dashboard", url: createPageUrl("CoachDashboard"), icon: Calendar },
             { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: navIndicators.hasUnreadMessages },
             { title: "Profile", url: createPageUrl("CoachProfile"), icon: UserIcon },
+            { title: "Report Concern", url: createPageUrl("SafeguardingReport"), icon: ShieldAlert },
             { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
           ]
         : [
@@ -215,6 +217,7 @@ export default function Layout({ children, currentPageName }) {
             { title: "My Bookings", url: createPageUrl("MyBookings"), icon: Calendar },
             { title: "Messages", url: createPageUrl("Messages"), icon: MessageCircle, showDot: navIndicators.hasUnreadMessages },
             { title: "Profile", url: createPageUrl("UserProfile"), icon: UserIcon },
+            { title: "Report Concern", url: createPageUrl("SafeguardingReport"), icon: ShieldAlert },
             { title: "Help", url: createPageUrl("Help"), icon: CircleHelp }
           ];
     return base;
@@ -382,4 +385,3 @@ export default function Layout({ children, currentPageName }) {
     </SidebarProvider>
   );
 }
-

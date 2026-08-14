@@ -346,6 +346,10 @@ User.updateAdminCase = async function(caseId, payload = {}) {
   return await apiClient.updateAdminCase(caseId, payload);
 };
 
+User.submitSafeguardingReport = async function(payload = {}) {
+  return await apiClient.submitSafeguardingReport(payload);
+};
+
 User.listBookingDisputes = async function(filters = {}) {
   return await apiClient.listBookingDisputes(filters);
 };

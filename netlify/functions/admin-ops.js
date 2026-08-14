@@ -455,10 +455,30 @@ const updateCase = async ({ event, headers, adminId, caseId }) => {
   const priority = typeof body.priority === 'string' ? body.priority.trim() : null;
   const ownerAdminId = body.owner_admin_id === null ? null : (isUuid(body.owner_admin_id) ? body.owner_admin_id : undefined);
   const description = typeof body.description === 'string' ? body.description.trim() : null;
+  const suspendTarget = body.suspend_target === true;
+  const suspensionReason = typeof body.suspension_reason === 'string' ? body.suspension_reason.trim() : '';
 
   if (status && !allowedStatuses.has(status)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid status' }) };
   if (priority && !allowedPriorities.has(priority)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid priority' }) };
   if (ownerAdminId === undefined && body.owner_admin_id !== undefined) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid owner_admin_id format' }) };
+  if (suspendTarget && suspensionReason.length < 10) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'A suspension reason of at least 10 characters is required' }) };
+  }
+
+  const existing = await executeQueryOne(
+    withUserCtx(
+      `SELECT c.id, c.category, c.target_user_id, p.user_type AS target_user_type
+       FROM admin_cases c
+       LEFT JOIN profiles p ON p.id = c.target_user_id
+       WHERE c.id = $1`,
+      adminId
+    ),
+    [caseId]
+  );
+  if (!existing) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Case not found' }) };
+  if (suspendTarget && (existing.category !== 'safeguarding' || existing.target_user_type !== 'coach')) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Only a coach named in a safeguarding case can be suspended here' }) };
+  }
 
   const updated = await executeQueryOne(
     withUserCtx(
@@ -478,6 +498,38 @@ const updateCase = async ({ event, headers, adminId, caseId }) => {
 
   if (!updated) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Case not found' }) };
 
+  let targetSuspended = false;
+  if (suspendTarget) {
+    const suspended = await executeQueryOne(
+      withUserCtx(
+        `UPDATE profiles
+         SET is_active = false,
+             deactivated_at = NOW(),
+             deactivation_reason = $1,
+             token_revoked_at = NOW(),
+             coach_profile = COALESCE(coach_profile, '{}'::jsonb) || jsonb_build_object(
+               'is_verified', false,
+               'verification_status', 'suspended'
+             ),
+             updated_at = NOW()
+         WHERE id = $2 AND user_type = 'coach'
+         RETURNING id`,
+        adminId
+      ),
+      [suspensionReason, existing.target_user_id]
+    );
+    targetSuspended = Boolean(suspended?.id);
+    if (!targetSuspended) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'The coach could not be suspended' }) };
+    }
+    await logAdminAction({
+      actorId: adminId,
+      action: 'safeguarding_subject_suspended',
+      targetUserId: existing.target_user_id,
+      metadata: { case_id: caseId, reason: suspensionReason }
+    });
+  }
+
   await logAdminAction({
     actorId: adminId,
     action: 'admin_case_updated',
@@ -485,7 +537,7 @@ const updateCase = async ({ event, headers, adminId, caseId }) => {
     metadata: { case_id: updated.id, status: updated.status, priority: updated.priority }
   });
 
-  return { statusCode: 200, headers, body: JSON.stringify({ data: updated }) };
+  return { statusCode: 200, headers, body: JSON.stringify({ data: { ...updated, target_suspended: targetSuspended } }) };
 };
 
 const listDisputes = async ({ event, headers, adminId }) => {

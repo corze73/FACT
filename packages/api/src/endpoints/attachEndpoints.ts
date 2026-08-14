@@ -190,6 +190,9 @@ export const attachEndpoints = (client: APIClient) => {
     updateAdminCase(caseId: string, payload: unknown = {}) {
       return client.request(`/admin-ops/cases/${caseId}`, { method: 'PATCH', body: JSON.stringify(payload) });
     },
+    submitSafeguardingReport(payload: unknown = {}) {
+      return client.request('/safeguarding', { method: 'POST', body: JSON.stringify(payload) });
+    },
     listBookingDisputes(filters: Record<string, unknown> = {}) {
       const params = client.buildQueryParams(filters);
       return client.request(`/admin-ops/disputes?${params}`);
