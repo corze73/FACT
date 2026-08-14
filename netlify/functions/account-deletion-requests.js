@@ -4,14 +4,28 @@ import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { getAuthContext } from './lib/auth.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-  'Content-Type': 'application/json'
+const getAllowedOrigin = (requestOrigin) => {
+  const allowedOrigins = [
+    'https://findacoachtoday.com',
+    'https://www.findacoachtoday.com',
+    'http://localhost:5173',
+    'http://localhost:8888'
+  ];
+  if (process.env.NETLIFY_DEV === 'true') return requestOrigin || '*';
+  return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
 };
 
+const getHeaders = (event) => ({
+  'Access-Control-Allow-Origin': getAllowedOrigin(event.headers?.origin),
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+  'Access-Control-Allow-Credentials': 'true',
+  'Vary': 'Origin',
+  'Content-Type': 'application/json'
+});
+
 const rawHandler = async (event) => {
+  const headers = getHeaders(event);
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
