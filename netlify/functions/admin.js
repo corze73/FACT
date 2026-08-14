@@ -56,10 +56,12 @@ const parseBody = (event) => {
 const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 const isPastDate = (value) => {
-  if (!isIsoDate(value)) return true;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return true;
   const today = new Date();
   const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return Date.parse(`${value}T00:00:00.000Z`) < todayUtc;
+  const dateUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  return dateUtc < todayUtc;
 };
 
 const isMissingRelationError = (error, relationName) => {
@@ -187,8 +189,7 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
     if (!coach.has_background_check || !coach.background_check_type || !coach.background_check_file_url) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'A background-check type and document are required before approval' }) };
     }
-    const expiry = String(coach.background_check_expires_at || '').slice(0, 10);
-    if (!expiry || isPastDate(expiry)) {
+    if (!coach.background_check_expires_at || isPastDate(coach.background_check_expires_at)) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'A current background-check expiry date is required before approval' }) };
     }
   }
