@@ -25,7 +25,10 @@ ALTER TABLE bookings
 ALTER TABLE payments
   ADD COLUMN IF NOT EXISTS stripe_charge_id TEXT,
   ADD COLUMN IF NOT EXISTS stripe_transfer_id TEXT,
-  ADD COLUMN IF NOT EXISTS transferred_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS transferred_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS refund_reason TEXT,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_stripe_connect_account
   ON profiles(stripe_connect_account_id)
