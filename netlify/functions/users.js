@@ -59,14 +59,38 @@ export const verifyGoogleAccessToken = async (accessToken) => {
 // ---------------------------------------------------------------------------
 // Password reset email
 // ---------------------------------------------------------------------------
+export const getPasswordResetBaseUrl = () => {
+  const fallback = 'https://findacoachtoday.com';
+  const configured = String(process.env.APP_BASE_URL || fallback).trim();
+  try {
+    const url = new URL(configured);
+    const localDevelopment = process.env.NETLIFY_DEV === 'true' &&
+      url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
+    if (url.protocol !== 'https:' && !localDevelopment) return fallback;
+    return url.origin;
+  } catch {
+    return fallback;
+  }
+};
+
+const signTokenAfterSessionRevocation = (profile) => {
+  const revokedAt = new Date(profile.token_revoked_at).getTime();
+  const issuedAtSeconds = Number.isFinite(revokedAt)
+    ? Math.floor(revokedAt / 1000) + 1
+    : Math.floor(Date.now() / 1000) + 1;
+  return signAuthToken(
+    { sub: profile.id, email: profile.email, user_type: profile.user_type },
+    { issuedAtSeconds }
+  );
+};
+
 const sendPasswordResetEmail = async (event, email, token) => {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const base = process.env.APP_BASE_URL ||
-    (event?.headers?.origin || 'https://findacoachtoday.com');
+  const base = getPasswordResetBaseUrl();
 
   if (!host || !user || !pass) {
     console.warn('SMTP not configured; password reset email skipped');
@@ -807,7 +831,7 @@ const rawHandler = async (event) => {
             [currentUserId]
           );
           const profile = await executeQueryOne(withUserCtx('SELECT * FROM profiles WHERE id = $1', currentUserId), [currentUserId]);
-          const newToken = signAuthToken({ sub: profile.id, email: profile.email, user_type: profile.user_type });
+          const newToken = signTokenAfterSessionRevocation(profile);
           return { statusCode: 200, headers, body: JSON.stringify({ success: true, token: newToken, initial_password_set: !hasExistingPassword }) };
         }
 
@@ -879,7 +903,7 @@ const rawHandler = async (event) => {
           if (!rpProfile) {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'User account not found' }) };
           }
-          const rpToken = signAuthToken({ sub: rpProfile.id, email: rpProfile.email, user_type: rpProfile.user_type });
+          const rpToken = signTokenAfterSessionRevocation(rpProfile);
           return { statusCode: 200, headers, body: JSON.stringify({ success: true, token: rpToken, user: rpProfile }) };
         }
 
