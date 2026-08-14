@@ -504,7 +504,8 @@ const rawHandler = async (event) => {
                  updated_at,
                  is_active
                FROM profiles
-               WHERE id = $1`;
+               WHERE id = $1
+                 AND COALESCE(is_active, true) = true`;
 
           const user = await executeQueryOne(
             withUserCtx(userQuery, currentUserId || userId),

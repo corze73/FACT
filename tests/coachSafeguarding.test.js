@@ -16,6 +16,7 @@ describe('coach safeguarding gates', () => {
     expect(usersFunction).toContain("conditions.push(`has_background_check = true`)")
     expect(usersFunction).toContain("conditions.push(`background_check_status = 'verified'`)")
     expect(usersFunction).toContain('background_check_expires_at >= CURRENT_DATE')
+    expect(usersFunction).toContain('AND COALESCE(is_active, true) = true')
   })
 
   it('blocks booking creation when the coach is not fully verified', () => {
