@@ -374,7 +374,8 @@ const rawHandler = async (event) => {
 
         const coach = await executeQueryOne(
           `SELECT id, user_type, is_active, coach_profile, qualification_status,
-                  has_background_check, background_check_status, background_check_expires_at
+                  has_background_check, background_check_status, background_check_expires_at,
+                  (background_check_expires_at IS NOT NULL AND background_check_expires_at >= CURRENT_DATE) AS background_check_current
            FROM profiles
            WHERE id = $1`,
           [bookingData.coach_id]
@@ -384,8 +385,7 @@ const rawHandler = async (event) => {
         }
         const backgroundCheckCurrent = coach.has_background_check === true &&
           coach.background_check_status === 'verified' &&
-          coach.background_check_expires_at &&
-          new Date(`${String(coach.background_check_expires_at).slice(0, 10)}T23:59:59.999Z`) >= new Date();
+          coach.background_check_current === true;
         if (coach.qualification_status !== 'verified' || !backgroundCheckCurrent) {
           return {
             statusCode: 409,
