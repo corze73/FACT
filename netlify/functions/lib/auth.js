@@ -42,6 +42,7 @@ export const verifyAuthToken = (token) => {
   }
 
   if (header?.alg !== 'HS256') return null;
+  if (header?.typ !== 'JWT') return null;
 
   const data = `${headerB64}.${payloadB64}`;
   const signature = crypto.createHmac('sha256', secret).update(data).digest('base64')
@@ -52,6 +53,8 @@ export const verifyAuthToken = (token) => {
   const now = Math.floor(Date.now() / 1000);
   if (typeof payload.exp === 'number' && payload.exp < now) return null;
   if (typeof payload.nbf === 'number' && payload.nbf > now) return null;
+  if (payload.aud !== 'authenticated') return null;
+  if (typeof payload.sub !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(payload.sub)) return null;
 
   return payload;
 };
@@ -76,6 +79,17 @@ export const getAuthContext = async (event) => {
     [payload.sub]
   );
 
+  if (!profile || profile.is_active === false) {
+    return {
+      userId: null,
+      userType: null,
+      isAdmin: false,
+      adminScope: null,
+      isActive: false,
+      payload
+    };
+  }
+
   const revokedAtEpoch = profile?.token_revoked_at ? Math.floor(new Date(profile.token_revoked_at).getTime() / 1000) : null;
   const tokenIssuedAt = typeof payload.iat === 'number' ? payload.iat : null;
   if (revokedAtEpoch && tokenIssuedAt && tokenIssuedAt <= revokedAtEpoch) {
@@ -98,7 +112,7 @@ export const getAuthContext = async (event) => {
     userType,
     isAdmin,
     adminScope,
-    isActive: profile?.is_active !== false,
+    isActive: true,
     payload
   };
 };
