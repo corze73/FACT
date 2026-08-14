@@ -623,16 +623,16 @@ const updateDispute = async ({ event, headers, adminId, disputeId }) => {
     }
     const fullRefund = resolution.refundPence >= Math.round(Number(existing.payment_amount) * 100);
     await executeQuery(
-      `UPDATE payments SET refund_amount = $2, refund_reason = $3,
-         refunded_at = CASE WHEN $2 > 0 THEN NOW() ELSE refunded_at END,
-         status = CASE WHEN $4 THEN 'refunded' ELSE status END, updated_at = NOW()
+      `UPDATE payments SET refund_amount = $2::numeric, refund_reason = $3,
+         refunded_at = CASE WHEN $2::numeric > 0 THEN NOW() ELSE refunded_at END,
+         status = CASE WHEN $4::boolean THEN 'refunded' ELSE status END, updated_at = NOW()
        WHERE id = $1`,
       [existing.payment_id, resolvedRefundAmount, `Dispute resolved: ${decision}`, fullRefund]
     );
     await executeQuery(
       `UPDATE bookings SET dispute_status = 'resolved',
-         payout_eligible_at = CASE WHEN $2 THEN NULL ELSE NOW() END,
-         payment_status = CASE WHEN $2 THEN 'refunded' ELSE payment_status END,
+         payout_eligible_at = CASE WHEN $2::boolean THEN NULL ELSE NOW() END,
+         payment_status = CASE WHEN $2::boolean THEN 'refunded' ELSE payment_status END,
          updated_at = NOW() WHERE id = $1`,
       [existing.booking_id, fullRefund]
     );
