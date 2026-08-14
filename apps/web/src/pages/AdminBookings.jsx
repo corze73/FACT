@@ -5,13 +5,12 @@ import { User } from "@/api/entities.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, CreditCard, ArrowLeft } from "lucide-react";
+import { MessageCircle, PoundSterling, ArrowLeft, UserX } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createLoginUrl, createPageUrl, isAdminUser } from "@/utils";
 import { format, isValid } from "date-fns";
 import { BookingReference, BookingReferenceSearch } from "../components/booking/BookingReference";
-import StripePaymentModal from "@/components/payment/StripePaymentModal.jsx";
-import { showError } from "@/utils/notifications";
+import { showError, showSuccess } from "@/utils/notifications";
 
 const ADMIN_BOOKINGS_CURRENT_USER_QUERY_KEY = ["admin-bookings", "current-user"];
 
@@ -34,8 +33,8 @@ export default function AdminBookings() {
   const navigate = useNavigate();
   const location = useLocation();
   const [highlightedBookingId, setHighlightedBookingId] = useState(null);
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [paymentBooking, setPaymentBooking] = useState(null);
+  const [releasingBookingId, setReleasingBookingId] = useState(null);
+  const [processingNoShowId, setProcessingNoShowId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
   const PAGE_SIZE = 50;
@@ -137,36 +136,35 @@ export default function AdminBookings() {
     return map[status] || "bg-slate-100 text-slate-800";
   };
 
-  const openPayment = (booking, client, coach) => {
-    // Enrich booking with names/emails expected by StripePaymentModal
-    const enriched = {
-      ...booking,
-      client_name: client?.full_name || 'Client',
-      client_email: client?.email || undefined,
-      coach_name: coach?.full_name || 'Coach',
-      duration: booking.duration || 1,
-    };
-    setPaymentBooking(enriched);
-    setIsPaymentOpen(true);
+  const releasePayout = async (booking) => {
+    setReleasingBookingId(booking.id);
+    try {
+      const result = await Booking.releasePayout(booking.id);
+      showSuccess("Payout Released", `£${Number(result.amount || 0).toFixed(2)} sent to the coach's Stripe balance.`);
+      await queryClient.invalidateQueries({ queryKey: ["admin-bookings"] });
+    } catch (error) {
+      showError("Payout Not Released", error.message || "This payout is not eligible yet.");
+    } finally {
+      setReleasingBookingId(null);
+    }
   };
 
-  const handlePaymentSuccess = () => {
-    // Update local state for the paid booking
-    if (paymentBooking) {
-      queryClient.setQueriesData({ queryKey: ["admin-bookings"] }, (previous) => {
-        if (!previous?.bookings) return previous;
-        return {
-          ...previous,
-          bookings: previous.bookings.map((booking) => (
-            booking.id === paymentBooking.id
-              ? { ...booking, status: "confirmed", payment_status: "authorized" }
-              : booking
-          ))
-        };
-      });
+  const processNoShow = async (booking, type) => {
+    const label = type === "coach_no_show" ? "coach" : "client";
+    const consequence = type === "coach_no_show"
+      ? "The client will receive a full refund and the coach will receive a £3 penalty and a strike."
+      : "The client will not receive a refund and the coach payout will become eligible.";
+    if (!window.confirm(`Confirm ${label} no-show? ${consequence}`)) return;
+    setProcessingNoShowId(booking.id);
+    try {
+      const result = await Booking.processNoShow(booking.id, type);
+      showSuccess("No-show Recorded", result.message);
+      await queryClient.invalidateQueries({ queryKey: ["admin-bookings"] });
+    } catch (error) {
+      showError("No-show Not Recorded", error.message || "Unable to process this booking.");
+    } finally {
+      setProcessingNoShowId(null);
     }
-    setIsPaymentOpen(false);
-    setPaymentBooking(null);
   };
 
   if (loading) return <div className="p-8">Loading bookings...</div>;
@@ -241,12 +239,24 @@ export default function AdminBookings() {
                         <MessageCircle className="w-4 h-4 mr-2" /> Open Chat
                       </Button>
                       <Button
-                        variant="default"
+                        variant="outline"
                         size="sm"
-                        onClick={() => openPayment(b, { full_name: b.client_name }, { full_name: b.coach_name })}
+                        disabled={releasingBookingId === b.id || b.payment_status !== "captured" || !b.payout_eligible_at || new Date(b.payout_eligible_at) > new Date()}
+                        onClick={() => releasePayout(b)}
+                        title="Available after session completion and the 24-hour dispute window"
                       >
-                        <CreditCard className="w-4 h-4 mr-2" /> Take Payment
+                        <PoundSterling className="w-4 h-4 mr-2" /> {releasingBookingId === b.id ? "Releasing…" : "Release Payout"}
                       </Button>
+                      {b.status === "confirmed" && new Date(b.booking_date) < new Date() && (
+                        <>
+                          <Button variant="destructive" size="sm" disabled={processingNoShowId === b.id} onClick={() => processNoShow(b, "coach_no_show")}>
+                            <UserX className="w-4 h-4 mr-2" /> Coach No-show
+                          </Button>
+                          <Button variant="outline" size="sm" disabled={processingNoShowId === b.id} onClick={() => processNoShow(b, "client_no_show")}>
+                            <UserX className="w-4 h-4 mr-2" /> Client No-show
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -278,15 +288,6 @@ export default function AdminBookings() {
             )}
           </CardContent>
         </Card>
-        {/* Stripe Payment Modal */}
-        {isPaymentOpen && paymentBooking && (
-          <StripePaymentModal
-            booking={paymentBooking}
-            isOpen={isPaymentOpen}
-            onClose={() => { setIsPaymentOpen(false); setPaymentBooking(null); }}
-            onPaymentSuccess={handlePaymentSuccess}
-          />
-        )}
       </div>
     </div>
   );

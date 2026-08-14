@@ -27,6 +27,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
+  const [postalCode, setPostalCode] = useState('');
 
   const createIntent = async (payload) => {
     // Try pretty route first, then fall back to direct functions path if 404
@@ -94,6 +95,11 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
     
     if (!stripe || !elements) return;
 
+    if (!postalCode.trim()) {
+      setPaymentError('Please enter your billing postcode.');
+      return;
+    }
+
     setIsProcessing(true);
     setPaymentError(null);
 
@@ -115,6 +121,9 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
           billing_details: {
             name: booking.client_name,
             email: booking.client_email,
+            address: {
+              postal_code: postalCode.trim(),
+            },
           },
         }
       });
@@ -154,6 +163,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
       <div className="border rounded-lg p-4">
         <CardElement
           options={{
+            hidePostalCode: true,
             style: {
               base: {
                 fontSize: '16px',
@@ -164,6 +174,23 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
               },
             },
           }}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="billing-postcode" className="text-sm font-medium text-slate-700">
+          Billing postcode
+        </label>
+        <input
+          id="billing-postcode"
+          name="billing-postcode"
+          type="text"
+          autoComplete="postal-code"
+          value={postalCode}
+          onChange={(event) => setPostalCode(event.target.value)}
+          placeholder="e.g. HP20 1AA"
+          required
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
       </div>
 
@@ -180,7 +207,7 @@ const PaymentForm = ({ booking, paymentBreakdown, onPaymentSuccess, onPaymentErr
         </div>
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-blue-600" />
-          <span>Funds held until session completion</span>
+          <span>Coach payout follows session completion</span>
         </div>
       </div>
 
@@ -255,7 +282,7 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
                     </div>
                     <div className="flex justify-between">
                       <span>Duration:</span>
-                      <span>{booking.duration} hour(s)</span>
+                      <span>{booking.duration} minutes</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Coach:</span>
@@ -283,8 +310,8 @@ export default function StripePaymentModal({ booking, isOpen, onClose, onPayment
                     <div>
                       <p className="font-medium text-blue-800">Payment Protection</p>
                       <p className="text-blue-700">
-                        Your payment is held securely until session completion. 
-                        Full refund if coach doesn&apos;t show up.
+                        Stripe processes your payment securely. The coach is paid after the
+                        session is completed, and you are protected if the coach does not attend.
                       </p>
                     </div>
                   </div>

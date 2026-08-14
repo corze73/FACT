@@ -77,8 +77,34 @@ export const attachEndpoints = (client: APIClient) => {
     updateBooking(id: string, bookingData: unknown) {
       return client.request(`/bookings/${id}`, { method: 'PUT', body: JSON.stringify(bookingData) });
     },
+    bookingAction(id: string, action: string, payload: unknown = {}) {
+      return client.request(`/bookings/${id}/${action}`, { method: 'POST', body: JSON.stringify(payload) });
+    },
     deleteBooking(id: string) {
       return client.request(`/bookings/${id}`, { method: 'DELETE' });
+    },
+    createStripeConnectOnboarding(returnUrl: string, refreshUrl: string) {
+      return client.request('/stripe/connect/onboard', {
+        method: 'POST', body: JSON.stringify({ return_url: returnUrl, refresh_url: refreshUrl })
+      });
+    },
+    getStripeConnectStatus() {
+      return client.request('/stripe/connect/status');
+    },
+    cancelBookingPaymentAware(bookingId: string, reason: string) {
+      return client.request('/stripe/cancel-booking', {
+        method: 'POST', body: JSON.stringify({ booking_id: bookingId, reason })
+      });
+    },
+    releaseCoachPayout(bookingId: string) {
+      return client.request('/stripe/release-coach-payout', {
+        method: 'POST', body: JSON.stringify({ booking_id: bookingId })
+      });
+    },
+    processBookingNoShow(bookingId: string, noShowType: 'coach_no_show' | 'client_no_show') {
+      return client.request('/stripe/process-no-show', {
+        method: 'POST', body: JSON.stringify({ booking_id: bookingId, no_show_type: noShowType })
+      });
     },
     getMessages(bookingId: string) {
       return client.request(`/messages?booking_id=${bookingId}`);

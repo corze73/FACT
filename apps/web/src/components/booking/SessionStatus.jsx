@@ -68,11 +68,12 @@ export default function SessionStatus({ booking, currentUser, onBookingUpdate })
   const isEarlyCompletion = () => {
     if (!booking.session_started_at) return false;
     const sessionStart = new Date(booking.session_started_at);
-    const expectedEnd = new Date(sessionStart.getTime() + (booking.duration * 60 * 60 * 1000));
+    const expectedEnd = new Date(sessionStart.getTime() + (Number(booking.duration) * 60 * 1000));
     return new Date() < expectedEnd;
   };
 
   const getSessionStatus = () => {
+    if (booking.dispute_status === 'open') return 'disputed';
     if (booking.status === 'completed') return 'completed';
     if (booking.session_started_at && booking.status === 'confirmed') return 'in_session';
     if (booking.client_arrived_at || booking.coach_arrived_at) return 'arrival_pending';
@@ -110,7 +111,8 @@ export default function SessionStatus({ booking, currentUser, onBookingUpdate })
   };
 
   const canDispute = () => {
-    return ['completed', 'in_session'].includes(sessionStatus) && !booking.dispute_status;
+    return sessionStatus === 'completed' && !booking.dispute_status &&
+      booking.payout_eligible_at && new Date(booking.payout_eligible_at) > new Date();
   };
 
   return (

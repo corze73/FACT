@@ -249,6 +249,95 @@ const rawHandler = async (event) => {
         if (!currentUserId) {
           return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
         }
+
+        if (bookingId && action) {
+          const existing = await executeQueryOne(
+            'SELECT * FROM bookings WHERE id = $1',
+            [bookingId]
+          );
+          if (!existing) {
+            return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+          }
+          const isClient = existing.client_id === currentUserId;
+          const isCoach = existing.coach_id === currentUserId;
+          if (!isClient && !isCoach) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not permitted for this booking' }) };
+          }
+
+          if (action === 'arrival') {
+            if (!['confirmed', 'in_session'].includes(existing.status)) {
+              return { statusCode: 409, headers, body: JSON.stringify({ error: 'Arrival is only available for confirmed sessions' }) };
+            }
+            const arrivalWindowStart = new Date(existing.booking_date).getTime() - (2 * 60 * 60 * 1000);
+            const arrivalWindowEnd = new Date(existing.booking_date).getTime() + ((Number(existing.duration || 60) + 240) * 60 * 1000);
+            if (Date.now() < arrivalWindowStart || Date.now() > arrivalWindowEnd) {
+              return { statusCode: 409, headers, body: JSON.stringify({ error: 'Arrival can only be recorded near the scheduled session time' }) };
+            }
+            const column = isCoach ? 'coach_arrived_at' : 'client_arrived_at';
+            const otherColumn = isCoach ? 'client_arrived_at' : 'coach_arrived_at';
+            const updated = await executeQueryOne(
+              `UPDATE bookings SET
+                 ${column} = COALESCE(${column}, NOW()),
+                 session_started_at = CASE
+                   WHEN ${otherColumn} IS NOT NULL
+                   THEN COALESCE(session_started_at, NOW()) ELSE session_started_at END,
+                 updated_at = NOW()
+               WHERE id = $1 RETURNING *`,
+              [bookingId]
+            );
+            return { statusCode: 200, headers, body: JSON.stringify(updated) };
+          }
+
+          if (action === 'complete') {
+            if (existing.payment_status !== 'captured') {
+              return { statusCode: 409, headers, body: JSON.stringify({ error: 'The session cannot complete until payment has been captured' }) };
+            }
+            if (!existing.session_started_at || existing.status !== 'confirmed') {
+              return { statusCode: 409, headers, body: JSON.stringify({ error: 'Both parties must record arrival before completing the session' }) };
+            }
+            const column = isCoach ? 'coach_completed_at' : 'client_completed_at';
+            const otherColumn = isCoach ? 'client_completed_at' : 'coach_completed_at';
+            const updated = await executeQueryOne(
+              `UPDATE bookings SET
+                 ${column} = COALESCE(${column}, NOW()),
+                 completed_at = CASE
+                   WHEN ${otherColumn} IS NOT NULL
+                   THEN COALESCE(completed_at, NOW()) ELSE completed_at END,
+                 status = CASE
+                   WHEN ${otherColumn} IS NOT NULL
+                   THEN 'completed' ELSE status END,
+                 payout_eligible_at = CASE
+                   WHEN ${otherColumn} IS NOT NULL
+                   THEN COALESCE(payout_eligible_at, NOW() + INTERVAL '24 hours') ELSE payout_eligible_at END,
+                 updated_at = NOW()
+               WHERE id = $1 RETURNING *`,
+              [bookingId]
+            );
+            return { statusCode: 200, headers, body: JSON.stringify(updated) };
+          }
+
+          if (action === 'dispute') {
+            if (existing.status !== 'completed' || existing.payment_status !== 'captured' ||
+                !existing.payout_eligible_at || new Date(existing.payout_eligible_at) <= new Date()) {
+              return { statusCode: 409, headers, body: JSON.stringify({ error: 'A dispute can only be opened during the 24-hour completion review window' }) };
+            }
+            const payload = JSON.parse(body || '{}');
+            const reason = String(payload.reason || '').trim();
+            if (reason.length < 10) {
+              return { statusCode: 400, headers, body: JSON.stringify({ error: 'A dispute reason of at least 10 characters is required' }) };
+            }
+            const updated = await executeQueryOne(
+              `UPDATE bookings SET dispute_status = 'open', dispute_reason = $2,
+                 dispute_opened_at = NOW(), payout_eligible_at = NULL, updated_at = NOW()
+               WHERE id = $1 RETURNING *`,
+              [bookingId, reason]
+            );
+            return { statusCode: 200, headers, body: JSON.stringify(updated) };
+          }
+
+          return { statusCode: 404, headers, body: JSON.stringify({ error: 'Unknown booking action' }) };
+        }
+
         const bookingData = JSON.parse(body || '{}');
 
         // Validate required fields (your schema uses booking_date, not session_date/session_time)
@@ -351,6 +440,15 @@ const rawHandler = async (event) => {
           }
           if (updateData.accept === true && (!isCoach || existingBooking.status !== 'pending')) {
             return { statusCode: 409, headers, body: JSON.stringify({ error: 'Only the coach can accept a pending booking' }) };
+          }
+          if (updateData.accept === true) {
+            const payoutProfile = await executeQueryOne(
+              'SELECT stripe_connect_onboarding_complete, stripe_connect_payouts_enabled FROM profiles WHERE id = $1',
+              [currentUserId]
+            );
+            if (!payoutProfile?.stripe_connect_onboarding_complete || !payoutProfile?.stripe_connect_payouts_enabled) {
+              return { statusCode: 409, headers, body: JSON.stringify({ error: 'Complete Stripe payout setup before accepting bookings' }) };
+            }
           }
           if (updateData.cancel === true && !['pending', 'confirmed'].includes(existingBooking.status)) {
             return { statusCode: 409, headers, body: JSON.stringify({ error: 'This booking can no longer be cancelled' }) };

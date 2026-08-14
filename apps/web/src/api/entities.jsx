@@ -507,8 +507,32 @@ export const Booking = {
     return normalizeBookingRecord(await apiClient.updateBooking(id, updateData));
   },
 
+  async cancel(id, reason) {
+    return normalizeBookingRecord(await apiClient.cancelBookingPaymentAware(id, reason));
+  },
+
+  async releasePayout(id) {
+    return await apiClient.releaseCoachPayout(id);
+  },
+
+  async processNoShow(id, type) {
+    return await apiClient.processBookingNoShow(id, type);
+  },
+
   async delete(id) {
     await apiClient.deleteBooking(id);
+  },
+
+  async markArrival(id) {
+    return normalizeBookingRecord(await apiClient.bookingAction(id, 'arrival'));
+  },
+
+  async markSessionComplete(id, _userId, _userRole, reason = null) {
+    return normalizeBookingRecord(await apiClient.bookingAction(id, 'complete', { reason }));
+  },
+
+  async initiateDispute(id, _userId, reason) {
+    return normalizeBookingRecord(await apiClient.bookingAction(id, 'dispute', { reason }));
   }
 };
 

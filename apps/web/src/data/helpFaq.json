@@ -60,7 +60,7 @@
     "role": "coach",
     "category": "bookings",
     "q": "How do I cancel a confirmed booking?",
-    "a": "Use your dashboard booking actions to cancel and include a reason where prompted. The booking status updates and appears in cancelled history.",
+    "a": "Use your dashboard booking actions to cancel and include a reason. The client receives a full refund. A cancellation within 48 hours of the session also adds a £3 coach administration charge to the coach's account.",
     "keywords": ["cancel", "confirmed", "reason"]
   },
   {
@@ -132,7 +132,7 @@
     "role": "client",
     "category": "bookings",
     "q": "How do I cancel a booking?",
-    "a": "Use the cancel action in booking details, provide context if requested, and check the cancelled tab afterward.",
+    "a": "Use the cancel action in booking details. If you cancel at least 48 hours before the session, the coaching fee is refunded and the £3 booking fee is retained. Between 24 and 48 hours, 50% of the coaching fee is refunded. Within 24 hours, no refund is due. A coach cancellation receives a full refund.",
     "keywords": ["cancel booking", "cancelled tab"]
   },
   {
