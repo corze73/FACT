@@ -152,6 +152,7 @@ const rawHandler = async (event) => {
                WHEN $4 THEN COALESCE($8::date, background_check_expires_at)
                ELSE NULL
              END,
+             coach_profile = jsonb_set(COALESCE(coach_profile, '{}'::jsonb), '{is_verified}', 'false'::jsonb, true),
              updated_at = NOW()
          WHERE id = $9
          RETURNING id, qualification_type, qualification_file_url, qualification_status,

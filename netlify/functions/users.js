@@ -675,6 +675,11 @@ const rawHandler = async (event) => {
             conditions.push(`user_type = $${params.length + 1}`);
             params.push('coach');
             conditions.push(`COALESCE(is_active, true) = true`);
+            conditions.push(`qualification_status = 'verified'`);
+            conditions.push(`has_background_check = true`);
+            conditions.push(`background_check_status = 'verified'`);
+            conditions.push(`background_check_expires_at IS NOT NULL`);
+            conditions.push(`background_check_expires_at >= CURRENT_DATE`);
             conditions.push(`NULLIF(TRIM(COALESCE(country, '')), '') IS NOT NULL`);
             conditions.push(`NULLIF(TRIM(COALESCE(city, '')), '') IS NOT NULL`);
           }

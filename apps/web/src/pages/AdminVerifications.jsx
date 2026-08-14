@@ -163,7 +163,7 @@ export default function AdminVerifications() {
                       <div className="flex gap-2">
                         <Button
                           size="sm"
-                          disabled={isSaving}
+                          disabled={isSaving || !coach.qualification_type || !coach.qualification_file_url}
                           onClick={() => applyDecision(coach.id, { qualification_status: 'verified' }, 'Qualification approval')}
                         >
                           {activeAction === `${coach.id}:Qualification approval` ? 'Saving...' : 'Approve'}
@@ -198,7 +198,7 @@ export default function AdminVerifications() {
                       <div className="flex gap-2">
                         <Button
                           size="sm"
-                          disabled={isSaving}
+                          disabled={isSaving || !coach.has_background_check || !coach.background_check_type || !coach.background_check_file_url || !coach.background_check_expires_at || backgroundDisplayStatus === 'expired'}
                           onClick={() => applyDecision(coach.id, { background_check_status: 'verified' }, 'Background check approval')}
                         >
                           {activeAction === `${coach.id}:Background check approval` ? 'Saving...' : 'Approve'}
