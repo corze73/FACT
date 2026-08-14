@@ -97,7 +97,7 @@ const rawHandler = async (event) => {
               await executeQuery(
                 `UPDATE bookings 
                  SET status = 'confirmed', payment_status = 'captured', updated_at = NOW()
-                 WHERE id = $1 AND status <> 'cancelled'`,
+                 WHERE id = $1 AND status IN ('pending', 'confirmed')`,
                 [successBookingId]
               );
               await executeQuery(
