@@ -1,131 +1,32 @@
-// React import removed as unused with modern JSX transform
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { POLICY_LAST_UPDATED, POLICY_VERSION } from "@/lib/policyConstants";
+
+const Section = ({ title, children }) => <section><h2 className="text-xl font-semibold text-slate-900 mb-2">{title}</h2><div className="text-slate-700 space-y-2">{children}</div></section>;
 
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
-  const lastUpdated = new Date().toLocaleDateString();
-
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-    navigate(createPageUrl("Landing"));
-  };
-
+  const back = () => window.history.length > 1 ? navigate(-1) : navigate(createPageUrl("Landing"));
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="max-w-4xl mx-auto px-6 py-10">
-        <Button variant="ghost" size="sm" className="mb-4" onClick={handleBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Privacy Policy</h1>
-        <p className="text-slate-600 mb-8">Last updated: {lastUpdated}</p>
-
-        <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Who we are</h2>
-            <p className="text-slate-700">
-              FACT: Find a Coach Today (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) provides a platform connecting clients and coaches for football coaching sessions.
-              We act as the data controller for information you provide directly to our platform. For questions, contact:
-              <span className="font-medium"> privacy@findacoachtoday.com</span>.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Personal data we collect</h2>
-            <ul className="list-disc ml-6 text-slate-700 space-y-1">
-              <li>Identity and profile: name, profile picture, bio, user type (client/coach).</li>
-              <li>Contact details: email address and phone number (not publicly displayed).</li>
-              <li>Location: general address (e.g., city/area) for matching and discovery.</li>
-              <li>Coach data: services offered, hourly rate, availability, ratings.</li>
-              <li>Booking data: session details, price, messages between parties, reviews.</li>
-              <li>Usage data: device, log and analytics information for performance and security.</li>
-              <li>Cookies and similar tech: for essential operation, security, and preferences.</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">How we use your data (lawful bases)</h2>
-            <ul className="list-disc ml-6 text-slate-700 space-y-1">
-              <li>Provide and operate the service, facilitate bookings and messaging (Contract necessity).</li>
-              <li>Personalize discovery and improve the platform (Legitimate interests).</li>
-              <li>Communicate updates, service messages, and support (Contract/Legitimate interests).</li>
-              <li>Process payments and prevent fraud (Contract/Legal obligation/Legitimate interests).</li>
-              <li>With consent, show profiles publicly (e.g., coach listings) and send optional marketing (Consent).</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Sharing your data</h2>
-            <ul className="list-disc ml-6 text-slate-700 space-y-1">
-              <li>With other users as needed to fulfil bookings (e.g., names in chats and bookings).</li>
-              <li>Service providers (hosting, analytics, payments). Payments are securely processed by Stripe.</li>
-              <li>Authorities where required by law or to protect rights, safety, and security.</li>
-            </ul>
-            <p className="text-slate-700 mt-2">
-              We do not sell your personal data. Public coach profiles never include email or phone.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">International transfers</h2>
-            <p className="text-slate-700">
-              Where data is transferred outside your region, we rely on appropriate safeguards such as Standard Contractual Clauses or equivalent lawful mechanisms.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Data retention</h2>
-            <p className="text-slate-700">
-              We keep data only as long as necessary for the purposes described above, including legal, accounting and reporting requirements. You may request deletion where applicable (see “Your rights”).
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Your rights</h2>
-            <ul className="list-disc ml-6 text-slate-700 space-y-1">
-              <li>Access, rectification, deletion and portability of your data.</li>
-              <li>Restriction or objection to processing (where applicable).</li>
-              <li>Withdraw consent at any time (where processing is based on consent).</li>
-              <li>Complain to your data protection authority if you believe your rights are infringed.</li>
-            </ul>
-            <p className="text-slate-700 mt-2">
-              To exercise rights, email <span className="font-medium">privacy@findacoachtoday.com</span>. We may verify your identity before actioning your request.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Children</h2>
-            <p className="text-slate-700">
-              Our service is not directed to children under 16. If you believe a child has provided us personal data, contact us to remove it.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Cookies</h2>
-            <p className="text-slate-700">
-              We use essential cookies for authentication and security, and functional cookies for preferences. You can control cookies via browser settings. Some features may not work without essential cookies.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Changes</h2>
-            <p className="text-slate-700">
-              We may update this policy from time to time. We will post the updated version here and update the “Last updated” date.
-            </p>
-          </section>
-
-          <div className="pt-4 border-t">
-            <Link to={createPageUrl("Landing")} className="text-blue-600 hover:underline">Back to Home</Link>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50"><div className="max-w-4xl mx-auto px-6 py-10">
+      <Button variant="ghost" size="sm" className="mb-4" onClick={back}><ArrowLeft className="w-4 h-4 mr-2" />Back</Button>
+      <h1 className="text-3xl font-bold text-slate-900 mb-2">Privacy Policy</h1>
+      <p className="text-slate-600 mb-8">Version {POLICY_VERSION} · Last updated {POLICY_LAST_UPDATED}</p>
+      <div className="bg-white rounded-xl shadow-lg p-6 space-y-7">
+        <Section title="1. Controller and contact"><p>FACT: Find a Coach Today (“FACT”) is the controller for personal information collected through this marketplace. Email privacy questions or rights requests to <a className="text-blue-600 underline" href="mailto:privacy@findacoachtoday.com">privacy@findacoachtoday.com</a>.</p></Section>
+        <Section title="2. Information we use"><ul className="list-disc ml-6 space-y-1"><li>Account, identity, age confirmation and contact details.</li><li>Coach profile, qualification, insurance and background-check evidence and review outcomes.</li><li>General location, preferences, availability, session, booking, payment-status and payout information.</li><li>Messages, reviews, support requests, disputes, safeguarding reports and investigation records.</li><li>Login, device, IP, security, diagnostic, cookie and service-usage data.</li><li>Information provided by another booking participant, payment provider, identity provider or relevant authority.</li></ul></Section>
+        <Section title="3. Purposes and lawful bases"><ul className="list-disc ml-6 space-y-1"><li><strong>Contract:</strong> accounts, coach discovery, bookings, messages, payments, refunds and support.</li><li><strong>Legal obligations:</strong> accounting, tax, fraud prevention, lawful requests and consumer-rights compliance.</li><li><strong>Legitimate interests:</strong> platform security, service improvement, dispute handling, safeguarding and protecting users, balanced against individual rights.</li><li><strong>Consent:</strong> optional marketing and any processing where consent is specifically requested; consent can be withdrawn at any time.</li><li><strong>Vital interests:</strong> limited emergency disclosures where necessary to protect life.</li></ul><p>Where safeguarding or coach checks involve special-category or criminal-offence information, FACT applies an additional lawful condition where required, restricts access and follows an appropriate policy and retention process.</p></Section>
+        <Section title="4. Who receives information"><p>Information is shared only as necessary with the relevant client or coach; Stripe and payment partners; hosting, database, email, monitoring, storage and identity providers; professional advisers; and police, social care, The FA, County FAs, regulators or courts where lawful and appropriate. We do not sell personal information. Public coach profiles exclude email, telephone number, full address and verification documents.</p></Section>
+        <Section title="5. International transfers"><p>Some suppliers may process information outside the UK. FACT uses applicable adequacy regulations or contractual safeguards such as the UK International Data Transfer Agreement or UK Addendum. Contact us for information about relevant safeguards.</p></Section>
+        <Section title="6. Retention"><ul className="list-disc ml-6 space-y-1"><li>Active account data is kept while the account operates; core account, booking, payment and dispute records may be retained for up to six years after closure or the transaction.</li><li>Technical and security logs are normally retained for up to 12 months unless needed for an investigation.</li><li>Coach evidence is retained only while required for verification and safeguarding review; rejected or superseded document copies are normally deleted within six months, while status and audit evidence may be kept for up to six years.</li><li>Safeguarding records are retained according to risk, legal requirements and the needs of affected people, with periodic review rather than automatic deletion that could endanger someone or destroy necessary evidence.</li><li>Marketing preferences are kept until withdrawal, with a minimal suppression record retained to honour opt-out requests.</li></ul></Section>
+        <Section title="7. Your rights"><p>Depending on the processing, you may request access, correction, deletion, restriction or portability, object to processing, and withdraw consent. The right to object applies particularly to direct marketing and processing based on legitimate interests. Email <a className="text-blue-600 underline" href="mailto:privacy@findacoachtoday.com">privacy@findacoachtoday.com</a>; identity checks may be required.</p><p>You may complain to the Information Commissioner’s Office at <a className="text-blue-600 underline" href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noreferrer">ico.org.uk/make-a-complaint</a>, telephone 0303 123 1113, or by post to the ICO, Wycliffe House, Water Lane, Wilmslow, Cheshire SK9 5AF.</p></Section>
+        <Section title="8. Children"><p>FACT accounts are for adults aged 18 or over. A parent or legal guardian must manage bookings for an under-18 player. Do not place unnecessary information about a child in a public profile or message. We use child-related information only to arrange and safeguard the session and apply privacy settings designed to minimise exposure.</p></Section>
+        <Section title="9. Security, cookies and automated decisions"><p>FACT uses access controls, encryption in transit, monitoring and restricted administrator permissions. No internet service can promise absolute security. Essential cookies support authentication and security. Optional analytics or marketing cookies must not be used without the required choice. FACT does not currently make solely automated decisions producing legal or similarly significant effects.</p></Section>
+        <Section title="10. Changes"><p>We review this notice when data use, suppliers or law changes. Material new uses will be explained before they begin, and the fixed version date will be updated.</p></Section>
+        <div className="pt-4 border-t flex flex-wrap gap-4"><Link to={createPageUrl("Terms")} className="text-blue-600 hover:underline">Terms and Conditions</Link><Link to={createPageUrl("SafeguardingPolicy")} className="text-blue-600 hover:underline">Safeguarding Policy</Link></div>
       </div>
-    </div>
+    </div></div>
   );
 }

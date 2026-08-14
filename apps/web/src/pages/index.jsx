@@ -46,6 +46,8 @@ import Terms from "./Terms";
 
 import SafeguardingReport from "./SafeguardingReport";
 
+import SafeguardingPolicy from "./SafeguardingPolicy";
+
 
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
@@ -96,6 +98,8 @@ const PAGES = {
     Terms: Terms,
 
     SafeguardingReport: SafeguardingReport,
+
+    SafeguardingPolicy: SafeguardingPolicy,
     
 }
 
@@ -192,6 +196,9 @@ function PagesContent() {
                 
                 <Route path="/Terms" element={<Terms />} />
                 <Route path="/terms" element={<Terms />} />
+
+                <Route path="/SafeguardingPolicy" element={<SafeguardingPolicy />} />
+                <Route path="/safeguardingpolicy" element={<SafeguardingPolicy />} />
                 
             </Routes>
         </Layout>

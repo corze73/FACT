@@ -19,6 +19,7 @@ import {
   getBackgroundCheckLabel,
   getBackgroundCheckTypeOptions
 } from "@/lib/complianceConstants";
+import { POLICY_VERSION } from "@/lib/policyConstants";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -49,6 +50,10 @@ export default function Register() {
     background_check_file_url: '',
     background_check_expires_at: '',
     user_type: userType,
+    terms_accepted: false,
+    privacy_acknowledged: false,
+    adult_account_confirmed: false,
+    policy_version: POLICY_VERSION,
     coach_profile: userType === 'coach' ? {
       credentials: [],
       services_offered: [],
@@ -112,6 +117,11 @@ export default function Register() {
     
     if (formData.password.length < 8) {
       showError('Invalid Password', 'Password must be at least 8 characters long');
+      return;
+    }
+
+    if (!formData.terms_accepted || !formData.privacy_acknowledged || !formData.adult_account_confirmed) {
+      showError('Agreement Required', 'Confirm you are 18 or older and accept the Terms and Privacy Policy.');
       return;
     }
 
@@ -190,6 +200,10 @@ export default function Register() {
   };
 
   const handleGoogleSignUp = async () => {
+    if (!formData.terms_accepted || !formData.privacy_acknowledged || !formData.adult_account_confirmed) {
+      showError('Agreement Required', 'Confirm you are 18 or older and accept the Terms and Privacy Policy.');
+      return;
+    }
     if (formData.user_type === 'coach' && formData.has_background_check) {
       if (!formData.background_check_type || !String(formData.background_check_type).trim()) {
         showError('Background Check Required', `Please select the ${getBackgroundLabel()} type.`);
@@ -823,6 +837,21 @@ export default function Register() {
                       </div>
                     ))}
                   </div>
+                </div>
+
+                <div className="space-y-3 rounded-xl border border-slate-200 p-4 bg-white">
+                  <label className="flex items-start gap-3 text-sm">
+                    <Checkbox checked={formData.adult_account_confirmed} onCheckedChange={(checked) => handleInputChange('adult_account_confirmed', checked === true)} />
+                    <span>I confirm I am 18 or older. A parent or legal guardian must hold the account and make bookings for players under 18.</span>
+                  </label>
+                  <label className="flex items-start gap-3 text-sm">
+                    <Checkbox checked={formData.terms_accepted} onCheckedChange={(checked) => handleInputChange('terms_accepted', checked === true)} />
+                    <span>I agree to the <a href={createPageUrl('Terms')} target="_blank" rel="noreferrer" className="text-blue-600 underline">Terms and Conditions</a>, including the cancellation and no-show policy.</span>
+                  </label>
+                  <label className="flex items-start gap-3 text-sm">
+                    <Checkbox checked={formData.privacy_acknowledged} onCheckedChange={(checked) => handleInputChange('privacy_acknowledged', checked === true)} />
+                    <span>I acknowledge the <a href={createPageUrl('PrivacyPolicy')} target="_blank" rel="noreferrer" className="text-blue-600 underline">Privacy Policy</a> and how FACT uses my information.</span>
+                  </label>
                 </div>
       </>
     );

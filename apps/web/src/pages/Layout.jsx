@@ -243,6 +243,7 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center gap-4">
               <Link to={createPageUrl("PrivacyPolicy")} className="text-slate-600 hover:text-slate-900 text-sm">Privacy</Link>
               <Link to={createPageUrl("Terms")} className="text-slate-600 hover:text-slate-900 text-sm">Terms</Link>
+              <Link to={createPageUrl("SafeguardingPolicy")} className="text-slate-600 hover:text-slate-900 text-sm">Safeguarding</Link>
             </div>
           </div>
         </footer>
@@ -376,6 +377,7 @@ export default function Layout({ children, currentPageName }) {
                 <div className="flex items-center gap-4">
                   <Link to={createPageUrl("PrivacyPolicy")} className="text-slate-600 hover:text-slate-900 text-sm">Privacy</Link>
                   <Link to={createPageUrl("Terms")} className="text-slate-600 hover:text-slate-900 text-sm">Terms</Link>
+                  <Link to={createPageUrl("SafeguardingPolicy")} className="text-slate-600 hover:text-slate-900 text-sm">Safeguarding</Link>
                 </div>
               </div>
             </div>

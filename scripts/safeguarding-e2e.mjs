@@ -110,7 +110,7 @@ try {
 
   const bookingBefore = await request('/api/bookings', clientToken, {
     method: 'POST',
-    body: JSON.stringify({ coach_id: ids.coach, client_id: ids.client, booking_date: '2026-09-15T18:00:00.000Z', duration: 60 })
+    body: JSON.stringify({ coach_id: ids.coach, client_id: ids.client, booking_date: '2026-09-15T18:00:00.000Z', duration: 60, cancellation_policy_accepted: true, policy_version: '2026-08-14' })
   });
   assert(bookingBefore.status === 201, 'Booking should succeed before suspension', bookingBefore);
   createdBookingIds.push(bookingBefore.body.id);
@@ -151,7 +151,7 @@ try {
 
   const bookingAfter = await request('/api/bookings', clientToken, {
     method: 'POST',
-    body: JSON.stringify({ coach_id: ids.coach, client_id: ids.client, booking_date: '2026-09-16T18:00:00.000Z', duration: 60 })
+    body: JSON.stringify({ coach_id: ids.coach, client_id: ids.client, booking_date: '2026-09-16T18:00:00.000Z', duration: 60, cancellation_policy_accepted: true, policy_version: '2026-08-14' })
   });
   assert(bookingAfter.status === 400 && bookingAfter.body?.error === 'Coach is unavailable', 'Suspended coach accepted a booking', bookingAfter);
 

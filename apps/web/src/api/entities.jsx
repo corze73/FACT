@@ -195,7 +195,11 @@ export const User = {
         has_background_check: Boolean(profileData.has_background_check),
         background_check_type: profileData.background_check_type || null,
         background_check_file_url: profileData.background_check_file_url || null,
-        background_check_expires_at: profileData.background_check_expires_at || null
+        background_check_expires_at: profileData.background_check_expires_at || null,
+        terms_accepted: profileData.terms_accepted === true,
+        privacy_acknowledged: profileData.privacy_acknowledged === true,
+        adult_account_confirmed: profileData.adult_account_confirmed === true,
+        policy_version: profileData.policy_version || null
       });
 
       // Mark user as logged in and persist token for API auth.

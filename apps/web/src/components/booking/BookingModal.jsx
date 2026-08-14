@@ -13,6 +13,8 @@ import { calculatePaymentBreakdown } from "../../utils/payment";
 import { bookingSchema, formatValidationErrors, safeValidate } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { alertToast } from "@/utils/notifications";
+import { createPageUrl } from "@/utils";
+import { POLICY_VERSION } from "@/lib/policyConstants";
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   const DEFAULT_SERVICE_TYPE = '1-to-1 Football Coaching';
@@ -44,6 +46,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   });
 
   const [validationErrors, setValidationErrors] = useState({});
+  const [policyAccepted, setPolicyAccepted] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -74,6 +77,10 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
         session_time: ['Please select a time']
       });
       alertToast('Please select a session date and time');
+      return;
+    }
+    if (!policyAccepted) {
+      alertToast('Please accept the cancellation and no-show policy.');
       return;
     }
 
@@ -115,7 +122,9 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
         type: validation.data.location_type,
         address: validation.data.location_address,
         notes: ''
-      }
+      },
+      cancellation_policy_accepted: true,
+      policy_version: POLICY_VERSION
     });
   };
 
@@ -350,6 +359,13 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
               Secure payment powered by Stripe
             </div>
           </div>
+
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm">
+            <input type="checkbox" className="mt-1" checked={policyAccepted} onChange={(event) => setPolicyAccepted(event.target.checked)} />
+            <span>
+              I accept the <a href={createPageUrl('Terms')} target="_blank" rel="noreferrer" className="text-blue-600 underline">cancellation and no-show policy</a>: coach cancellations receive a full refund; client cancellations at least 48 hours before receive the coaching fee back but not the £3 administration fee; 24–48 hours receive 50% of the coaching fee; under 24 hours receive no refund.
+            </span>
+          </label>
 
           {/* Actions */}
           <div className="flex gap-3 pt-4">

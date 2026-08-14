@@ -8,6 +8,8 @@ import crypto from 'crypto';
 import { Buffer } from 'buffer';
 import nodemailer from 'nodemailer';
 
+const CURRENT_POLICY_VERSION = '2026-08-14';
+
 // ---------------------------------------------------------------------------
 // Password helpers (scrypt, no third-party deps)
 // ---------------------------------------------------------------------------
@@ -1060,6 +1062,16 @@ const rawHandler = async (event) => {
           }
         }
 
+        if (authMode === 'signup') {
+          const validPolicyConsent = userData.terms_accepted === true &&
+            userData.privacy_acknowledged === true &&
+            userData.adult_account_confirmed === true &&
+            userData.policy_version === CURRENT_POLICY_VERSION;
+          if (!validPolicyConsent) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Current Terms, Privacy Policy and adult account confirmation are required' }) };
+          }
+        }
+
         // Pre-hash password for signup before INSERT
         const signupPasswordHash = (authMode === 'signup' && userData.password)
           ? await hashPassword(userData.password)
@@ -1123,6 +1135,9 @@ const rawHandler = async (event) => {
                 qualification_type, qualification_file_url, qualification_status,
                 has_background_check, background_check_type, background_check_file_url,
                 background_check_status, background_check_expires_at,
+                terms_version, terms_accepted_at,
+                privacy_version, privacy_acknowledged_at,
+                adult_account_confirmed_at,
                 is_active, created_at, updated_at
               )
               VALUES (
@@ -1133,6 +1148,9 @@ const rawHandler = async (event) => {
                 $17, $18, $19,
                 $20, $21, $22,
                 $23, $24,
+                $25::text, CASE WHEN $25::text IS NOT NULL THEN NOW() ELSE NULL END,
+                $25::text, CASE WHEN $25::text IS NOT NULL THEN NOW() ELSE NULL END,
+                CASE WHEN $25::text IS NOT NULL THEN NOW() ELSE NULL END,
                 true, NOW(), NOW()
               )
               ON CONFLICT (email) DO UPDATE
@@ -1165,7 +1183,8 @@ const rawHandler = async (event) => {
               userData.background_check_type || null,
               backgroundCheckFileUrl,
               backgroundCheckStatus,
-              userData.background_check_expires_at || null
+              userData.background_check_expires_at || null,
+              authMode === 'signup' ? CURRENT_POLICY_VERSION : null
             ]
           );
 
@@ -1270,6 +1289,15 @@ const rawHandler = async (event) => {
         }
 
         const updateData = JSON.parse(body);
+        const acceptingCurrentPolicy = updateData.terms_accepted === true &&
+          updateData.privacy_acknowledged === true &&
+          updateData.adult_account_confirmed === true &&
+          updateData.policy_version === CURRENT_POLICY_VERSION;
+        const attemptedPolicyUpdate = ['terms_accepted', 'privacy_acknowledged', 'adult_account_confirmed', 'policy_version']
+          .some((field) => Object.prototype.hasOwnProperty.call(updateData, field));
+        if (attemptedPolicyUpdate && !acceptingCurrentPolicy) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'All current policy confirmations are required' }) };
+        }
 
         // Validate video clip URLs (only allow http/https URLs to approved hosts; disallow data URIs)
         const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v);
@@ -1341,6 +1369,11 @@ const rawHandler = async (event) => {
                postcode = COALESCE($19, postcode),
                coach_profile = COALESCE($20::jsonb, coach_profile),
                user_type = COALESCE($21, user_type),
+               terms_version = CASE WHEN $22::boolean THEN $23 ELSE terms_version END,
+               terms_accepted_at = CASE WHEN $22::boolean THEN COALESCE(terms_accepted_at, NOW()) ELSE terms_accepted_at END,
+               privacy_version = CASE WHEN $22::boolean THEN $23 ELSE privacy_version END,
+               privacy_acknowledged_at = CASE WHEN $22::boolean THEN COALESCE(privacy_acknowledged_at, NOW()) ELSE privacy_acknowledged_at END,
+               adult_account_confirmed_at = CASE WHEN $22::boolean THEN COALESCE(adult_account_confirmed_at, NOW()) ELSE adult_account_confirmed_at END,
                updated_at = NOW()
            WHERE id = $7
            RETURNING *`, userId),
@@ -1369,7 +1402,9 @@ const rawHandler = async (event) => {
             updateData.city,
             updateData.postcode,
             updateData.coach_profile || null,
-            newUserType   // $21 — null keeps existing; 'coach'/'client' transitions the account type
+            newUserType,   // $21 — null keeps existing; 'coach'/'client' transitions the account type
+            acceptingCurrentPolicy,
+            acceptingCurrentPolicy ? CURRENT_POLICY_VERSION : null
           ]
         );
 

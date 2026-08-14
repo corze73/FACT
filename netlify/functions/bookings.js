@@ -5,6 +5,8 @@ import { getAuthContext } from './lib/auth.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 import { calculateBookingPrice } from './lib/bookingPricing.js';
 
+const CURRENT_POLICY_VERSION = '2026-08-14';
+
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
     'https://findacoachtoday.com',
@@ -363,6 +365,10 @@ const rawHandler = async (event) => {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'booking_date is required (timestamptz)' }) };
         }
 
+        if (bookingData.cancellation_policy_accepted !== true || bookingData.policy_version !== CURRENT_POLICY_VERSION) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'Accept the current cancellation and no-show policy before booking' }) };
+        }
+
         if (!isAdmin && bookingData.client_id !== currentUserId) {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Bookings can only be created for the authenticated client' }) };
         }
@@ -408,8 +414,9 @@ const rawHandler = async (event) => {
         const insertQuery = `INSERT INTO bookings (
             coach_id, client_id, service_type, booking_date,
             duration, location_type, location_address, location_notes, client_notes,
-            price, admin_fee, total_price, status
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            price, admin_fee, total_price, status,
+            policy_version, cancellation_policy_accepted_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
           RETURNING *`;
 
         const finalInsertQuery = currentUserId ? withUserCtx(insertQuery, currentUserId) : insertQuery;
@@ -429,7 +436,8 @@ const rawHandler = async (event) => {
             servicePrice,
             adminFee,
             totalPrice,
-            'pending'
+            'pending',
+            CURRENT_POLICY_VERSION
           ]
         );
 
