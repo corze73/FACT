@@ -169,6 +169,10 @@ const rawHandler = async (event) => {
               b.reschedule_requested_at,
               b.price,
               b.total_price,
+              b.payment_status,
+              b.payout_eligible_at,
+              b.dispute_status,
+              b.cancelled_by,
               b.reference_code,
               b.updated_at,
               b.created_at`
