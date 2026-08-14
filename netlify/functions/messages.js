@@ -3,6 +3,7 @@ import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { getAuthContext } from './lib/auth.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
+import { canAccessBookingConversation, canSendBookingMessage } from './lib/permissions.js';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -186,6 +187,17 @@ const rawHandler = async (event) => {
 
         // 1) Conversation for a specific booking
         if (queryStringParameters?.booking_id) {
+          const booking = await executeQueryOne(
+            'SELECT id, client_id, coach_id FROM bookings WHERE id = $1',
+            [queryStringParameters.booking_id]
+          );
+          if (!booking) {
+            return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+          }
+          if (!canAccessBookingConversation({ booking, userId: currentUserId, isAdmin })) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not permitted to view this booking conversation' }) };
+          }
+
           const baseQuery = `
             SELECT m.*,
                    s.full_name as sender_name, s.avatar_url as sender_avatar,
@@ -309,7 +321,7 @@ const rawHandler = async (event) => {
           };
         }
 
-        if (!isAdmin && messageData.sender_id !== currentUserId) {
+        if (messageData.sender_id !== currentUserId) {
           return {
             statusCode: 403,
             headers,
@@ -332,6 +344,25 @@ const rawHandler = async (event) => {
             headers,
             body: JSON.stringify({ error: 'Message too long (max 5000 characters)' })
           };
+        }
+
+        if (messageData.booking_id) {
+          const booking = await executeQueryOne(
+            'SELECT id, client_id, coach_id FROM bookings WHERE id = $1',
+            [messageData.booking_id]
+          );
+          if (!booking) {
+            return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+          }
+          if (!canSendBookingMessage({
+            booking,
+            userId: currentUserId,
+            senderId: messageData.sender_id,
+            receiverId: messageData.receiver_id,
+            isAdmin
+          })) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not permitted to message this booking' }) };
+          }
         }
 
           const baseInsert = `

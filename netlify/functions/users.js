@@ -3,6 +3,7 @@ import { executeQuery, executeQueryOne } from './lib/db.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js';
 import { getAuthContext, signAuthToken } from './lib/auth.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
+import { canUpdateProfile } from './lib/permissions.js';
 import crypto from 'crypto';
 import { Buffer } from 'buffer';
 import nodemailer from 'nodemailer';
@@ -1232,6 +1233,10 @@ const rawHandler = async (event) => {
 
         if (!currentUserId) {
           return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
+        }
+
+        if (!canUpdateProfile({ targetUserId: userId, userId: currentUserId, isAdmin })) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not permitted to update this profile' }) };
         }
 
         const updateData = JSON.parse(body);
