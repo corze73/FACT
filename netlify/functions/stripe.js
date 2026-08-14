@@ -136,9 +136,15 @@ const rawHandler = async (event) => {
             if (failedBookingId) {
               await executeQuery(
                 `UPDATE bookings 
-                 SET status = 'payment_failed', payment_status = 'failed', updated_at = NOW()
-                 WHERE id = $1`,
+                 SET payment_status = 'failed', updated_at = NOW()
+                 WHERE id = $1 AND status = 'pending'
+                   AND payment_status NOT IN ('captured', 'released', 'refunded')`,
                 [failedBookingId]
+              );
+              await executeQuery(
+                `UPDATE payments SET status = 'failed', updated_at = NOW()
+                 WHERE transaction_id = $1 AND status IN ('pending', 'authorized', 'failed')`,
+                [failedIntent.id]
               );
             }
             break;
