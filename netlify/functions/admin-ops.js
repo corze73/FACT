@@ -652,7 +652,7 @@ const updateDispute = async ({ event, headers, adminId, disputeId }) => {
        RETURNING *`,
       adminId
     ),
-    [status, decision, resolutionNotes, body.assigned_admin_id === undefined ? '__unset__' : '__set__', assignedAdminId, resolvedRefundAmount, disputeId]
+    [status, decision, resolutionNotes, body.assigned_admin_id === undefined ? '__unset__' : '__set__', assignedAdminId ?? null, resolvedRefundAmount, disputeId]
   );
 
   if (!updated) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Dispute not found' }) };
