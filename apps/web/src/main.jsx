@@ -6,6 +6,7 @@ import '@/index.css'
 import { auth } from '@/api/databaseClient.js'
 import { queryClient } from '@/lib/queryClient.js'
 import { initFrontendMonitoring, captureFrontendError } from '@/lib/monitoring.js'
+import AppErrorBoundary from '@/components/AppErrorBoundary.jsx'
 
 // Initialize auth system on app start
 auth.init().catch(console.error);
@@ -37,8 +38,10 @@ try {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <QueryClientProvider client={queryClient}>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
     {/* Show React Query devtools in development */}
     {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
   </QueryClientProvider>
-) 
+)

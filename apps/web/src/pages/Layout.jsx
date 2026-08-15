@@ -6,7 +6,6 @@ import { createLoginUrl, createPageUrl, isAdminUser, normalizeUserType } from "@
 import { User as UserIcon, Calendar, Search, MessageCircle, Star, LogOut, ShieldCheck, ShieldAlert, ScrollText, BriefcaseBusiness, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBookingSearch } from "@/components/admin/SidebarBookingSearch";
-import DevelopmentDisclaimer from "@/components/DevelopmentDisclaimer";
 import { User, Booking, Message } from "@/api/entities.jsx";
 import { apiClient } from "@/api/apiClient.js";
 import { getStoredCurrentUser } from "@/api/databaseClient.js";
@@ -185,8 +184,22 @@ export default function Layout({ children, currentPageName }) {
   };
 
   // Hide layout for full-screen pages like public/auth entry points and conversation.
-  if (currentPageName === 'Conversation' || currentPageName === 'Landing' || currentPageName === 'Login') {
-    return children;
+  if (currentPageName === 'Conversation') {
+    return (
+      <>
+        <a href="#main-content" className="skip-link">Skip to main content</a>
+        {children}
+      </>
+    );
+  }
+
+  if (currentPageName === 'Landing' || currentPageName === 'Login') {
+    return (
+      <>
+        <a href="#main-content" className="skip-link">Skip to main content</a>
+        <main id="main-content" tabIndex="-1">{children}</main>
+      </>
+    );
   }
 
   const getNavigationItems = () => {
@@ -236,7 +249,8 @@ export default function Layout({ children, currentPageName }) {
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col">
-        {children}
+        <a href="#main-content" className="skip-link">Skip to main content</a>
+        <main id="main-content" tabIndex="-1" className="flex-1">{children}</main>
         <footer className="mt-auto py-6 border-t border-slate-200 bg-white/80">
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-3">
             <p className="text-slate-500 text-sm">© {new Date().getFullYear()} FACT</p>
@@ -254,6 +268,7 @@ export default function Layout({ children, currentPageName }) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 to-blue-50">
+        <a href="#main-content" className="skip-link">Skip to main content</a>
         <Sidebar className="border-r border-slate-200 bg-white/80 backdrop-blur-sm">
           <SidebarHeader className="border-b border-slate-200 p-6">
             <div className="flex items-center gap-3">
@@ -333,7 +348,7 @@ export default function Layout({ children, currentPageName }) {
           </SidebarFooter>
         </Sidebar>
 
-        <main className="flex-1 flex flex-col">
+        <main id="main-content" tabIndex="-1" className="flex-1 flex flex-col">
           <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 px-6 py-4">
             <div className="flex items-center gap-4 w-full">
               <SidebarTrigger className="hover:bg-slate-100 p-2 rounded-lg transition-colors duration-200 lg:hidden" />
@@ -345,7 +360,7 @@ export default function Layout({ children, currentPageName }) {
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <h1 className="text-xl font-bold text-slate-900">FACT</h1>
+                <span className="text-xl font-bold text-slate-900">FACT</span>
               </Link>
               <div className="ml-auto">
                 {currentUser ? (
@@ -368,9 +383,6 @@ export default function Layout({ children, currentPageName }) {
 
           <footer className="py-6 border-t border-slate-200 bg-white/80">
             <div className="max-w-7xl mx-auto px-6">
-              {/* Development Disclaimer */}
-              <DevelopmentDisclaimer />
-              
               {/* Footer Links */}
               <div className="flex flex-col md:flex-row items-center justify-between gap-3">
                 <p className="text-slate-500 text-sm">© {new Date().getFullYear()} FACT</p>

@@ -1,55 +1,32 @@
 import Layout from "./Layout.jsx";
-
-import Landing from "./Landing";
-
-import Login from "./Login";
-
-import Register from "./Register";
-
-import FindCoaches from "./FindCoaches";
-
-import MyBookings from "./MyBookings";
-
-import CoachDashboard from "./CoachDashboard";
-
-import UserProfile from "./UserProfile";
-
-import CoachProfile from "./CoachProfile";
-
-import Help from "./Help";
-
-import Messages from "./Messages";
-
-import Conversation from "./Conversation";
-
-import AdminDashboard from "./AdminDashboard";
-
-import AdminUsers from "./AdminUsers";
-
-import AdminBookings from "./AdminBookings";
-
-import AdminVerifications from "./AdminVerifications";
-
-import AdminAuditLogs from "./AdminAuditLogs";
-
-import AdminOperations from "./AdminOperations";
-
-import AdminInvite from "./AdminInvite";
-
-import ForgotPassword from "./ForgotPassword";
-
-import ResetPassword from "./ResetPassword";
-
-import PrivacyPolicy from "./PrivacyPolicy";
-
-import Terms from "./Terms";
-
-import SafeguardingReport from "./SafeguardingReport";
-
-import SafeguardingPolicy from "./SafeguardingPolicy";
-
-
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+
+const Landing = lazy(() => import('./Landing'));
+const Login = lazy(() => import('./Login'));
+const Register = lazy(() => import('./Register'));
+const FindCoaches = lazy(() => import('./FindCoaches'));
+const MyBookings = lazy(() => import('./MyBookings'));
+const CoachDashboard = lazy(() => import('./CoachDashboard'));
+const UserProfile = lazy(() => import('./UserProfile'));
+const CoachProfile = lazy(() => import('./CoachProfile'));
+const Help = lazy(() => import('./Help'));
+const Messages = lazy(() => import('./Messages'));
+const Conversation = lazy(() => import('./Conversation'));
+const AdminDashboard = lazy(() => import('./AdminDashboard'));
+const AdminUsers = lazy(() => import('./AdminUsers'));
+const AdminBookings = lazy(() => import('./AdminBookings'));
+const AdminVerifications = lazy(() => import('./AdminVerifications'));
+const AdminAuditLogs = lazy(() => import('./AdminAuditLogs'));
+const AdminOperations = lazy(() => import('./AdminOperations'));
+const AdminInvite = lazy(() => import('./AdminInvite'));
+const ForgotPassword = lazy(() => import('./ForgotPassword'));
+const ResetPassword = lazy(() => import('./ResetPassword'));
+const PrivacyPolicy = lazy(() => import('./PrivacyPolicy'));
+const Terms = lazy(() => import('./Terms'));
+const SafeguardingReport = lazy(() => import('./SafeguardingReport'));
+const SafeguardingPolicy = lazy(() => import('./SafeguardingPolicy'));
+const NotFound = lazy(() => import('./NotFound'));
 
 const PAGES = {
     
@@ -100,7 +77,8 @@ const PAGES = {
     SafeguardingReport: SafeguardingReport,
 
     SafeguardingPolicy: SafeguardingPolicy,
-    
+
+    NotFound: NotFound,
 }
 
 function _getCurrentPage(url) {
@@ -113,7 +91,15 @@ function _getCurrentPage(url) {
     }
 
     const pageName = Object.keys(PAGES).find(page => page.toLowerCase() === urlLastPart.toLowerCase());
-    return pageName || Object.keys(PAGES)[0];
+    return pageName || 'NotFound';
+}
+
+function PageLoading() {
+    return (
+        <div className="flex min-h-[50vh] items-center justify-center px-6" role="status" aria-live="polite">
+            <p className="font-medium text-slate-600">Loading page…</p>
+        </div>
+    );
 }
 
 // Create a wrapper component that uses useLocation inside the Router context
@@ -123,6 +109,7 @@ function PagesContent() {
     
     return (
         <Layout currentPageName={currentPage}>
+          <Suspense fallback={<PageLoading />}>
             <Routes>            
                 
                     <Route path="/" element={<Landing />} />
@@ -199,8 +186,10 @@ function PagesContent() {
 
                 <Route path="/SafeguardingPolicy" element={<SafeguardingPolicy />} />
                 <Route path="/safeguardingpolicy" element={<SafeguardingPolicy />} />
-                
+
+                <Route path="*" element={<NotFound />} />
             </Routes>
+          </Suspense>
         </Layout>
     );
 }
