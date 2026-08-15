@@ -28,6 +28,16 @@ describe('application authentication tokens', () => {
     }))).toBeNull();
   });
 
+  it('rejects expired tokens', () => {
+    vi.stubEnv('JWT_SECRET', 'test-secret-that-is-long-enough-for-tests');
+    const token = signAuthToken(
+      { sub: '693edb55-7c22-4e4d-a828-4808de33239e' },
+      { expiresInSeconds: -10 }
+    );
+
+    expect(verifyAuthToken(token)).toBeNull();
+  });
+
   it('can issue a replacement token strictly after a session revocation', () => {
     vi.stubEnv('JWT_SECRET', 'test-secret-that-is-long-enough-for-tests');
     const token = signAuthToken(

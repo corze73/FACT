@@ -1,24 +1,18 @@
 import 'dotenv/config';
 import { signAuthToken } from '../netlify/functions/lib/auth.js';
-import { executeQueryOne } from '../netlify/functions/lib/db.js';
 
 const base = process.env.PHASE4_BASE_URL || 'http://localhost:8888';
 
-const user = await executeQueryOne(
-  "SELECT id, email, user_type FROM profiles WHERE user_type IN ('client','coach','admin') LIMIT 1",
-  []
-);
-
-if (!user?.id) {
-  throw new Error('No user found for auth expiry test');
-}
-
 const expiredToken = signAuthToken(
-  { sub: user.id, email: user.email, user_type: user.user_type },
+  {
+    sub: '00000000-0000-4000-8000-000000000001',
+    email: 'expired-session-test@example.com',
+    user_type: 'admin'
+  },
   { expiresInSeconds: -10 }
 );
 
-const url = `${base}/.netlify/functions/users/${user.id}`;
+const url = `${base}/.netlify/functions/users/auth-logs`;
 const response = await fetch(url, {
   headers: {
     Authorization: `Bearer ${expiredToken}`
@@ -34,3 +28,5 @@ console.log(JSON.stringify({
   passes: response.status === 401,
   body
 }, null, 2));
+
+if (response.status !== 401) process.exitCode = 1;
