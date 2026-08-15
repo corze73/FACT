@@ -907,12 +907,13 @@ const rawHandler = async (event) => {
             withUserCtx('UPDATE profiles SET token_revoked_at = NOW(), updated_at = NOW() WHERE id = $1', rpUser.id),
             [rpUser.id]
           );
-          const rpProfile = await executeQueryOne(withUserCtx('SELECT * FROM profiles WHERE id = $1', rpUser.id), [rpUser.id]);
+          const rpProfile = await executeQueryOne(withUserCtx('SELECT id FROM profiles WHERE id = $1', rpUser.id), [rpUser.id]);
           if (!rpProfile) {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'User account not found' }) };
           }
-          const rpToken = signTokenAfterSessionRevocation(rpProfile);
-          return { statusCode: 200, headers, body: JSON.stringify({ success: true, token: rpToken, user: rpProfile }) };
+          // Do not create a replacement session here. Password recovery is a
+          // public flow and must always finish signed out.
+          return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
         }
 
         // ---------------------------------------------------------------

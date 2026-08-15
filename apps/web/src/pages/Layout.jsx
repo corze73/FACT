@@ -193,7 +193,15 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
-  if (currentPageName === 'Landing' || currentPageName === 'Login') {
+  const isStandalonePublicPage = [
+    'Landing',
+    'Login',
+    'Register',
+    'ForgotPassword',
+    'ResetPassword'
+  ].includes(currentPageName);
+
+  if (isStandalonePublicPage) {
     return (
       <>
         <a href="#main-content" className="skip-link">Skip to main content</a>
@@ -240,7 +248,7 @@ export default function Layout({ children, currentPageName }) {
     return createPageUrl("Landing");
   };
 
-  const isAuthPage = currentPageName === 'Landing' || currentPageName === 'Login';
+  const isAuthPage = isStandalonePublicPage;
   if (!authBootstrapDone && !isAuthPage) {
     return <div className="p-8">Loading...</div>;
   }

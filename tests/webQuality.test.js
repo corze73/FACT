@@ -40,4 +40,17 @@ describe('web quality safeguards', () => {
 
     expect(layout).not.toContain('DevelopmentDisclaimer');
   });
+
+  it('keeps password recovery outside authenticated account layouts', () => {
+    const layout = read('apps/web/src/pages/Layout.jsx');
+    const entities = read('apps/web/src/api/entities.jsx');
+    const resetPage = read('apps/web/src/pages/ResetPassword.jsx');
+
+    expect(layout).toContain("'ForgotPassword'");
+    expect(layout).toContain("'ResetPassword'");
+    expect(layout).toContain('isStandalonePublicPage');
+    expect(entities).toContain('await auth.signOut()');
+    expect(entities).not.toContain('// Auto-login the user after a successful password reset');
+    expect(resetPage).toContain('Please sign in again with your new password.');
+  });
 });
