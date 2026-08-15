@@ -449,17 +449,9 @@ User.forgotPassword = async function(email) {
 
 User.resetPassword = async function(token, newPassword) {
   const result = await apiClient.resetPassword({ token, newPassword });
-  // Auto-login the user after a successful password reset
-  if (result?.token && result?.user) {
-    await auth.setCurrentUser({
-      id: result.user.id,
-      email: result.user.email,
-      full_name: result.user.full_name,
-      user_type: result.user.user_type,
-      role: result.user.role,
-      token: result.token
-    });
-  }
+  // A password reset revokes every existing session. Keep this browser signed
+  // out too, so the user must authenticate again with the new password.
+  await auth.signOut();
   return result;
 };
 

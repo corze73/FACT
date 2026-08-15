@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { calculateBookingPrice } from '../netlify/functions/lib/bookingPricing.js';
 import { getPasswordResetBaseUrl, verifyGoogleAccessToken } from '../netlify/functions/users.js';
 import { signAuthToken, verifyAuthToken } from '../netlify/functions/lib/auth.js';
+
+const read = (path) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -94,5 +98,15 @@ describe('password reset link origin', () => {
     expect(getPasswordResetBaseUrl()).toBe('https://findacoachtoday.com');
     vi.stubEnv('APP_BASE_URL', 'http://attacker.example');
     expect(getPasswordResetBaseUrl()).toBe('https://findacoachtoday.com');
+  });
+});
+
+describe('password reset session handling', () => {
+  it('revokes existing sessions without returning a replacement login token', () => {
+    const usersFunction = read('netlify/functions/users.js');
+
+    expect(usersFunction).toContain('UPDATE profiles SET token_revoked_at = NOW()');
+    expect(usersFunction).toContain("JSON.stringify({ success: true })");
+    expect(usersFunction).not.toContain('const rpToken = signTokenAfterSessionRevocation(rpProfile)');
   });
 });

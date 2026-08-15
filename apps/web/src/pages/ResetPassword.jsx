@@ -57,7 +57,8 @@ export default function ResetPassword() {
       const { User } = await import('@/api/entities.jsx');
       await User.resetPassword(token, newPassword);
       setSuccess(true);
-      // After 2 seconds, redirect to dashboard
+      // All sessions are revoked after a password change. Return to Login so
+      // the user explicitly authenticates with the new password.
       setTimeout(() => {
         navigate(createLoginUrl(), { replace: true });
       }, 2000);
@@ -105,7 +106,7 @@ export default function ResetPassword() {
                 <div className="flex flex-col items-center gap-4 py-4 text-center">
                   <CheckCircle className="w-12 h-12 text-green-500" />
                   <p className="text-slate-700 font-medium">Password updated!</p>
-                  <p className="text-slate-500 text-sm">You're being signed in automatically…</p>
+                  <p className="text-slate-500 text-sm">Please sign in again with your new password.</p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
