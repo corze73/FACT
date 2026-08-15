@@ -15,11 +15,20 @@ import { checkRateLimit } from "@/lib/rateLimiter";
 import { alertToast } from "@/utils/notifications";
 import { createPageUrl } from "@/utils";
 import { POLICY_VERSION } from "@/lib/policyConstants";
+import { CoachAvailability, CoachRecurringAvailability } from "@/api/entities.jsx";
+import {
+  buildAvailableTimeSlots,
+  calculateSessionPrice,
+  getCoachHourlyRate,
+  isCoachDateAvailable,
+} from "@/utils/bookingAvailability";
+
+const DEFAULT_SERVICE_TYPE = '1-to-1 Football Coaching';
 
 export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
-  const DEFAULT_SERVICE_TYPE = '1-to-1 Football Coaching';
-  const servicePrice = coach?.coach_profile?.hourly_rate || 50;
-  const paymentBreakdown = calculatePaymentBreakdown(servicePrice);
+  const hourlyRate = getCoachHourlyRate(coach);
+  const initialSessionPrice = calculateSessionPrice(hourlyRate, 60);
+  const paymentBreakdown = calculatePaymentBreakdown(initialSessionPrice);
   const serviceTypes = useMemo(() => {
     const coachServices = coach?.services_offered ?? coach?.coach_profile?.services_offered ?? [];
     const normalizedServices = Array.isArray(coachServices)
@@ -27,7 +36,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       : [];
 
     return normalizedServices.length > 0 ? normalizedServices : [DEFAULT_SERVICE_TYPE];
-  }, [coach, DEFAULT_SERVICE_TYPE]);
+  }, [coach]);
   
   const [bookingData, setBookingData] = useState({
     service_type: serviceTypes[0] || DEFAULT_SERVICE_TYPE,
@@ -40,25 +49,78 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       notes: ''
     },
     client_notes: '',
-    price: servicePrice,
+    price: initialSessionPrice,
     admin_fee: paymentBreakdown.adminFee,
     total_price: paymentBreakdown.totalAmount
   });
 
   const [validationErrors, setValidationErrors] = useState({});
   const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [recurringAvailability, setRecurringAvailability] = useState([]);
+  const [dateAvailability, setDateAvailability] = useState([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
 
-    setBookingData((prev) => {
-      const currentService = typeof prev.service_type === 'string' ? prev.service_type : '';
-      const nextService = serviceTypes.includes(currentService) ? currentService : serviceTypes[0];
+    const sessionPrice = calculateSessionPrice(hourlyRate, 60);
+    const breakdown = calculatePaymentBreakdown(sessionPrice);
+    setBookingData((prev) => ({
+      ...prev,
+      service_type: serviceTypes[0] || DEFAULT_SERVICE_TYPE,
+      session_date: null,
+      session_time: '',
+      duration: 60,
+      price: sessionPrice,
+      admin_fee: breakdown.adminFee,
+      total_price: breakdown.totalAmount,
+    }));
+    setPolicyAccepted(false);
+    setValidationErrors({});
+  }, [hourlyRate, isOpen, serviceTypes]);
 
-      if (nextService === currentService) return prev;
-      return { ...prev, service_type: nextService };
-    });
-  }, [isOpen, serviceTypes]);
+  useEffect(() => {
+    if (!isOpen || !coach?.id) return undefined;
+
+    let cancelled = false;
+    setAvailabilityLoading(true);
+    setAvailabilityError('');
+
+    Promise.all([
+      CoachRecurringAvailability.getByCoachId(coach.id),
+      CoachAvailability.getByCoachId(coach.id),
+    ])
+      .then(([recurring, dated]) => {
+        if (cancelled) return;
+        setRecurringAvailability(Array.isArray(recurring) ? recurring : []);
+        setDateAvailability(Array.isArray(dated) ? dated : []);
+      })
+      .catch((error) => {
+        console.error('Failed to load coach availability:', error);
+        if (!cancelled) setAvailabilityError('Coach availability could not be loaded. Please try again.');
+      })
+      .finally(() => {
+        if (!cancelled) setAvailabilityLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coach?.id, isOpen]);
+
+  const availableTimeSlots = useMemo(() => buildAvailableTimeSlots({
+    date: bookingData.session_date,
+    durationMinutes: bookingData.duration,
+    recurringAvailability,
+    dateAvailability,
+  }), [bookingData.duration, bookingData.session_date, dateAvailability, recurringAvailability]);
+
+  useEffect(() => {
+    if (bookingData.session_time && !availableTimeSlots.includes(bookingData.session_time)) {
+      setBookingData((prev) => ({ ...prev, session_time: '' }));
+    }
+  }, [availableTimeSlots, bookingData.session_time]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -77,6 +139,10 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
         session_time: ['Please select a time']
       });
       alertToast('Please select a session date and time');
+      return;
+    }
+    if (availabilityLoading || availabilityError || !availableTimeSlots.includes(bookingData.session_time)) {
+      alertToast(availabilityError || 'That time is no longer available. Please select another time.');
       return;
     }
     if (!policyAccepted) {
@@ -128,31 +194,29 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
     });
   };
 
-  const timeSlots = [
-    '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', 
-    '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
-  ];
-
   const formatServiceName = (service) => {
     return service.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const isDateDisabled = (date) => {
-    return isBefore(date, new Date()) && !isToday(date);
+    const isPast = isBefore(date, new Date()) && !isToday(date);
+    return isPast || (!availabilityLoading && !availabilityError && !isCoachDateAvailable(
+      date,
+      recurringAvailability,
+      dateAvailability,
+    ));
   };
 
   const updatePrice = (duration) => {
-    const rate = coach?.coach_profile?.hourly_rate || 0;
-    const sessionPrice = rate; // Use full hourly rate regardless of duration for simplicity
-    const adminFee = 3;
-    const totalPrice = sessionPrice + adminFee;
+    const sessionPrice = calculateSessionPrice(hourlyRate, duration);
+    const breakdown = calculatePaymentBreakdown(sessionPrice);
     
     setBookingData(prev => ({ 
       ...prev, 
       duration, 
       price: sessionPrice, 
-      admin_fee: adminFee,
-      total_price: totalPrice
+      admin_fee: breakdown.adminFee,
+      total_price: breakdown.totalAmount
     }));
   };
 
@@ -171,7 +235,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
             <div>
               <h3 className="font-bold">Book with {coach.full_name}</h3>
               <p className="text-sm text-slate-600 font-normal">
-                £{coach.coach_profile?.hourly_rate}/hour + £3 admin fee
+                £{hourlyRate.toFixed(2)}/hour + £{paymentBreakdown.adminFee.toFixed(2)} admin fee
               </p>
             </div>
           </DialogTitle>
@@ -224,7 +288,7 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
                 <Calendar
                   mode="single"
                   selected={bookingData.session_date}
-                  onSelect={(date) => setBookingData(prev => ({ ...prev, session_date: date }))}
+                  onSelect={(date) => setBookingData(prev => ({ ...prev, session_date: date, session_time: '' }))}
                   disabled={isDateDisabled}
                   fromDate={new Date()}
                   toDate={addDays(new Date(), 90)}
@@ -242,12 +306,13 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
             <Select
               value={bookingData.session_time}
               onValueChange={(value) => setBookingData(prev => ({ ...prev, session_time: value }))}
+              disabled={!bookingData.session_date || availabilityLoading || Boolean(availabilityError) || availableTimeSlots.length === 0}
             >
               <SelectTrigger className={validationErrors.session_time ? 'border-red-500' : ''}>
-                <SelectValue placeholder="Select time" />
+                <SelectValue placeholder={availabilityLoading ? 'Loading times...' : 'Select time'} />
               </SelectTrigger>
               <SelectContent>
-                {timeSlots.map((time) => (
+                {availableTimeSlots.map((time) => (
                   <SelectItem key={time} value={time}>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4" />
@@ -259,6 +324,10 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
             </Select>
             {validationErrors.session_time && (
               <p className="text-sm text-red-500">{validationErrors.session_time}</p>
+            )}
+            {availabilityError && <p className="text-sm text-red-500">{availabilityError}</p>}
+            {!availabilityLoading && !availabilityError && bookingData.session_date && availableTimeSlots.length === 0 && (
+              <p className="text-sm text-slate-500">No times are available on this date for the selected duration.</p>
             )}
           </div>
 
@@ -343,15 +412,15 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span>Session ({bookingData.duration} mins):</span>
-                <span>£{bookingData.price}</span>
+                <span>£{Number(bookingData.price).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>Administration fee:</span>
-                <span>£{bookingData.admin_fee}</span>
+                <span>£{Number(bookingData.admin_fee).toFixed(2)}</span>
               </div>
               <div className="border-t pt-2 flex justify-between items-center font-bold">
                 <span>Total:</span>
-                <span className="text-2xl text-blue-600">£{bookingData.total_price}</span>
+                <span className="text-2xl text-blue-600">£{Number(bookingData.total_price).toFixed(2)}</span>
               </div>
             </div>
             <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
