@@ -22,7 +22,22 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q '"status"' /tmp/health.json; then
-            echo "Missing status field in health payload"
+          if ! jq -e '.status == "ok"' /tmp/health.json >/dev/null; then
+            echo "Application health is degraded"
+            exit 1
+          fi
+
+          if ! jq -e '.db.connected == true' /tmp/health.json >/dev/null; then
+            echo "Database connection is unavailable"
+            exit 1
+          fi
+
+          if ! jq -e '.stripe.configured == true and .stripe.mode_mismatch == false' /tmp/health.json >/dev/null; then
+            echo "Stripe configuration is incomplete or mismatched"
+            exit 1
+          fi
+
+          if ! jq -e '.email.configured == true' /tmp/health.json >/dev/null; then
+            echo "Transactional email configuration is incomplete"
             exit 1
           fi
