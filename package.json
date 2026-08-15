@@ -456,7 +456,8 @@
     "phase4:health": "node scripts/phase4-health-check.mjs",
     "phase4:rate-limit": "node scripts/phase4-rate-limit-test.mjs",
     "phase4:auth-expiry": "node scripts/phase4-auth-expiry-test.mjs",
-    "phase4:headers": "node scripts/phase4-security-headers.mjs"
+    "phase4:headers": "node scripts/phase4-security-headers.mjs",
+    "migrate:transactional-email": "node scripts/apply-transactional-email-migration.js"
   },
   "repository": {
     "type": "git",

@@ -7,6 +7,7 @@ import { getAuthContext } from './lib/auth.js'
 import { rateLimitMiddleware, RATE_LIMITS } from './lib/rateLimiter.js'
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js'
 import { calculateCancellationPolicy } from './lib/paymentPolicy.js'
+import { notifyBookingEvent } from './lib/transactionalEmail.js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
@@ -105,6 +106,7 @@ const rawHandler = async (event) => {
                  WHERE transaction_id = $1`,
                 [successIntent.id, successIntent.latest_charge || null]
               );
+              await notifyBookingEvent(successBookingId, 'payment_confirmed');
             }
             break;
           }
@@ -306,6 +308,11 @@ const rawHandler = async (event) => {
            updated_at = NOW() WHERE id = $1 RETURNING *`,
         [booking_id, actor, String(reason).trim(), eligibleAt, refundPence]
       )
+      await notifyBookingEvent(booking_id, 'booking_cancelled', {
+        cancelledBy: actor,
+        refundAmount: refundPence / 100,
+        refundPolicy: refundDescription
+      })
       return json(200, { ...updated, refund_amount: refundPence / 100, refund_policy: refundDescription })
     }
 
@@ -469,6 +476,8 @@ const rawHandler = async (event) => {
          WHERE booking_id = $1 AND transaction_id = $2`,
         [booking_id, payment_intent_id, paymentIntent.latest_charge || null]
       );
+
+      await notifyBookingEvent(booking_id, 'payment_confirmed');
       
       return json(200, { success: true, payment_status: 'captured' })
     }
