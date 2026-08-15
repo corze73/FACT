@@ -4,6 +4,7 @@ import { rateLimitMiddleware, getLimitByMethod } from './lib/rateLimiter.js';
 import { getAuthContext } from './lib/auth.js';
 import { withFunctionObservability, captureFunctionError } from './lib/observability.js';
 import { calculateBookingPrice } from './lib/bookingPricing.js';
+import { notifyBookingEvent } from './lib/transactionalEmail.js';
 
 const CURRENT_POLICY_VERSION = '2026-08-14';
 
@@ -441,6 +442,8 @@ const rawHandler = async (event) => {
           ]
         );
 
+        await notifyBookingEvent(newBooking.id, 'booking_requested');
+
         return { statusCode: 201, headers, body: JSON.stringify(newBooking) };
       }
 
@@ -545,6 +548,14 @@ const rawHandler = async (event) => {
 
         if (!updatedBooking) {
           return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
+        }
+
+        if (updateData.cancel === true) {
+          await notifyBookingEvent(updatedBooking.id, 'booking_cancelled', {
+            cancelledBy: isAdmin ? 'admin' : (isCoach ? 'coach' : 'client'),
+            refundAmount: 0,
+            refundPolicy: 'No captured payment was attached to this cancellation'
+          });
         }
 
         return { statusCode: 200, headers, body: JSON.stringify(updatedBooking) };
