@@ -1,0 +1,43 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { cwd } from 'node:process';
+
+const read = (path) => readFileSync(resolve(cwd(), path), 'utf8');
+
+describe('web quality safeguards', () => {
+  it('provides keyboard navigation landmarks and visible focus', () => {
+    const layout = read('apps/web/src/pages/Layout.jsx');
+    const css = read('apps/web/src/index.css');
+
+    expect(layout).toContain('Skip to main content');
+    expect(layout).toContain('id="main-content"');
+    expect(css).toContain(':focus-visible');
+    expect(css).toContain('prefers-reduced-motion: reduce');
+  });
+
+  it('shows recoverable error and unknown-page states', () => {
+    const main = read('apps/web/src/main.jsx');
+    const routes = read('apps/web/src/pages/index.jsx');
+    const boundary = read('apps/web/src/components/AppErrorBoundary.jsx');
+
+    expect(main).toContain('<AppErrorBoundary>');
+    expect(boundary).toContain('Reload page');
+    expect(boundary).toContain("source: 'react.error-boundary'");
+    expect(routes).toContain('<Route path="*" element={<NotFound />} />');
+  });
+
+  it('loads page-level journeys on demand', () => {
+    const routes = read('apps/web/src/pages/index.jsx');
+
+    expect(routes).toContain("import { lazy, Suspense } from 'react'");
+    expect(routes).toContain("const AdminDashboard = lazy(() => import('./AdminDashboard'))");
+    expect(routes).toContain('<Suspense fallback={<PageLoading />}>');
+  });
+
+  it('does not show development-only availability warnings in the live layout', () => {
+    const layout = read('apps/web/src/pages/Layout.jsx');
+
+    expect(layout).not.toContain('DevelopmentDisclaimer');
+  });
+});
