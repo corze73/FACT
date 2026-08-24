@@ -44,12 +44,15 @@ describe('application authentication tokens', () => {
 
   it('can issue a replacement token strictly after a session revocation', () => {
     vi.stubEnv('JWT_SECRET', 'test-secret-that-is-long-enough-for-tests');
+    const revokedAtSeconds = Math.floor(Date.now() / 1000) - 1;
+    const replacementIssuedAtSeconds = revokedAtSeconds + 1;
     const token = signAuthToken(
       { sub: '693edb55-7c22-4e4d-a828-4808de33239e' },
-      { issuedAtSeconds: 1_786_665_601 }
+      { issuedAtSeconds: replacementIssuedAtSeconds }
     );
 
-    expect(verifyAuthToken(token)).toMatchObject({ iat: 1_786_665_601 });
+    expect(replacementIssuedAtSeconds).toBeGreaterThan(revokedAtSeconds);
+    expect(verifyAuthToken(token)).toMatchObject({ iat: replacementIssuedAtSeconds });
   });
 });
 
