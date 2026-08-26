@@ -193,6 +193,14 @@ export default function CoachDashboard() {
             <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-slate-500" /><span>{booking.session_time} ({booking.duration} mins)</span></div>
             <div className="flex items-center gap-2 col-span-2"><MapPin className="w-4 h-4 text-slate-500" /><span>{formatLocationLabel(booking)}</span></div>
           </div>
+          {booking.minor_participant_id && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+              <p className="font-semibold text-amber-900">Session involving a child</p>
+              <p>Participant: {booking.participant_name} (age {booking.participant_age})</p>
+              <p className="text-amber-800">The account holder is the responsible guardian. Follow the agreed supervision and safeguarding plan.</p>
+              {booking.participant_support_notes && <p className="mt-2"><strong>Support information:</strong> {booking.participant_support_notes}</p>}
+            </div>
+          )}
           
           {/* Session Status Component for confirmed/active bookings */}
           {['confirmed', 'in_session', 'completed'].includes(booking.status) && currentUser && (

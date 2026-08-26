@@ -23,6 +23,7 @@ export default function Terms() {
           <Section title="2. Eligibility and accounts">
             <ul className="list-disc ml-6 space-y-1">
               <li>Account holders must be at least 18. A parent or legal guardian must create the account, make the booking and supervise as appropriate for a player under 18.</li>
+              <li>A child is added only as a participant managed by the responsible adult. Children do not receive login credentials, payment access or private coach messaging.</li>
               <li>You must give accurate information, protect your login details and tell us promptly about unauthorised use.</li>
               <li>You may not impersonate another person, evade a suspension or use FACT for unlawful, abusive or unsafe conduct.</li>
             </ul>
@@ -32,6 +33,7 @@ export default function Terms() {
               <li>Coaches act independently and are responsible for delivering sessions with reasonable care and skill, maintaining suitable insurance, qualifications and required background checks.</li>
               <li>FACT verification indicates that submitted evidence passed our platform review at that time; it is not a guarantee of performance or future conduct.</li>
               <li>Coaches must follow the FACT Safeguarding Policy, respect professional boundaries and immediately report safeguarding concerns.</li>
+              <li>Coaches must be at least 18 and complete Stripe identity and payout onboarding before receiving earnings.</li>
             </ul>
           </Section>
           <Section title="4. Bookings, prices and payment">

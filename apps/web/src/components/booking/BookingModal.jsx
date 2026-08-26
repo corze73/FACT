@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -16,6 +17,7 @@ import { alertToast } from "@/utils/notifications";
 import { createPageUrl } from "@/utils";
 import { POLICY_VERSION } from "@/lib/policyConstants";
 import { CoachAvailability, CoachRecurringAvailability } from "@/api/entities.jsx";
+import { getStoredAuthToken } from "@/api/databaseClient.js";
 import {
   buildAvailableTimeSlots,
   calculateSessionPrice,
@@ -60,6 +62,14 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
   const [dateAvailability, setDateAvailability] = useState([]);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState('');
+  const [participants, setParticipants] = useState([]);
+  const [participantChoice, setParticipantChoice] = useState('self');
+  const [guardianAttendanceConfirmed, setGuardianAttendanceConfirmed] = useState(false);
+  const [newParticipant, setNewParticipant] = useState({
+    full_name: '', date_of_birth: '', relationship_to_guardian: 'parent',
+    emergency_contact_name: '', emergency_contact_phone: '', medical_or_access_notes: ''
+  });
+  const [savingParticipant, setSavingParticipant] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -109,6 +119,37 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
     };
   }, [coach?.id, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    getStoredAuthToken().then((token) => fetch('/.netlify/functions/participants', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })).then((response) => response.ok ? response.json() : []).then((data) => {
+      setParticipants(Array.isArray(data) ? data : []);
+    }).catch(() => setParticipants([]));
+    setParticipantChoice('self');
+    setGuardianAttendanceConfirmed(false);
+  }, [isOpen]);
+
+  const addParticipant = async () => {
+    setSavingParticipant(true);
+    try {
+      const token = await getStoredAuthToken();
+      const response = await fetch('/.netlify/functions/participants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ ...newParticipant, guardian_consent: true })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to add participant');
+      setParticipants((current) => [...current, data]);
+      setParticipantChoice(data.id);
+    } catch (error) {
+      alertToast(error.message);
+    } finally {
+      setSavingParticipant(false);
+    }
+  };
+
   const availableTimeSlots = useMemo(() => buildAvailableTimeSlots({
     date: bookingData.session_date,
     durationMinutes: bookingData.duration,
@@ -149,6 +190,10 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       alertToast('Please accept the cancellation and no-show policy.');
       return;
     }
+    if (participantChoice !== 'self' && participantChoice !== 'new' && !guardianAttendanceConfirmed) {
+      alertToast('Confirm that a parent or legal guardian will attend or provide the required supervision.');
+      return;
+    }
 
     // Combine date + time into a single booking_date (ISO string)
     const datePart = format(bookingData.session_date, 'yyyy-MM-dd');
@@ -165,7 +210,9 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
       client_notes: bookingData.client_notes || '',
       price: bookingData.price,
       admin_fee: bookingData.admin_fee,
-      total_price: bookingData.total_price
+      total_price: bookingData.total_price,
+      minor_participant_id: participantChoice !== 'self' && participantChoice !== 'new' ? participantChoice : null,
+      guardian_attendance_confirmed: participantChoice !== 'self' && participantChoice !== 'new' ? guardianAttendanceConfirmed : false
     };
 
     // Validate booking data using safeValidate
@@ -245,6 +292,57 @@ export default function BookingModal({ isOpen, onClose, coach, onSubmit }) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-3 rounded-lg border p-4 bg-blue-50/40">
+            <Label>Who is taking part? *</Label>
+            <Select value={participantChoice} onValueChange={(value) => {
+              setParticipantChoice(value);
+              setGuardianAttendanceConfirmed(false);
+            }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="self">Me (adult account holder)</SelectItem>
+                {participants.map((participant) => (
+                  <SelectItem key={participant.id} value={participant.id}>{participant.full_name} (under 18)</SelectItem>
+                ))}
+                <SelectItem value="new">Add a child participant</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {participantChoice === 'new' && (
+              <div className="space-y-3 rounded-md bg-white p-3 border">
+                <Input placeholder="Child's full name" value={newParticipant.full_name}
+                  onChange={(e) => setNewParticipant((p) => ({ ...p, full_name: e.target.value }))} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Date of birth</Label><Input type="date" value={newParticipant.date_of_birth}
+                    onChange={(e) => setNewParticipant((p) => ({ ...p, date_of_birth: e.target.value }))} /></div>
+                  <div><Label>Your relationship</Label><Select value={newParticipant.relationship_to_guardian}
+                    onValueChange={(value) => setNewParticipant((p) => ({ ...p, relationship_to_guardian: value }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+                      <SelectItem value="parent">Parent</SelectItem><SelectItem value="legal_guardian">Legal guardian</SelectItem>
+                    </SelectContent></Select></div>
+                </div>
+                <Input placeholder="Emergency contact name (optional)" value={newParticipant.emergency_contact_name}
+                  onChange={(e) => setNewParticipant((p) => ({ ...p, emergency_contact_name: e.target.value }))} />
+                <Input placeholder="Emergency contact phone (optional)" value={newParticipant.emergency_contact_phone}
+                  onChange={(e) => setNewParticipant((p) => ({ ...p, emergency_contact_phone: e.target.value }))} />
+                <Textarea placeholder="Medical, accessibility or safeguarding information the coach needs (optional)"
+                  value={newParticipant.medical_or_access_notes}
+                  onChange={(e) => setNewParticipant((p) => ({ ...p, medical_or_access_notes: e.target.value }))} />
+                <p className="text-xs text-slate-600">By adding this child, you confirm you are their parent or legal guardian and consent to FACT using this information to arrange and safeguard sessions.</p>
+                <Button type="button" variant="outline" onClick={addParticipant} disabled={savingParticipant}>
+                  {savingParticipant ? 'Adding…' : 'Add participant'}
+                </Button>
+              </div>
+            )}
+
+            {participantChoice !== 'self' && participantChoice !== 'new' && (
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox checked={guardianAttendanceConfirmed} onCheckedChange={(value) => setGuardianAttendanceConfirmed(value === true)} />
+                <span>I confirm a parent or legal guardian will attend or arrange supervision appropriate to the child, venue and safeguarding plan.</span>
+              </label>
+            )}
+          </div>
+
           {/* Service Type */}
           <div className="space-y-2">
             <Label>Service Type *</Label>

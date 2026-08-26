@@ -457,7 +457,8 @@
     "phase4:rate-limit": "node scripts/phase4-rate-limit-test.mjs",
     "phase4:auth-expiry": "node scripts/phase4-auth-expiry-test.mjs",
     "phase4:headers": "node scripts/phase4-security-headers.mjs",
-    "migrate:transactional-email": "node scripts/apply-transactional-email-migration.js"
+    "migrate:transactional-email": "node scripts/apply-transactional-email-migration.js",
+    "migrate:minor-participants": "node scripts/apply-minor-participants-migration.js"
   },
   "repository": {
     "type": "git",

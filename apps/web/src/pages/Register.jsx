@@ -36,6 +36,7 @@ export default function Register() {
     full_name: '',
     email: '',
     password: '',
+    date_of_birth: '',
     phone: '',
     bio: '',
     location: { address: '' },
@@ -120,6 +121,18 @@ export default function Register() {
       return;
     }
 
+    if (!formData.date_of_birth) {
+      showError('Date of Birth Required', 'Enter your date of birth. FACT accounts are for adults aged 18 or over.');
+      return;
+    }
+    const dob = new Date(`${formData.date_of_birth}T00:00:00`);
+    const adultCutoff = new Date();
+    adultCutoff.setFullYear(adultCutoff.getFullYear() - 18);
+    if (Number.isNaN(dob.getTime()) || dob > adultCutoff) {
+      showError('Adult Account Required', 'A parent or legal guardian must create and manage bookings for a player under 18.');
+      return;
+    }
+
     if (!formData.terms_accepted || !formData.privacy_acknowledged || !formData.adult_account_confirmed) {
       showError('Agreement Required', 'Confirm you are 18 or older and accept the Terms and Privacy Policy.');
       return;
@@ -200,6 +213,13 @@ export default function Register() {
   };
 
   const handleGoogleSignUp = async () => {
+    const dob = new Date(`${formData.date_of_birth || ''}T00:00:00`);
+    const adultCutoff = new Date();
+    adultCutoff.setFullYear(adultCutoff.getFullYear() - 18);
+    if (!formData.date_of_birth || Number.isNaN(dob.getTime()) || dob > adultCutoff) {
+      showError('Adult Account Required', 'FACT accounts are for adults aged 18 or over. A parent or legal guardian must manage a child participant.');
+      return;
+    }
     if (!formData.terms_accepted || !formData.privacy_acknowledged || !formData.adult_account_confirmed) {
       showError('Agreement Required', 'Confirm you are 18 or older and accept the Terms and Privacy Policy.');
       return;
@@ -524,6 +544,18 @@ export default function Register() {
                       onChange={(e) => handleInputChange('full_name', e.target.value)}
                       required
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="date_of_birth">Account holder date of birth *</Label>
+                    <Input
+                      id="date_of_birth"
+                      type="date"
+                      value={formData.date_of_birth}
+                      onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
+                      max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().slice(0, 10)}
+                      required
+                    />
+                    <p className="text-xs text-slate-500">You must be 18 or over. Add young players as participants when booking.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>

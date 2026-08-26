@@ -188,9 +188,14 @@ const rawHandler = async (event) => {
       }
 
       const profile = await executeQueryOne(
-        'SELECT email, stripe_connect_account_id FROM profiles WHERE id = $1',
+        `SELECT email, stripe_connect_account_id, date_of_birth,
+          (date_of_birth IS NOT NULL AND date_of_birth <= CURRENT_DATE - INTERVAL '18 years') AS is_adult
+         FROM profiles WHERE id = $1`,
         [authCtx.userId]
       )
+      if (!profile?.is_adult) {
+        return json(409, { error: 'Coach age must be recorded and verified as 18 or over before payout onboarding' })
+      }
       let accountId = profile?.stripe_connect_account_id
       if (!accountId) {
         const account = await stripe.accounts.create({

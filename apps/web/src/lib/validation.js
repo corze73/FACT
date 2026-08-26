@@ -107,6 +107,8 @@ export const bookingSchema = z.object({
     .min(0, 'Admin fee cannot be negative'),
   total_price: z.number()
     .min(0, 'Total price cannot be negative'),
+  minor_participant_id: uuidSchema.optional().nullable(),
+  guardian_attendance_confirmed: z.boolean().optional(),
 });
 
 // Message validation
