@@ -53,4 +53,21 @@ describe('web quality safeguards', () => {
     expect(entities).not.toContain('// Auto-login the user after a successful password reset');
     expect(resetPage).toContain('Please sign in again with your new password.');
   });
+
+  it('provides an installable mobile web app with a safe offline fallback', () => {
+    const html = read('apps/web/index.html');
+    const manifest = JSON.parse(read('apps/web/public/app.webmanifest'));
+    const serviceWorker = read('apps/web/public/service-worker.js');
+    const main = read('apps/web/src/main.jsx');
+
+    expect(html).toContain('rel="manifest"');
+    expect(html).toContain('rel="apple-touch-icon"');
+    expect(html).toContain('name="theme-color"');
+    expect(manifest.display).toBe('standalone');
+    expect(manifest.icons.some((icon) => icon.sizes === '192x192')).toBe(true);
+    expect(manifest.icons.some((icon) => icon.sizes === '512x512')).toBe(true);
+    expect(serviceWorker).toContain("request.mode === 'navigate'");
+    expect(serviceWorker).not.toContain("caches.put(request, response)");
+    expect(main).toContain("navigator.serviceWorker.register('/service-worker.js')");
+  });
 });
