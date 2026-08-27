@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { Buffer } from 'buffer';
 import nodemailer from 'nodemailer';
 
-const CURRENT_POLICY_VERSION = '2026-08-14';
+const CURRENT_POLICY_VERSION = '2026-08-26';
 
 // ---------------------------------------------------------------------------
 // Password helpers (scrypt, no third-party deps)
@@ -986,6 +986,14 @@ const rawHandler = async (event) => {
           if (typeof userData.password !== 'string' || userData.password.length < 8) {
             return { statusCode: 400, headers, body: JSON.stringify({ error: 'Password must be at least 8 characters' }) };
           }
+          const dateOfBirth = new Date(`${userData.date_of_birth || ''}T00:00:00Z`);
+          const today = new Date();
+          let age = today.getUTCFullYear() - dateOfBirth.getUTCFullYear();
+          if (today.getUTCMonth() < dateOfBirth.getUTCMonth() ||
+              (today.getUTCMonth() === dateOfBirth.getUTCMonth() && today.getUTCDate() < dateOfBirth.getUTCDate())) age -= 1;
+          if (Number.isNaN(dateOfBirth.getTime()) || dateOfBirth > today || age < 18) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'FACT account holders and coaches must be at least 18 years old. A parent or legal guardian must manage bookings for a child.' }) };
+          }
         }
 
         const skills = Array.isArray(userData.skills) ? userData.skills : [];
@@ -1008,6 +1016,19 @@ const rawHandler = async (event) => {
           existing = await executeQueryOne(`SELECT id FROM profiles WHERE email = $1 LIMIT 1`, [email]);
         } catch {
           console.warn('⚠️ Email lookup blocked by RLS, proceeding with insert-only flow');
+        }
+
+        if (authMode === 'oauth' && !existing) {
+          const dob = new Date(`${userData.date_of_birth || ''}T00:00:00Z`);
+          const now = new Date();
+          let age = now.getUTCFullYear() - dob.getUTCFullYear();
+          if (now.getUTCMonth() < dob.getUTCMonth() ||
+              (now.getUTCMonth() === dob.getUTCMonth() && now.getUTCDate() < dob.getUTCDate())) age -= 1;
+          const validConsent = userData.terms_accepted === true && userData.privacy_acknowledged === true &&
+            userData.adult_account_confirmed === true && userData.policy_version === CURRENT_POLICY_VERSION;
+          if (!validConsent || Number.isNaN(dob.getTime()) || dob > now || age < 18) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'New FACT accounts require current policy consent and an account holder aged 18 or over' }) };
+          }
         }
 
         if (authMode === 'signup' && existing) {
@@ -1139,6 +1160,7 @@ const rawHandler = async (event) => {
                 terms_version, terms_accepted_at,
                 privacy_version, privacy_acknowledged_at,
                 adult_account_confirmed_at,
+                date_of_birth, age_verified_at,
                 is_active, created_at, updated_at
               )
               VALUES (
@@ -1152,6 +1174,7 @@ const rawHandler = async (event) => {
                 $25::text, CASE WHEN $25::text IS NOT NULL THEN NOW() ELSE NULL END,
                 $25::text, CASE WHEN $25::text IS NOT NULL THEN NOW() ELSE NULL END,
                 CASE WHEN $25::text IS NOT NULL THEN NOW() ELSE NULL END,
+                $26::date, CASE WHEN $26::date IS NOT NULL THEN NOW() ELSE NULL END,
                 true, NOW(), NOW()
               )
               ON CONFLICT (email) DO UPDATE
@@ -1185,7 +1208,8 @@ const rawHandler = async (event) => {
               backgroundCheckFileUrl,
               backgroundCheckStatus,
               userData.background_check_expires_at || null,
-              authMode === 'signup' ? CURRENT_POLICY_VERSION : null
+              authMode !== 'signin' ? CURRENT_POLICY_VERSION : null,
+              authMode !== 'signin' ? userData.date_of_birth : null
             ]
           );
 

@@ -6,7 +6,7 @@ import { withFunctionObservability, captureFunctionError } from './lib/observabi
 import { calculateBookingPrice } from './lib/bookingPricing.js';
 import { notifyBookingEvent } from './lib/transactionalEmail.js';
 
-const CURRENT_POLICY_VERSION = '2026-08-14';
+const CURRENT_POLICY_VERSION = '2026-08-26';
 
 const getAllowedOrigin = (requestOrigin) => {
   const allowedOrigins = [
@@ -183,11 +183,15 @@ const rawHandler = async (event) => {
 
          let query = `SELECT ${baseSelect},
               c.full_name as coach_name, c.avatar_url as coach_avatar,
-              cl.full_name as client_name, cl.avatar_url as client_avatar
+              cl.full_name as client_name, cl.avatar_url as client_avatar,
+              mp.full_name as participant_name,
+              CASE WHEN mp.id IS NOT NULL THEN EXTRACT(YEAR FROM age(CURRENT_DATE, mp.date_of_birth))::int END as participant_age,
+              mp.medical_or_access_notes as participant_support_notes
               ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
             FROM bookings b
             LEFT JOIN profiles c ON b.coach_id = c.id
-            LEFT JOIN profiles cl ON b.client_id = cl.id`;
+            LEFT JOIN profiles cl ON b.client_id = cl.id
+            LEFT JOIN minor_participants mp ON b.minor_participant_id = mp.id`;
 
         const conditions = [];
         const params = [];
@@ -379,6 +383,25 @@ const rawHandler = async (event) => {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'duration must be between 30 and 240 minutes' }) };
         }
 
+        let minorParticipantId = null;
+        let guardianAttendanceConfirmedAt = null;
+        if (bookingData.minor_participant_id) {
+          const participant = await executeQueryOne(
+            `SELECT id FROM minor_participants
+             WHERE id = $1 AND guardian_id = $2 AND is_active = true
+               AND date_of_birth > CURRENT_DATE - INTERVAL '18 years'`,
+            [bookingData.minor_participant_id, currentUserId]
+          );
+          if (!participant) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'The child participant is not managed by this guardian account' }) };
+          }
+          if (bookingData.guardian_attendance_confirmed !== true) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Guardian attendance and safeguarding supervision must be confirmed for an under-18 participant' }) };
+          }
+          minorParticipantId = participant.id;
+          guardianAttendanceConfirmedAt = new Date().toISOString();
+        }
+
         const coach = await executeQueryOne(
           `SELECT id, user_type, is_active, coach_profile, qualification_status,
                   has_background_check, background_check_status, background_check_expires_at,
@@ -416,8 +439,9 @@ const rawHandler = async (event) => {
             coach_id, client_id, service_type, booking_date,
             duration, location_type, location_address, location_notes, client_notes,
             price, admin_fee, total_price, status,
-            policy_version, cancellation_policy_accepted_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+            policy_version, cancellation_policy_accepted_at,
+            minor_participant_id, guardian_attendance_confirmed_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),$15,$16)
           RETURNING *`;
 
         const finalInsertQuery = currentUserId ? withUserCtx(insertQuery, currentUserId) : insertQuery;
@@ -438,7 +462,9 @@ const rawHandler = async (event) => {
             adminFee,
             totalPrice,
             'pending',
-            CURRENT_POLICY_VERSION
+            CURRENT_POLICY_VERSION,
+            minorParticipantId,
+            guardianAttendanceConfirmedAt
           ]
         );
 

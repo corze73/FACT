@@ -322,6 +322,12 @@ export default function MyBookings() {
                                 )}
                               </div>
                             </div>
+                            {booking.minor_participant_id && (
+                              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
+                                <p className="font-semibold">Child participant: {booking.participant_name} (age {booking.participant_age})</p>
+                                <p>You remain responsible for attendance, supervision and communication with the coach.</p>
+                              </div>
+                            )}
 
                             {/* Session Status Component for confirmed/active bookings */}
                             {['confirmed', 'in_session', 'completed'].includes(booking.status) && (

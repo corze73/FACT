@@ -196,6 +196,7 @@ export const User = {
         background_check_type: profileData.background_check_type || null,
         background_check_file_url: profileData.background_check_file_url || null,
         background_check_expires_at: profileData.background_check_expires_at || null,
+        date_of_birth: profileData.date_of_birth || null,
         terms_accepted: profileData.terms_accepted === true,
         privacy_acknowledged: profileData.privacy_acknowledged === true,
         adult_account_confirmed: profileData.adult_account_confirmed === true,

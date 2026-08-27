@@ -10,7 +10,7 @@ describe('launch policy consent', () => {
     const terms = read('apps/web/src/pages/Terms.jsx');
     const privacy = read('apps/web/src/pages/PrivacyPolicy.jsx');
 
-    expect(constants).toContain("POLICY_VERSION = '2026-08-14'");
+    expect(constants).toContain("POLICY_VERSION = '2026-08-26'");
     expect(terms).toContain('POLICY_VERSION');
     expect(privacy).toContain('POLICY_VERSION');
     expect(terms).not.toContain('new Date()');

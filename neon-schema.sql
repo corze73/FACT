@@ -22,6 +22,25 @@ CREATE TABLE IF NOT EXISTS profiles (
     metadata JSONB DEFAULT '{}'::jsonb
 );
 
+ALTER TABLE profiles
+    ADD COLUMN IF NOT EXISTS date_of_birth DATE,
+    ADD COLUMN IF NOT EXISTS age_verified_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS minor_participants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    guardian_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL,
+    date_of_birth DATE NOT NULL,
+    relationship_to_guardian TEXT NOT NULL CHECK (relationship_to_guardian IN ('parent', 'legal_guardian')),
+    emergency_contact_name TEXT,
+    emergency_contact_phone TEXT,
+    medical_or_access_notes TEXT,
+    guardian_consent_at TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Create bookings table
 CREATE TABLE IF NOT EXISTS bookings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -43,6 +62,8 @@ CREATE TABLE IF NOT EXISTS bookings (
     total_price DECIMAL(10,2),
     session_completed_by_user BOOLEAN DEFAULT false,
     session_completed_by_coach BOOLEAN DEFAULT false,
+    minor_participant_id UUID REFERENCES minor_participants(id),
+    guardian_attendance_confirmed_at TIMESTAMPTZ,
     cancellation_reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
