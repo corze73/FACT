@@ -18,6 +18,7 @@ function CoachCard({ coach, onBook, isGuest = false }) {
   const qualificationStatus = coach?.qualification_status || 'incomplete';
   const backgroundStatus = coach?.background_check_status || 'incomplete';
   const backgroundDisplayStatus = getBackgroundCheckDisplayStatus(backgroundStatus, coach?.background_check_expires_at);
+  const insuranceCurrent = coach?.insurance_status === 'verified' && coach?.insurance_expires_at && coach.insurance_expires_at >= new Date().toISOString().slice(0, 10);
   const getServiceStyle = (service) => {
     const styles = {
       goalkeeping: { icon: User, color: "bg-orange-100 text-orange-800" },
@@ -56,7 +57,7 @@ function CoachCard({ coach, onBook, isGuest = false }) {
                 {isGuest ? '?' : (coach.full_name?.charAt(0) || 'C')}
               </span>
             </div>
-            {qualificationStatus === 'verified' && backgroundDisplayStatus === 'verified' && (
+            {qualificationStatus === 'verified' && backgroundDisplayStatus === 'verified' && insuranceCurrent && (
               <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                 <Star className="w-3 h-3 text-white fill-current" />
               </div>

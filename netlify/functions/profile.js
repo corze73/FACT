@@ -84,7 +84,8 @@ const rawHandler = async (event) => {
     const existing = await executeQueryOne(
       withUserCtx(
         `SELECT id, user_type, qualification_file_url, qualification_status,
-                has_background_check, background_check_file_url, background_check_status
+                has_background_check, background_check_file_url, background_check_status,
+                insurance_file_url, insurance_status
          FROM profiles
          WHERE id = $1`,
         auth.userId
@@ -102,6 +103,13 @@ const rawHandler = async (event) => {
     const backgroundCheckType = cleanText(payload.background_check_type, 120);
     const backgroundCheckFileUrl = cleanUrl(payload.background_check_file_url);
     const backgroundCheckExpiresAt = cleanText(payload.background_check_expires_at, 32);
+    const insuranceProvider = cleanText(payload.insurance_provider, 160);
+    const insurancePolicyNumber = cleanText(payload.insurance_policy_number, 160);
+    const insuranceCoverAmount = payload.insurance_cover_amount_gbp === undefined || payload.insurance_cover_amount_gbp === null || payload.insurance_cover_amount_gbp === ''
+      ? null : Number(payload.insurance_cover_amount_gbp);
+    const insuranceFileUrl = cleanUrl(payload.insurance_file_url);
+    const insuranceStartsAt = cleanText(payload.insurance_starts_at, 32);
+    const insuranceExpiresAt = cleanText(payload.insurance_expires_at, 32);
 
     if (hasBackgroundCheck && !backgroundCheckFileUrl && !existing.background_check_file_url) {
       return {
@@ -113,6 +121,19 @@ const rawHandler = async (event) => {
 
     if (backgroundCheckExpiresAt && Number.isNaN(Date.parse(backgroundCheckExpiresAt))) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid background_check_expires_at date' }) };
+    }
+    const hasAnyInsurance = Boolean(insuranceProvider || insurancePolicyNumber || insuranceExpiresAt || insuranceFileUrl || existing.insurance_file_url);
+    if (hasAnyInsurance && (!insuranceProvider || !insurancePolicyNumber || !insuranceExpiresAt || (!insuranceFileUrl && !existing.insurance_file_url))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Insurance provider, policy number, expiry date and certificate are required' }) };
+    }
+    if (insuranceStartsAt && Number.isNaN(Date.parse(insuranceStartsAt))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid insurance_starts_at date' }) };
+    }
+    if (insuranceExpiresAt && Number.isNaN(Date.parse(insuranceExpiresAt))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid insurance_expires_at date' }) };
+    }
+    if (insuranceCoverAmount !== null && (!Number.isFinite(insuranceCoverAmount) || insuranceCoverAmount < 0)) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid insurance cover amount' }) };
     }
 
     let qualificationStatus = existing.qualification_status || 'incomplete';
@@ -131,7 +152,11 @@ const rawHandler = async (event) => {
       backgroundStatus = 'incomplete';
     }
 
-    if (!isAllowedStatus(qualificationStatus) || !isAllowedStatus(backgroundStatus)) {
+    let insuranceStatus = existing.insurance_status || 'incomplete';
+    if (insuranceFileUrl) insuranceStatus = 'pending';
+    else if (!existing.insurance_file_url) insuranceStatus = 'incomplete';
+
+    if (!isAllowedStatus(qualificationStatus) || !isAllowedStatus(backgroundStatus) || !isAllowedStatus(insuranceStatus)) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid compliance status' }) };
     }
 
@@ -152,12 +177,21 @@ const rawHandler = async (event) => {
                WHEN $4 THEN COALESCE($8::date, background_check_expires_at)
                ELSE NULL
              END,
+             insurance_provider = $9,
+             insurance_policy_number = $10,
+             insurance_cover_amount_gbp = $11,
+             insurance_file_url = COALESCE($12, insurance_file_url),
+             insurance_status = $13,
+             insurance_starts_at = $14::date,
+             insurance_expires_at = $15::date,
              coach_profile = jsonb_set(COALESCE(coach_profile, '{}'::jsonb), '{is_verified}', 'false'::jsonb, true),
              updated_at = NOW()
-         WHERE id = $9
+         WHERE id = $16
          RETURNING id, qualification_type, qualification_file_url, qualification_status,
                    has_background_check, background_check_type, background_check_file_url,
                    background_check_status, background_check_expires_at,
+                   insurance_provider, insurance_policy_number, insurance_cover_amount_gbp,
+                   insurance_file_url, insurance_status, insurance_starts_at, insurance_expires_at,
                    verification_notes, verified_at, verified_by`,
         auth.userId
       ),
@@ -170,6 +204,13 @@ const rawHandler = async (event) => {
         backgroundCheckFileUrl,
         backgroundStatus,
         backgroundCheckExpiresAt,
+        insuranceProvider,
+        insurancePolicyNumber,
+        insuranceCoverAmount,
+        insuranceFileUrl,
+        insuranceStatus,
+        insuranceStartsAt,
+        insuranceExpiresAt,
         auth.userId
       ]
     );

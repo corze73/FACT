@@ -734,7 +734,8 @@ const listComplianceExpiring = async ({ event, headers, adminId }) => {
     withUserCtx(
       `SELECT id, full_name, email, city, country,
               background_check_status, background_check_expires_at,
-              qualification_status, has_background_check
+              qualification_status, has_background_check,
+              insurance_status, insurance_expires_at
               ${includeTotal ? ', COUNT(*) OVER() AS total_count' : ''}
        FROM profiles
        WHERE user_type = 'coach'
@@ -742,8 +743,11 @@ const listComplianceExpiring = async ({ event, headers, adminId }) => {
          AND has_background_check = true
          AND background_check_status = 'verified'
          AND background_check_expires_at IS NOT NULL
-         AND background_check_expires_at <= CURRENT_DATE + ($1::int * INTERVAL '1 day')
-       ORDER BY background_check_expires_at ASC
+         AND (
+           background_check_expires_at <= CURRENT_DATE + ($1::int * INTERVAL '1 day')
+           OR (insurance_status = 'verified' AND insurance_expires_at IS NOT NULL AND insurance_expires_at <= CURRENT_DATE + ($1::int * INTERVAL '1 day'))
+         )
+       ORDER BY LEAST(background_check_expires_at, COALESCE(insurance_expires_at, background_check_expires_at)) ASC
        LIMIT ${limit} OFFSET ${offset}`,
       adminId
     ),

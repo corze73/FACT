@@ -501,6 +501,8 @@ const rawHandler = async (event) => {
                  background_check_type,
                  background_check_status,
                  background_check_expires_at,
+                 insurance_status,
+                 insurance_expires_at,
                  verification_notes,
                  created_at,
                  updated_at,
@@ -608,6 +610,8 @@ const rawHandler = async (event) => {
             background_check_status,
             background_check_expires_at,
             has_background_check,
+            insurance_status,
+            insurance_expires_at,
             LEFT(COALESCE(NULLIF(TRIM(bio), ''), coach_profile->>'headline', ''), 280) AS bio,
             COALESCE(coach_profile->'services_offered', '[]'::jsonb) AS services_offered,
             COALESCE((coach_profile->>'hourly_rate')::numeric, 0) AS hourly_rate,
@@ -637,6 +641,8 @@ const rawHandler = async (event) => {
             background_check_type,
             background_check_status,
             background_check_expires_at,
+            insurance_status,
+            insurance_expires_at,
             verification_notes,
             created_at,
             updated_at,
@@ -683,6 +689,9 @@ const rawHandler = async (event) => {
             conditions.push(`background_check_status = 'verified'`);
             conditions.push(`background_check_expires_at IS NOT NULL`);
             conditions.push(`background_check_expires_at >= CURRENT_DATE`);
+            conditions.push(`insurance_status = 'verified'`);
+            conditions.push(`insurance_expires_at IS NOT NULL`);
+            conditions.push(`insurance_expires_at >= CURRENT_DATE`);
             conditions.push(`NULLIF(TRIM(COALESCE(country, '')), '') IS NOT NULL`);
             conditions.push(`NULLIF(TRIM(COALESCE(city, '')), '') IS NOT NULL`);
           }

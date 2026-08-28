@@ -102,6 +102,13 @@ const listVerifications = async ({ event, headers, adminId }) => {
     background_check_file_url,
     background_check_status,
     background_check_expires_at,
+    insurance_provider,
+    insurance_policy_number,
+    insurance_cover_amount_gbp,
+    insurance_file_url,
+    insurance_status,
+    insurance_starts_at,
+    insurance_expires_at,
     verification_notes,
     verified_at,
     verified_by
@@ -114,6 +121,7 @@ const listVerifications = async ({ event, headers, adminId }) => {
       AND (
         qualification_status = $1
         OR (has_background_check = true AND background_check_status = $1)
+        OR insurance_status = $1
       )
     ORDER BY updated_at DESC
     LIMIT ${limit} OFFSET ${offset}
@@ -146,12 +154,14 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
   const body = parseBody(event);
   const qualificationStatus = body.qualification_status;
   const backgroundStatus = body.background_check_status;
+  const insuranceStatus = body.insurance_status;
   const notes = typeof body.verification_notes === 'string' ? body.verification_notes.trim().slice(0, 2000) : null;
 
   const coach = await executeQueryOne(
     withUserCtx(
       `SELECT id, qualification_type, qualification_file_url, has_background_check,
-              background_check_type, background_check_file_url, background_check_expires_at
+              background_check_type, background_check_file_url, background_check_expires_at,
+              insurance_provider, insurance_policy_number, insurance_file_url, insurance_expires_at
        FROM profiles WHERE id = $1 AND user_type = 'coach'`,
       adminId
     ),
@@ -172,13 +182,24 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
   ) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid background_check_status' }) };
   }
+  if (insuranceStatus !== undefined && !allowedStatuses.has(insuranceStatus)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid insurance_status' }) };
+  }
 
-  if (qualificationStatus === undefined && backgroundStatus === undefined && notes === null) {
+  if (qualificationStatus === undefined && backgroundStatus === undefined && insuranceStatus === undefined && notes === null) {
     return {
       statusCode: 400,
       headers,
       body: JSON.stringify({ error: 'At least one field must be provided' })
     };
+  }
+  if (insuranceStatus === 'verified') {
+    if (!coach.insurance_provider || !coach.insurance_policy_number || !coach.insurance_file_url) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'Insurance provider, policy number and certificate are required before approval' }) };
+    }
+    if (!coach.insurance_expires_at || isPastDate(coach.insurance_expires_at)) {
+      return { statusCode: 409, headers, body: JSON.stringify({ error: 'A current insurance expiry date is required before approval' }) };
+    }
   }
 
   if (qualificationStatus === 'verified' && (!coach.qualification_type || !coach.qualification_file_url)) {
@@ -194,7 +215,7 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
     }
   }
 
-  const stampVerification = [qualificationStatus, backgroundStatus].some(
+  const stampVerification = [qualificationStatus, backgroundStatus, insuranceStatus].some(
     (value) => value === 'verified' || value === 'rejected'
   );
 
@@ -203,30 +224,35 @@ const updateVerification = async ({ event, headers, adminId, coachId }) => {
       `UPDATE profiles
        SET qualification_status = COALESCE($1, qualification_status),
            background_check_status = COALESCE($2, background_check_status),
-           verification_notes = COALESCE($3, verification_notes),
+           insurance_status = COALESCE($3, insurance_status),
+           verification_notes = COALESCE($4, verification_notes),
            coach_profile = jsonb_set(
              COALESCE(coach_profile, '{}'::jsonb),
              '{is_verified}',
              to_jsonb(
                COALESCE($1, qualification_status) = 'verified'
                AND COALESCE($2, background_check_status) = 'verified'
+               AND COALESCE($3, insurance_status) = 'verified'
                AND background_check_expires_at IS NOT NULL
                AND background_check_expires_at >= CURRENT_DATE
+               AND insurance_expires_at IS NOT NULL
+               AND insurance_expires_at >= CURRENT_DATE
              ),
              true
            ),
-           verified_at = CASE WHEN $4 THEN NOW() ELSE verified_at END,
-           verified_by = CASE WHEN $4 THEN $5::uuid ELSE verified_by END,
+           verified_at = CASE WHEN $5 THEN NOW() ELSE verified_at END,
+           verified_by = CASE WHEN $5 THEN $6::uuid ELSE verified_by END,
            updated_at = NOW()
-       WHERE id = $6
+       WHERE id = $7
          AND user_type = 'coach'
-       RETURNING id, full_name, qualification_status, background_check_status,
+       RETURNING id, full_name, qualification_status, background_check_status, insurance_status,
                  verification_notes, verified_at, verified_by,
                  qualification_file_url, background_check_file_url,
-                 background_check_type, background_check_expires_at`,
+                 background_check_type, background_check_expires_at,
+                 insurance_provider, insurance_policy_number, insurance_file_url, insurance_expires_at`,
       adminId
     ),
-    [qualificationStatus ?? null, backgroundStatus ?? null, notes, stampVerification, adminId, coachId]
+    [qualificationStatus ?? null, backgroundStatus ?? null, insuranceStatus ?? null, notes, stampVerification, adminId, coachId]
   );
 
   if (!updated) {

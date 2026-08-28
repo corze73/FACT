@@ -74,8 +74,60 @@ export default function Help() {
   const [editorSaving, setEditorSaving] = useState(false);
   const [editorError, setEditorError] = useState("");
   const importInputRef = useRef(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantQuestion, setAssistantQuestion] = useState("");
+  const [assistantMessages, setAssistantMessages] = useState([
+    { role: 'assistant', text: 'Hello - I am the automated FACT Support Assistant. I can answer common account, booking, payment and verification questions.' }
+  ]);
+  const [supportCategory, setSupportCategory] = useState('other');
+  const [transcriptConsent, setTranscriptConsent] = useState(false);
+  const [supportSending, setSupportSending] = useState(false);
+  const [supportReference, setSupportReference] = useState('');
 
   const roleLabel = userType === "coach" ? "coach" : userType === "admin" ? "admin" : "client";
+
+  const safeguardingPattern = /\b(child|minor|unsafe|abuse|groom|threat|assault|harass|injur|immediate danger|self[- ]?harm|suicid)/i;
+  const askAssistant = () => {
+    const question = assistantQuestion.trim();
+    if (!question) return;
+    const next = [...assistantMessages, { role: 'user', text: question }];
+    if (safeguardingPattern.test(question)) {
+      next.push({ role: 'assistant', urgent: true, text: 'This may be a safeguarding concern. I cannot investigate it. Please use the secure safeguarding report now. If anyone is in immediate danger, call 999.' });
+    } else {
+      const words = question.toLowerCase().split(/\W+/).filter((word) => word.length > 3);
+      const candidates = roleScopedFaq.map((faq) => ({ faq, score: words.filter((word) => `${faq.q} ${faq.a} ${(faq.keywords || []).join(' ')}`.toLowerCase().includes(word)).length }));
+      const best = candidates.sort((a, b) => b.score - a.score)[0];
+      next.push(best?.score > 0
+        ? { role: 'assistant', text: best.faq.a }
+        : { role: 'assistant', unresolved: true, text: 'I could not find a reliable answer in FACT’s approved help guidance. You can send this conversation to the support team below.' });
+    }
+    setAssistantMessages(next);
+    setAssistantQuestion('');
+  };
+
+  const escalateToSupport = async () => {
+    setSupportSending(true);
+    setSupportReference('');
+    try {
+      const transcript = assistantMessages.map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.text}`).join('\n');
+      const result = await apiClient.submitSupportRequest({
+        category: supportCategory,
+        subject: `Support Assistant escalation - ${supportCategory}`,
+        description: transcript,
+        latest_user_message: [...assistantMessages].reverse().find((message) => message.role === 'user')?.text || '',
+        transcript_consent: transcriptConsent
+      });
+      setSupportReference(result?.data?.reference || 'Submitted');
+    } catch (error) {
+      if (error?.message?.toLowerCase().includes('safeguarding')) {
+        navigate(createPageUrl('SafeguardingReport'));
+      } else {
+        alertToast(error?.message || 'Unable to send this request to support.');
+      }
+    } finally {
+      setSupportSending(false);
+    }
+  };
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -804,6 +856,36 @@ export default function Help() {
                 ))}
               </Accordion>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2"><MessageCircle className="w-5 h-5" /> FACT Support Assistant</span>
+              <Badge variant="outline">Automated</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-slate-600">Immediate guidance from FACT’s approved help content. Do not include unnecessary information about a child, health, passwords or payment-card details.</p>
+            {!assistantOpen ? <Button onClick={() => setAssistantOpen(true)}>Start support chat</Button> : <>
+              <div className="max-h-80 overflow-y-auto rounded-lg border bg-slate-50 p-3 space-y-3" aria-live="polite">
+                {assistantMessages.map((message, index) => <div key={index} className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${message.role === 'user' ? 'ml-auto bg-blue-600 text-white' : message.urgent ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-white text-slate-800 border'}`}>
+                  {message.text}
+                  {message.urgent && <div className="mt-2"><Button size="sm" onClick={() => navigate(createPageUrl('SafeguardingReport'))}>Open safeguarding report</Button></div>}
+                </div>)}
+              </div>
+              <div className="flex gap-2"><Input value={assistantQuestion} onChange={(e) => setAssistantQuestion(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') askAssistant(); }} placeholder="How can we help?" /><Button onClick={askAssistant}>Send</Button></div>
+              <div className="border-t pt-4 space-y-3">
+                <p className="font-medium text-slate-900">Still need a person?</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Select value={supportCategory} onValueChange={setSupportCategory}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="account">Account</SelectItem><SelectItem value="booking">Booking</SelectItem><SelectItem value="payments">Payments</SelectItem><SelectItem value="verification">Coach verification</SelectItem><SelectItem value="technical">Technical</SelectItem><SelectItem value="complaint">Complaint</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select>
+                  <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={transcriptConsent} onChange={(e) => setTranscriptConsent(e.target.checked)} className="mt-1" /> I agree that this conversation can be sent to FACT Support.</label>
+                </div>
+                <Button variant="outline" onClick={escalateToSupport} disabled={!transcriptConsent || supportSending}>{supportSending ? 'Sending…' : 'Send to support@findacoachtoday.com'}</Button>
+                {supportReference && <p className="text-sm text-emerald-700 font-medium">Request received. Your reference is {supportReference}.</p>}
+              </div>
+            </>}
           </CardContent>
         </Card>
 

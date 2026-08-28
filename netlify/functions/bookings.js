@@ -405,7 +405,9 @@ const rawHandler = async (event) => {
         const coach = await executeQueryOne(
           `SELECT id, user_type, is_active, coach_profile, qualification_status,
                   has_background_check, background_check_status, background_check_expires_at,
-                  (background_check_expires_at IS NOT NULL AND background_check_expires_at >= CURRENT_DATE) AS background_check_current
+                  insurance_status, insurance_expires_at,
+                  (background_check_expires_at IS NOT NULL AND background_check_expires_at >= CURRENT_DATE) AS background_check_current,
+                  (insurance_expires_at IS NOT NULL AND insurance_expires_at >= CURRENT_DATE) AS insurance_current
            FROM profiles
            WHERE id = $1`,
           [bookingData.coach_id]
@@ -416,7 +418,8 @@ const rawHandler = async (event) => {
         const backgroundCheckCurrent = coach.has_background_check === true &&
           coach.background_check_status === 'verified' &&
           coach.background_check_current === true;
-        if (coach.qualification_status !== 'verified' || !backgroundCheckCurrent) {
+        const insuranceCurrent = coach.insurance_status === 'verified' && coach.insurance_current === true;
+        if (coach.qualification_status !== 'verified' || !backgroundCheckCurrent || !insuranceCurrent) {
           return {
             statusCode: 409,
             headers,

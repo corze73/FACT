@@ -37,6 +37,7 @@ export default function CoachProfile() {
   const [, setUploadingImage] = useState(false); // value not read; only setter used
   const [isUploadingQualification, setIsUploadingQualification] = useState(false);
   const [isUploadingBackgroundCheck, setIsUploadingBackgroundCheck] = useState(false);
+  const [isUploadingInsurance, setIsUploadingInsurance] = useState(false);
   const [isViewingAnotherProfile, setIsViewingAnotherProfile] = useState(false);
   const [payoutStatus, setPayoutStatus] = useState(null);
   const [isConnectingPayouts, setIsConnectingPayouts] = useState(false);
@@ -98,6 +99,13 @@ export default function CoachProfile() {
         background_check_file_url: userToLoad.background_check_file_url || '',
         background_check_status: userToLoad.background_check_status || 'incomplete',
         background_check_expires_at: userToLoad.background_check_expires_at || '',
+        insurance_provider: userToLoad.insurance_provider || '',
+        insurance_policy_number: userToLoad.insurance_policy_number || '',
+        insurance_cover_amount_gbp: userToLoad.insurance_cover_amount_gbp || '',
+        insurance_file_url: userToLoad.insurance_file_url || '',
+        insurance_status: userToLoad.insurance_status || 'incomplete',
+        insurance_starts_at: userToLoad.insurance_starts_at || '',
+        insurance_expires_at: userToLoad.insurance_expires_at || '',
         verification_notes: userToLoad.verification_notes || '',
         coach_profile: {
           hourly_rate: userToLoad.coach_profile?.hourly_rate || 50,
@@ -281,6 +289,9 @@ export default function CoachProfile() {
     formData?.background_check_status,
     formData?.background_check_expires_at
   );
+  const insuranceDaysRemaining = formData?.insurance_expires_at
+    ? Math.ceil((new Date(`${formData.insurance_expires_at}T23:59:59`).getTime() - Date.now()) / 86400000)
+    : null;
 
   const getStatusTone = (status) => {
     switch (status) {
@@ -355,6 +366,10 @@ export default function CoachProfile() {
         alertToast(`Please select your ${getBackgroundLabel()} type before saving.`);
         return;
       }
+      if (!isViewingAsAdmin && (!formData.insurance_provider || !formData.insurance_policy_number || !formData.insurance_expires_at || !formData.insurance_file_url)) {
+        alertToast('Please add your insurer, policy number, expiry date and insurance certificate before saving.');
+        return;
+      }
       
       // Merge validated data
       const dataToSave = {
@@ -374,9 +389,15 @@ export default function CoachProfile() {
         background_check_type: formData.background_check_type,
         background_check_file_url: formData.background_check_file_url,
         background_check_expires_at: formData.background_check_expires_at || null
+        ,insurance_provider: formData.insurance_provider,
+        insurance_policy_number: formData.insurance_policy_number,
+        insurance_cover_amount_gbp: formData.insurance_cover_amount_gbp || null,
+        insurance_file_url: formData.insurance_file_url,
+        insurance_starts_at: formData.insurance_starts_at || null,
+        insurance_expires_at: formData.insurance_expires_at || null
       });
 
-      const awaitingApproval = Boolean(formData.qualification_file_url) || Boolean(formData.background_check_file_url);
+      const awaitingApproval = Boolean(formData.qualification_file_url) || Boolean(formData.background_check_file_url) || Boolean(formData.insurance_file_url);
       if (awaitingApproval) {
         alertToast("Profile and compliance saved. Your documents are now awaiting admin approval.");
       } else {
@@ -797,11 +818,44 @@ export default function CoachProfile() {
                       </div>
                     )}
 
-                    {formData.verification_notes && (formData.qualification_status === 'rejected' || formData.background_check_status === 'rejected') && (
+                    {formData.verification_notes && (formData.qualification_status === 'rejected' || formData.background_check_status === 'rejected' || formData.insurance_status === 'rejected') && (
                       <p className="text-sm text-red-700 bg-red-50 rounded-md p-2">
                         Verification notes: {formData.verification_notes}
                       </p>
                     )}
+
+                    <div className="border-t pt-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-slate-900">Professional insurance</p>
+                          <p className="text-xs text-slate-600">Upload your public liability or coaching insurance certificate. New bookings require current, approved cover.</p>
+                        </div>
+                        <Badge className={getStatusTone(formData.insurance_status)}>
+                          Insurance: {formData.insurance_status || 'incomplete'}
+                        </Badge>
+                      </div>
+                      {insuranceDaysRemaining !== null && insuranceDaysRemaining <= 30 && (
+                        <p className={`text-sm rounded-md p-2 ${insuranceDaysRemaining < 0 ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
+                          {insuranceDaysRemaining < 0 ? 'Your insurance has expired. New bookings are paused until replacement cover is approved.' : `Your insurance expires in ${insuranceDaysRemaining} day${insuranceDaysRemaining === 1 ? '' : 's'}. Upload renewed cover now to avoid booking interruption.`}
+                        </p>
+                      )}
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div className="space-y-1"><Label htmlFor="insurance_provider">Insurer</Label><Input id="insurance_provider" value={formData.insurance_provider || ''} onChange={(e) => handleInputChange('insurance_provider', e.target.value)} disabled={isViewingAsAdmin} placeholder="Insurance provider" /></div>
+                        <div className="space-y-1"><Label htmlFor="insurance_policy_number">Policy number</Label><Input id="insurance_policy_number" value={formData.insurance_policy_number || ''} onChange={(e) => handleInputChange('insurance_policy_number', e.target.value)} disabled={isViewingAsAdmin} /></div>
+                        <div className="space-y-1"><Label htmlFor="insurance_cover_amount_gbp">Cover amount (£, optional)</Label><Input id="insurance_cover_amount_gbp" type="number" min="0" value={formData.insurance_cover_amount_gbp || ''} onChange={(e) => handleInputChange('insurance_cover_amount_gbp', e.target.value)} disabled={isViewingAsAdmin} /></div>
+                        <div className="space-y-1"><Label htmlFor="insurance_starts_at">Cover starts (optional)</Label><Input id="insurance_starts_at" type="date" value={formData.insurance_starts_at || ''} onChange={(e) => handleInputChange('insurance_starts_at', e.target.value)} disabled={isViewingAsAdmin} /></div>
+                        <div className="space-y-1"><Label htmlFor="insurance_expires_at">Cover expires</Label><Input id="insurance_expires_at" type="date" value={formData.insurance_expires_at || ''} onChange={(e) => handleInputChange('insurance_expires_at', e.target.value)} disabled={isViewingAsAdmin} /></div>
+                      </div>
+                      {!isViewingAsAdmin && <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={async (e) => {
+                        const file = e.target.files?.[0]; if (!file) return;
+                        setIsUploadingInsurance(true);
+                        try { const url = await uploadComplianceFile(file, 'insurance'); if (url) setFormData((prev) => ({ ...prev, insurance_file_url: url, insurance_status: 'pending' })); }
+                        catch (error) { alertToast(error.message || 'Failed to upload insurance certificate'); }
+                        finally { setIsUploadingInsurance(false); }
+                      }} />}
+                      {isUploadingInsurance && <p className="text-xs text-slate-500">Uploading insurance certificate…</p>}
+                      {formData.insurance_file_url && (!isViewingAsAdmin || currentUser?.user_type === 'admin') && <a href={formData.insurance_file_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">View uploaded insurance certificate</a>}
+                    </div>
                   </div>
 
                   {!isViewingAsAdmin && (

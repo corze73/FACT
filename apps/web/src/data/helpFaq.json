@@ -214,5 +214,21 @@
     "q": "What should I do if account details look wrong?",
     "a": "Update your profile immediately and revoke sessions from account tools if needed, then message support so we can review account activity.",
     "keywords": ["security", "revoke sessions", "account"]
+  },
+  {
+    "id": "coach-insurance-required",
+    "role": "coach",
+    "category": "verification",
+    "q": "What insurance evidence must I provide?",
+    "a": "Add your insurer, policy number, cover dates and current public liability or appropriate coaching insurance certificate in your coach profile. FACT must approve it before you can accept bookings.",
+    "keywords": ["insurance", "public liability", "certificate", "policy", "expiry", "cover"]
+  },
+  {
+    "id": "coach-insurance-expiry",
+    "role": "coach",
+    "category": "verification",
+    "q": "What happens when my insurance expires?",
+    "a": "FACT warns you when cover is within 30 days of expiry. If it expires, new bookings are paused and the verified status is removed until replacement evidence is approved.",
+    "keywords": ["insurance", "expired", "expiry", "renew", "bookings paused"]
   }
 ]

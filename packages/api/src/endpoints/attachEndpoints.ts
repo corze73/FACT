@@ -149,6 +149,9 @@ export const attachEndpoints = (client: APIClient) => {
     updateCompliance(payload: unknown = {}) {
       return client.request('/profile/compliance', { method: 'PATCH', body: JSON.stringify(payload) });
     },
+    submitSupportRequest(payload: unknown = {}) {
+      return client.request('/support', { method: 'POST', body: JSON.stringify(payload) });
+    },
     getAdminVerifications(filters: Record<string, unknown> = {}) {
       const params = client.buildQueryParams(filters);
       return client.request(`/admin/verifications?${params}`);

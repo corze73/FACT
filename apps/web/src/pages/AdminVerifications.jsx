@@ -142,6 +142,19 @@ export default function AdminVerifications() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge className={tone(coach.qualification_status)}>Qualification: {coach.qualification_status}</Badge>
                       <Badge className={tone(backgroundDisplayStatus)}>Background Check: {backgroundDisplayStatus}</Badge>
+                      <Badge className={tone(coach.insurance_status)}>Insurance: {coach.insurance_status || 'incomplete'}</Badge>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-md p-3 space-y-2">
+                    <p className="text-sm font-medium text-slate-700">Insurance certificate</p>
+                    <p className="text-sm text-slate-600">Provider: {coach.insurance_provider || 'Not specified'}</p>
+                    <p className="text-sm text-slate-600">Policy: {coach.insurance_policy_number || 'Not specified'}</p>
+                    <p className="text-sm text-slate-600">Cover: {coach.insurance_cover_amount_gbp ? `£${Number(coach.insurance_cover_amount_gbp).toLocaleString()}` : 'Not specified'} · Expiry: {coach.insurance_expires_at || 'Not provided'}</p>
+                    {coach.insurance_file_url ? <a className="text-blue-600 underline text-sm" href={coach.insurance_file_url} target="_blank" rel="noreferrer">Open insurance certificate</a> : <p className="text-sm text-slate-500">No file uploaded</p>}
+                    <div className="flex gap-2">
+                      <Button size="sm" disabled={isSaving || !coach.insurance_provider || !coach.insurance_policy_number || !coach.insurance_file_url || !coach.insurance_expires_at || new Date(coach.insurance_expires_at) < new Date()} onClick={() => applyDecision(coach.id, { insurance_status: 'verified' }, 'Insurance approval')}>Approve</Button>
+                      <Button size="sm" variant="outline" disabled={isSaving} onClick={() => applyDecision(coach.id, { insurance_status: 'rejected' }, 'Insurance rejection')}>Reject</Button>
                     </div>
                   </div>
 

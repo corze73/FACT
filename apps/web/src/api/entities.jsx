@@ -146,7 +146,13 @@ export const User = {
       'has_background_check',
       'background_check_type',
       'background_check_file_url',
-      'background_check_expires_at'
+      'background_check_expires_at',
+      'insurance_provider',
+      'insurance_policy_number',
+      'insurance_cover_amount_gbp',
+      'insurance_file_url',
+      'insurance_starts_at',
+      'insurance_expires_at'
     ].some((key) => key in dataToUpdate);
 
     if (hasComplianceFields) {
@@ -156,7 +162,13 @@ export const User = {
         has_background_check: dataToUpdate.has_background_check,
         background_check_type: dataToUpdate.background_check_type,
         background_check_file_url: dataToUpdate.background_check_file_url,
-        background_check_expires_at: dataToUpdate.background_check_expires_at
+        background_check_expires_at: dataToUpdate.background_check_expires_at,
+        insurance_provider: dataToUpdate.insurance_provider,
+        insurance_policy_number: dataToUpdate.insurance_policy_number,
+        insurance_cover_amount_gbp: dataToUpdate.insurance_cover_amount_gbp,
+        insurance_file_url: dataToUpdate.insurance_file_url,
+        insurance_starts_at: dataToUpdate.insurance_starts_at,
+        insurance_expires_at: dataToUpdate.insurance_expires_at
       });
     }
 
